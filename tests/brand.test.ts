@@ -14,7 +14,7 @@ const producer = (name: string): Producer => ({
 });
 
 test("taylorName finds him regardless of position", () => {
-  assert.equal(taylorName([producer("Justin Hartmann"), producer("Taylor Drew")]), "Taylor Drew");
+  assert.equal(taylorName([producer("Sam Reyes"), producer("Taylor Drew")]), "Taylor Drew");
 });
 
 test("taylorName is case-insensitive", () => {
@@ -22,13 +22,13 @@ test("taylorName is case-insensitive", () => {
 });
 
 test("taylorName falls back to the literal name if he's not in the list", () => {
-  assert.equal(taylorName([producer("Justin Hartmann")]), "Taylor Drew");
+  assert.equal(taylorName([producer("Sam Reyes")]), "Taylor Drew");
 });
 
 test("creditLine tags only Taylor Drew as a stand-up comedian", () => {
   assert.equal(
-    creditLine([producer("Taylor Drew"), producer("Justin Hartmann")]),
-    "stand-up comedian Taylor Drew and Justin Hartmann"
+    creditLine([producer("Taylor Drew"), producer("Sam Reyes")]),
+    "stand-up comedian Taylor Drew and Sam Reyes"
   );
 });
 
@@ -38,8 +38,8 @@ test("creditLine handles Taylor Drew alone", () => {
 
 test("creditLine oxford-commas three or more producers", () => {
   assert.equal(
-    creditLine([producer("Taylor Drew"), producer("Justin Hartmann"), producer("Alex Doe")]),
-    "stand-up comedian Taylor Drew, Justin Hartmann, and Alex Doe"
+    creditLine([producer("Taylor Drew"), producer("Sam Reyes"), producer("Alex Doe")]),
+    "stand-up comedian Taylor Drew, Sam Reyes, and Alex Doe"
   );
 });
 
@@ -49,7 +49,7 @@ test("creditLine survives an empty producer list", () => {
 
 test("creditLine still credits him if the admin renames or reorders", () => {
   // A guard against a future edit silently dropping the attribution.
-  assert.match(creditLine([producer("Justin Hartmann"), producer("Taylor Drew Jr.")]), /stand-up comedian Taylor Drew Jr\./);
+  assert.match(creditLine([producer("Sam Reyes"), producer("Taylor Drew Jr.")]), /stand-up comedian Taylor Drew Jr\./);
 });
 
 test("taylorKeyword is a natural two-word phrase", () => {
@@ -57,10 +57,10 @@ test("taylorKeyword is a natural two-word phrase", () => {
 });
 
 test("taylorFaq names the other producers without re-crediting them", () => {
-  const faq = taylorFaq([producer("Taylor Drew"), producer("Justin Hartmann")], "Pins & Needles Comedy");
+  const faq = taylorFaq([producer("Taylor Drew"), producer("Sam Reyes")], "Pins & Needles Comedy");
   assert.equal(faq.q, "Who created Pins & Needles Comedy?");
   assert.match(faq.a, /created by stand-up comedian Taylor Drew/);
-  assert.match(faq.a, /alongside Justin Hartmann/);
+  assert.match(faq.a, /alongside Sam Reyes/);
 });
 
 test("taylorFaq reads cleanly when he is the only producer", () => {

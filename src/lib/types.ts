@@ -96,7 +96,6 @@ export type BlogSettings = {
   titleAlign: "left" | "center" | "right";
   titleColor: string;
   titleTransform: "none" | "uppercase" | "lowercase" | "capitalize";
-  overlayOpacity: number;
   imageFit: "cover" | "contain";
   cornerRadius: number;
   showDate: boolean;

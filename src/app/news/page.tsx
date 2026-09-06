@@ -73,10 +73,7 @@ export default async function NewsIndexPage() {
             />
             <span
               className="pointer-events-none absolute inset-x-0 bottom-0"
-              style={{
-                padding: blogSettings.titlePadding,
-                background: `linear-gradient(to top, rgba(0,0,0,${blogSettings.overlayOpacity}) 0%, rgba(0,0,0,0) 100%)`,
-              }}
+              style={{ padding: blogSettings.titlePadding }}
             >
               <span
                 className="mb-1 block uppercase opacity-70"

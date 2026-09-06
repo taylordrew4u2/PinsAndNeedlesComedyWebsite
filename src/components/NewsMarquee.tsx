@@ -103,12 +103,7 @@ export default function NewsMarquee({
 
               <span
                 className="pointer-events-none absolute inset-x-0 bottom-0"
-                style={{
-                  padding: settings.titlePadding,
-                  background: `linear-gradient(to top, rgba(0,0,0,${settings.overlayOpacity}) 0%, rgba(0,0,0,${
-                    settings.overlayOpacity * 0.75
-                  }) 45%, rgba(0,0,0,0) 100%)`,
-                }}
+                style={{ padding: settings.titlePadding }}
               >
                 {settings.showDate ? (
                   <span

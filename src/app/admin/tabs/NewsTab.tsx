@@ -161,14 +161,6 @@ export default function NewsTab({ content, update }: { content: Content; update:
             onChange={(v) => update((d) => void (d.blogSettings.titleColor = v))}
           />
         </Row>
-        <Num
-          label="Dark overlay behind the title"
-          value={Math.round(settings.overlayOpacity * 100)}
-          min={0}
-          max={100}
-          suffix="%"
-          onChange={(v) => update((d) => void (d.blogSettings.overlayOpacity = v / 100))}
-        />
         <Row>
           <Toggle
             label="Show the date on cards"
