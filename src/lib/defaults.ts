@@ -18,15 +18,6 @@ const PRODUCERS: Producer[] = [
     bio: "Taylor Drew created Pins & Needles Comedy and produces every show. A New York City stand-up comedian and builder of tools for live comedy, Taylor runs the lineup, the room and the run of show.",
     links: [],
   },
-  {
-    id: "producer-justin",
-    name: "Justin Hartmann",
-    role: "Host & Producer",
-    headshotUrl: "",
-    headshotAlt: "Justin Hartmann, host and producer of Pins & Needles Comedy",
-    bio: "Justin Hartmann co-hosts and co-produces Pins & Needles Comedy, working the room and keeping the pacing tight from the first comic to the last.",
-    links: [],
-  },
 ];
 
 const post = (seed: SeedPost): Post => {
@@ -302,7 +293,7 @@ export const defaultContent: Content = {
     intro: "Tattoo culture meets stand-up comedy.",
     story: `Pins & Needles Comedy is an NYC-based stand-up showcase operating just outside the traditional club circuit, with a sensibility shaped by tattoo culture and alternative comedy scenes. The show pairs strong, contemporary stand-up with a distinct visual identity, creating something that feels both deliberate and unmistakably of its moment.
 
-Hosted and produced by Taylor Drew and Justin Hartmann.
+Hosted and produced by Taylor Drew.
 
 Under the tagline "Strip Down for Stand-Up," tattooed comedians perform in minimal clothing — not as a stunt, but as a structural choice that strips away artifice and keeps the focus on the work. The result is a confident, fully produced show that reflects the evolving tone of New York comedy: direct, unpolished in the right ways, and rooted in voice rather than convention.
 
@@ -343,7 +334,6 @@ Standard microphone and sound system, basic stage lighting, minimal setup and br
       keywords: [
         "about pins and needles comedy",
         "taylor drew comedy",
-        "justin hartmann comedy",
         "nyc alternative comedy",
         "tattoo comedy show",
         taylorKeyword(PRODUCERS),

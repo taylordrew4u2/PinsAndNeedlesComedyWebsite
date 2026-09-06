@@ -18,7 +18,7 @@ export function taylorName(producers: Producer[]): string {
 
 /**
  * Turns the producer list into a natural credit line — e.g. "stand-up
- * comedian Taylor Drew and Justin Hartmann" — that reads as ordinary
+ * comedian Taylor Drew and Sam Reyes" — that reads as ordinary
  * editorial attribution rather than an inserted keyword.
  */
 export function creditLine(producers: Producer[]): string {
