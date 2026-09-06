@@ -132,6 +132,10 @@ and the noise is real. Checked against the outlier along with the rest of the
 batch: 29 images, 27MB of bloated or broken traces down to 5.7MB of
 smaller **and** cleaner ones.
 
+The tool that did it is `scripts/trace.py`, checked in so the next upload
+does not mean rediscovering all of the above. It needs `potracer`, `numpy`
+and `Pillow`; run it on the source rasters with `--out public/posts`.
+
 That breaks link previews, because no social platform renders an SVG. Rather
 than put a raster file back in the repository, `/api/og` draws a 1200×630 PNG at
 request time from the site's own content. It takes a **path**, never free text —
