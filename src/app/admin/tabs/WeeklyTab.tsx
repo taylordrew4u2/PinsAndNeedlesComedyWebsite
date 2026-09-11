@@ -21,6 +21,7 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
 
   return (
     <>
+      <a href="/admin/run-show" className="block rounded-lg bg-white px-5 py-4 text-center text-lg font-semibold text-black">Run Show</a>
       <StagePanel enabled={weekly.enabled} />
 
       <Section

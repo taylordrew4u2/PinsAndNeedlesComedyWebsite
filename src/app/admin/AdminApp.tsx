@@ -187,6 +187,7 @@ export default function AdminApp({
             <span className={`text-[12px] ${status.tone}`}>{status.text}</span>
           </div>
           <div className="flex items-center gap-3 text-[12px]">
+            <a href="/admin/run-show" className="rounded-md bg-white px-3 py-2 text-[12px] font-semibold text-black">Run Show</a>
             <a
               href="/"
               target="_blank"
