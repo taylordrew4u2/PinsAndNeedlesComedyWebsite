@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defaultContent } from "./defaults";
 import { merge } from "./merge";
+import { upgradeBrandCopy } from "./brand-copy";
 import { healAssetPaths } from "./assets";
 import {
   checkAccess as githubCheckAccess,
@@ -66,7 +67,7 @@ export function requireGithub() {
  * .webp that is no longer in the repository.
  */
 function normalize(content: Content): Content {
-  const healed = healAssetPaths(content);
+  const healed = healAssetPaths(upgradeBrandCopy(content, defaultContent));
   return {
     ...healed,
     shows: healed.shows.map((show) => ({ ...show, series: show.series ?? "" })),
