@@ -12,3 +12,6 @@ next-env.d.ts
 /public/uploads/*
 !/public/uploads/.gitkeep
 /data/submissions/
+
+# The live screen selection may contain audience submission text
+/data/live-show/

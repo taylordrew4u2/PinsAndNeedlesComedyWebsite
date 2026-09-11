@@ -6,7 +6,7 @@ import type { SiteSettings } from "@/lib/types";
 
 export default function SiteFooter({ site }: { site: SiteSettings }) {
   const pathname = usePathname();
-  if (pathname === "/bad-decisions" || pathname === "/bad-decisions/") return null;
+  if (pathname === "/bad-decisions" || pathname.startsWith("/bad-decisions/") || pathname === "/admin/run-show" || pathname === "/admin/run-show/") return null;
 
   return (
     <footer className="border-t border-white/10 px-5 py-8 text-[11px] tracking-[0.18em] uppercase text-[var(--pnc-muted)]">
