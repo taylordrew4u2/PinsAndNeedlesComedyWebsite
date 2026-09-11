@@ -79,3 +79,40 @@ export function absoluteUrl(base: string, path: string): string {
   const root = base.replace(/\/+$/, "");
   return `${root}/${path.replace(/^\/+/, "")}`;
 }
+
+/** SEO lengths are targets: preserve a complete sentence instead of cutting prose mid-thought. */
+export function sentenceSummary(text: string, target: number): string {
+  const clean = stripMarkdown(text).replace(/\s+([,.!?;:])/g, "$1").trim();
+  if (!clean) return "";
+  const sentences = [...new Intl.Segmenter("en", { granularity: "sentence" }).segment(clean)]
+    .map(({ segment }) => segment.trim()).filter(Boolean);
+  let result = sentences[0] || clean;
+  for (const sentence of sentences.slice(1)) {
+    if (result.length + sentence.length + 1 > target) break;
+    result += ` ${sentence}`;
+  }
+  return /[.!?][”"')]*$/.test(result) ? result : `${result.replace(/[,;:–—-]+$/, "").trim()}.`;
+}
+
+/** Keep free admission grammatical and avoid "Tickets are Free entry". */
+export function admissionSentence(price: string): string {
+  const clean = price.trim().replace(/[.!]+$/, "");
+  if (!clean) return "";
+  if (/^free(?:\s+(?:entry|admission))?$/i.test(clean)) return "Admission is free.";
+  return `Admission: ${clean}.`;
+}
+
+/** Add generated FAQs once, preserving answers the editor has already written. */
+export function addSuggestedFaqs(current: Seo["faq"], suggested: Seo["faq"]): Seo["faq"] {
+  const normalize = (question: string) => question.trim().toLowerCase().replace(/[?!.]+$/, "").replace(/\s+/g, " ");
+  const result = current.map((entry) => ({ ...entry }));
+  const seen = new Set(current.map((entry) => normalize(entry.q)));
+  for (const entry of suggested) {
+    const key = normalize(entry.q);
+    if (key && entry.a.trim() && !seen.has(key)) {
+      result.push({ ...entry });
+      seen.add(key);
+    }
+  }
+  return result;
+}
