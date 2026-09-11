@@ -1,9 +1,9 @@
 import type { Content, Post, Seo, Show } from "@/lib/types";
-import { clamp, stripMarkdown, suggestKeywords } from "@/lib/seo";
+import { admissionSentence, clamp, sentenceSummary, stripMarkdown, suggestKeywords } from "@/lib/seo";
 import { creditLine, taylorFaq, taylorKeyword } from "@/lib/brand";
 import { formatDate } from "@/lib/render";
-import { formatTime, showSummary, venueLine } from "@/lib/shows";
-import { weeklyScheduleLine, weeklySummary, weeklyVenueLine } from "@/lib/decisions";
+import { formatTime, venueLine } from "@/lib/shows";
+import { weeklyVenueLine } from "@/lib/decisions";
 
 export type Suggestion = {
   title: string;
@@ -49,9 +49,9 @@ export function suggestFor(
     faq: { q: string; a: string }[] = []
   ): Suggestion => ({
     title: clamp(title, 60),
-    description: clamp(description, 158),
+    description: sentenceSummary(description, 158),
     keywords: suggestKeywords(source, [...extraTerms, ...BRAND_TERMS], 10),
-    aiSummary: clamp(aiSummary, 480),
+    aiSummary: sentenceSummary(aiSummary, 480),
     ogImage: image,
     canonical: `${root}${path}`,
     faq,
@@ -64,9 +64,7 @@ export function suggestFor(
       return make(
         `${post.title} | ${site.shortName || brand}`,
         post.excerpt || text,
-        `${post.title}. ${post.excerpt || clamp(text, 320)} Published ${post.date} by ${brand}, an NYC comedy brand run by ${creditLine(
-          content.about.producers
-        )}.`,
+        `${sentenceSummary(post.excerpt || text, 320)} This article was published by ${brand}${post.date ? ` on ${formatDate(post.date)}` : ""}.`,
         `${post.title} ${post.excerpt} ${text}`,
         `/news/${post.slug}`,
         [...post.tags, taylorKeyword(content.about.producers)],
@@ -74,30 +72,21 @@ export function suggestFor(
         [
           {
             q: `What is "${clamp(post.title, 70)}" about?`,
-            a: post.excerpt || clamp(text, 220),
+            a: sentenceSummary(post.excerpt || text, 220),
           },
         ]
       );
     }
     case "show": {
       if (!show) break;
-      const where = venueLine(show);
+      const where = venueLine(show).replace(" — ", ", ");
       const names = show.lineup.map((person) => person.name).filter(Boolean);
-      const when = `${formatDate(show.date)}${
-        show.startTime ? ` at ${formatTime(show.startTime)}` : ""
-      }`;
+      const when = [show.date ? `on ${formatDate(show.date)}` : "", show.startTime ? `at ${formatTime(show.startTime)}` : ""].filter(Boolean).join(" ");
+      const eventSentence = `${show.title || "This show"} is a live stand-up comedy show${where ? ` at ${where}` : ""}${when ? ` ${when}` : ""}.`;
       return make(
-        `${show.title} | ${when}`,
-        [
-          show.tagline || `${brand} live${where ? ` at ${show.venueName || where}` : ""}`,
-          where,
-          show.price ? `Tickets ${show.price}.` : "",
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        `${show.title} is a live stand-up comedy show by ${brand}${
-          where ? ` at ${where}` : ""
-        } on ${when}. ${showSummary(show)} Produced by ${creditLine(content.about.producers)}.`,
+        `${show.title} | ${brand}`,
+        `${eventSentence} ${admissionSentence(show.price)}`,
+        `${eventSentence} ${admissionSentence(show.price)} ${names.length ? `The lineup includes ${new Intl.ListFormat("en").format(names)}.` : ""} The shows are produced by ${creditLine(content.about.producers)}.`,
         `${show.title} ${show.tagline} ${show.description} ${where} ${names.join(" ")}`,
         `/shows/${show.slug}`,
         [
@@ -110,9 +99,7 @@ export function suggestFor(
         [
           {
             q: `When and where is ${show.title}?`,
-            a: `${when}${where ? ` at ${where}` : ""}.${
-              show.price ? ` Tickets are ${show.price}.` : ""
-            }${show.ageRestriction ? ` ${show.ageRestriction}.` : ""}`,
+            a: `${eventSentence} ${admissionSentence(show.price)}${show.ageRestriction ? ` Age restriction: ${show.ageRestriction.replace(/[.!]+$/, "")}.` : ""}`.trim(),
           },
           ...(names.length
             ? [{ q: `Who is performing at ${show.title}?`, a: `${names.join(", ")}.` }]
@@ -123,8 +110,8 @@ export function suggestFor(
     case "hall":
       return make(
         `Hall of Fame | ${brand}`,
-        `Meet the performers who have taken the stage with ${brand} in New York City. The people who left a mark.`,
-        `${brand} celebrates its past performers in the Hall of Fame. ${content.hallOfFame.intro}`,
+        `Meet the comedians who have performed with ${brand} in New York City.`,
+        `The ${brand} Hall of Fame celebrates the comedians who have performed at its shows. Explore their profiles and find links to their social media.`,
         `${content.hallOfFame.heading} ${content.hallOfFame.intro}`,
         "/hall-of-fame",
         ["nyc stand-up comedians", "comedy performers"]
@@ -132,10 +119,8 @@ export function suggestFor(
     case "shows":
       return make(
         `Shows | ${brand}`,
-        `Upcoming ${brand} shows in New York City — lineups, venues, times and tickets for original formats including Bad Decisions.`,
-        `Show listings for ${brand}, the NYC comedy brand creating original stand-up shows run by ${creditLine(
-          content.about.producers
-        )}. Each listing carries the date, venue and address, door and set times, ticket link and price, the comedians on the bill, and the guest tattoo artists and vendors working that night.`,
+        `Explore upcoming ${brand} shows in New York City. Find lineups, venues, times and tickets.`,
+        `Explore upcoming shows from ${brand}. Find dates, venues, lineups and ticket information for each event. The shows are produced by ${creditLine(content.about.producers)}.`,
         content.shows.map((entry) => `${entry.title} ${entry.tagline} ${entry.venueName}`).join(" "),
         "/shows",
         ["nyc comedy show tickets", "comedy tonight brooklyn", taylorKeyword(content.about.producers)],
@@ -150,10 +135,8 @@ export function suggestFor(
     case "home":
       return make(
         `${brand} | Original NYC Stand-Up Shows`,
-        `${site.tagline.replace(/[.!?]+$/, "")}. Watch reels from recent shows, read the latest news, and grab merch from ${brand}.`,
-        `Home page of ${brand}, a brand creating original New York City stand-up comedy shows, created and run by ${creditLine(
-          content.about.producers
-        )}. Shows Instagram reels from recent nights and the latest news posts.`,
+        `${brand} creates original stand-up comedy shows in New York City. Explore upcoming shows, watch clips and read the latest news.`,
+        `${brand} creates original stand-up comedy shows in New York City about choices, vulnerability and what stays with us. Explore upcoming shows, comedy clips and news. The shows are produced by ${creditLine(content.about.producers)}.`,
         `${brand} ${site.tagline} ${content.about.story}`,
         "/",
         ["nyc comedy tonight", "brooklyn comedy show", "alternative comedy nyc", taylorKeyword(content.about.producers)]
@@ -161,10 +144,8 @@ export function suggestFor(
     case "news":
       return make(
         `News | ${brand}`,
-        `Show recaps, lineup announcements and guest tattoo artists from ${brand}, the NYC comedy brand.`,
-        `The news archive for ${brand}, hosted by ${creditLine(
-          content.about.producers
-        )}: recaps of past shows, upcoming lineups, guest tattoo artist announcements and festival appearances.`,
+        `Read show recaps, lineup announcements and updates from ${brand}.`,
+        `Read the latest news from ${brand}, including show recaps, lineup announcements and festival updates.`,
         content.posts.map((entry) => `${entry.title} ${entry.excerpt}`).join(" "),
         "/news",
         ["comedy show recap", "comedy lineup nyc", taylorKeyword(content.about.producers)]
@@ -172,10 +153,8 @@ export function suggestFor(
     case "shop":
       return make(
         `Shop | ${brand} Merch`,
-        `Official ${brand} merch — t-shirts, tote bags and caps from the NYC comedy brand.`,
-        `Official merchandise store for ${brand}, the NYC comedy brand run by ${creditLine(
-          content.about.producers
-        )}, selling t-shirts, tote bags and caps.`,
+        `Shop official merchandise from ${brand}.`,
+        `Browse the official ${brand} shop for merchandise and product details.`,
         `${content.shop.heading} ${content.shop.intro} merch t-shirt tote cap`,
         "/shop",
         ["comedy merch", "tattoo comedy t-shirt", taylorKeyword(content.about.producers)]
@@ -183,11 +162,8 @@ export function suggestFor(
     case "about":
       return make(
         `About Us | ${brand}`,
-        `${brand} creates original NYC stand-up shows about choices, vulnerability and what stays with us. ${site.tagline}`,
-        `About page for ${brand}, hosted by ${creditLine(content.about.producers)}. ${clamp(
-          stripMarkdown(content.about.story),
-          320
-        )}`,
+        `${brand} creates original NYC stand-up shows about choices, vulnerability and what stays with us.`,
+        `Learn about ${brand} and the people behind its original stand-up comedy shows. The shows explore choices, vulnerability and the stories we usually leave out.`,
         `${content.about.story} ${content.about.producers.map((p) => `${p.name} ${p.bio}`).join(" ")}`,
         "/about",
         [...content.about.producers.map((producer) => producer.name.toLowerCase()), taylorKeyword(content.about.producers)],
@@ -202,14 +178,13 @@ export function suggestFor(
       );
     case "weekly": {
       const weekly = content.weekly;
-      const where = weeklyVenueLine(weekly);
-      const when = weeklyScheduleLine(weekly);
+      const where = weeklyVenueLine(weekly).replace(" — ", ", ");
+      const when = [weekly.weekday ? `every ${weekly.weekday}` : "", weekly.startTime ? `at ${formatTime(weekly.startTime)}` : ""].filter(Boolean).join(" ");
+      const eventSentence = `${weekly.title} is a stand-up comedy show${where ? ` at ${where}` : ""}${when ? ` ${when}` : ""}.`;
       return make(
-        `${weekly.title.replace(/^Pins & Needles:\s*/i, "")} — Free Weekly Comedy in ${weekly.city || "Queens"}`,
-        `${when} at ${weekly.venueName || where}. ${weekly.tagline} ${weekly.price ? `${weekly.price} entry.` : ""}`,
-        `${weeklySummary(weekly)} Before the show the audience sends in a decision they have made or are thinking about making at ${root}/bad-decisions; after four comedians perform, the host draws a few at random and the lineup gives that person advice. Submissions can be anonymous or named. An original format from ${brand}, hosted by ${creditLine(
-          content.about.producers
-        )}. Not a roast.`,
+        `${weekly.title.replace(/^Pins & Needles:\s*/i, "")} | ${brand}`,
+        `${eventSentence} ${admissionSentence(weekly.price)}`,
+        `${eventSentence} ${admissionSentence(weekly.price)} Audience members submit decisions they have made or are considering. The comedians discuss selected submissions and offer advice. Submissions can be anonymous. The shows are produced by ${creditLine(content.about.producers)}.`,
         `${weekly.title} ${weekly.tagline} ${weekly.howItWorks} ${where} ${weekly.city} free weekly comedy`,
         "/bad-decisions",
         [
@@ -223,9 +198,9 @@ export function suggestFor(
         [
           {
             q: `What is ${weekly.title}?`,
-            a: `A ${weekly.price ? `${weekly.price.toLowerCase()} ` : ""}weekly stand-up show${where ? ` at ${where}` : ""} where the audience sends in decisions they have made or are thinking about making and comedians pull a few at random and give that person advice.`,
+            a: `${weekly.title} combines stand-up with audience participation. Audience members submit decisions, and the comedians discuss selected submissions and offer advice. ${admissionSentence(weekly.price)}`.trim(),
           },
-          { q: `When is ${weekly.title}?`, a: `${when}${where ? ` at ${where}` : ""}.` },
+          { q: `When is ${weekly.title}?`, a: eventSentence },
           {
             q: "Do I have to put my name on my decision?",
             a: "No. Submissions are anonymous unless you choose to add your name and get called out.",
@@ -236,10 +211,8 @@ export function suggestFor(
     case "contact":
       return make(
         `Contact | ${brand}`,
-        `Book ${brand} for your venue, submit as a comic, or reach the NYC comedy brand for press.`,
-        `Contact page for ${brand}, run by ${creditLine(
-          content.about.producers
-        )}, with booking, comic submission and press details.`,
+        `Contact ${brand} about venue bookings, performer submissions and press inquiries.`,
+        `Find contact information for ${brand}, including venue bookings, performer submissions and press inquiries.`,
         `${content.contact.heading} ${content.contact.intro} booking submissions press venue`,
         "/contact",
         ["book comedy show nyc", "comic submissions"]
@@ -248,8 +221,8 @@ export function suggestFor(
     default:
       return make(
         `${brand} | Original NYC Stand-Up Shows`,
-        `${brand} creates original NYC stand-up shows about choices, vulnerability and what stays with us. ${site.tagline}`,
-        `${brand} creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its formats include the original tattoo-focused show and Bad Decisions, with stand-up and audience participation. Tattoos are part of its roots, not a requirement. Produced by ${creditLine(content.about.producers)}.`,
+        `${brand} creates original NYC stand-up shows about choices, vulnerability and what stays with us.`,
+        `${brand} creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its formats include the original tattoo-focused show and Bad Decisions, with stand-up and audience participation. Tattoos are part of its roots, not a requirement. The shows are produced by ${creditLine(content.about.producers)}.`,
         `${brand} ${site.tagline} ${content.about.story}`,
         "/",
         ["original comedy shows", "audience participation comedy", taylorKeyword(content.about.producers)],

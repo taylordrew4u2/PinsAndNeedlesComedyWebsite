@@ -65,3 +65,21 @@ test("absoluteUrl leaves absolute URLs alone and joins relative ones once", () =
   assert.equal(absoluteUrl("https://x.com/", "/news"), "https://x.com/news");
   assert.equal(absoluteUrl("https://x.com", "news"), "https://x.com/news");
 });
+
+test("summaries stop after complete sentences instead of cutting the next thought", async () => {
+  const { sentenceSummary } = await import("../src/lib/seo.ts");
+  assert.equal(sentenceSummary("Meet our performers. Read about the comedians who have taken our stage.", 35), "Meet our performers.");
+  const sentence = "This is a complete sentence that exceeds a short search preview target.";
+  assert.equal(sentenceSummary(sentence, 20), sentence);
+  assert.equal(sentenceSummary("   ", 158), "");
+  assert.equal(sentenceSummary("Read **show news**", 158), "Read show news.");
+  assert.equal(sentenceSummary("Who took the stage? Meet them here.", 25), "Who took the stage?");
+});
+
+test("admission suggestions handle free entry, prices and missing values", async () => {
+  const { admissionSentence } = await import("../src/lib/seo.ts");
+  assert.equal(admissionSentence("Free"), "Admission is free.");
+  assert.equal(admissionSentence(" free entry. "), "Admission is free.");
+  assert.equal(admissionSentence("$15"), "Admission: $15.");
+  assert.equal(admissionSentence(""), "");
+});
