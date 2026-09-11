@@ -18,7 +18,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   // needs its own copy of the disallow list: a crawler obeys only the group
   // that names it and ignores the "*" group entirely, so naming a bot without
   // repeating the exclusions would hand it the admin and the API.
-  const offLimits = ["/admin", "/api/"];
+  const offLimits = ["/admin", "/api/", "/bad-decisions"];
   const invited = [
     "GPTBot",
     "OAI-SearchBot",

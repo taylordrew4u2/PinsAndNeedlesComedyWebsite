@@ -1,3 +1,4 @@
+import { validDecisionQrKey } from "@/lib/decision-access";
 import { NextResponse } from "next/server";
 import { closedMessage, sanitizeSubmission, submissionWindow } from "@/lib/decisions";
 import { getContent } from "@/lib/store";
@@ -43,7 +44,10 @@ async function roomCount(since: string): Promise<number | null> {
  * this so a phone left open on the table flips to the form by itself when
  * the window opens, without anyone reloading.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  if (!validDecisionQrKey(request.headers.get("X-Decisions-QR"))) {
+    return NextResponse.json({ ok: false, error: "Scan the show QR code to enter." }, { status: 403 });
+  }
   const content = await getContent();
   const { weekly } = content;
   const gate = submissionWindow(weekly, content.shows);
@@ -51,6 +55,9 @@ export async function GET() {
     ok: true,
     open: weekly.enabled && gate.open,
     opensLabel: gate.opensLabel,
+    opensAt: weekly.enabled ? gate.opensAt : "",
+    closesAt: weekly.enabled ? gate.closesAt : "",
+    serverNow: Date.now(),
     closedText: closedMessage(weekly, gate),
   };
 
@@ -61,6 +68,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!validDecisionQrKey(request.headers.get("X-Decisions-QR"))) {
+    return NextResponse.json({ ok: false, error: "Scan the show QR code to enter." }, { status: 403 });
+  }
   const content = await getContent();
   const { weekly } = content;
   if (!weekly.enabled) {

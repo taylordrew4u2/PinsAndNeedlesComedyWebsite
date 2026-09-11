@@ -36,8 +36,8 @@ time during one bar hour, and it has to cost nothing to run.
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="docs/images/bad-decisions.png" alt="The Bad Decisions page: show time, venue, and a notice reading Submissions open an hour before the show." width="100%">
-<br><em>The audience page. The form only exists in the hour around the show — the rest of the week it says when it opens.</em>
+<img src="docs/images/bad-decisions.png" alt="The private Bad Decisions QR entry: a countdown until submissions open." width="100%">
+<br><em>The QR entry shows only a countdown, then switches to the submission prompt during the configured opening window.</em>
 </td>
 <td width="50%" valign="top">
 <img src="docs/images/admin.png" alt="The admin Bad Decisions tab: a Tonight panel with a live count, Draw one, Refresh and Archive everything buttons, above the page's own settings." width="100%">
@@ -50,7 +50,8 @@ time during one bar hour, and it has to cost nothing to run.
 
 ```mermaid
 flowchart LR
-  QR["QR code on the table"] --> Form["/bad-decisions form"]
+  QR["QR code on the table"] --> Access{"Valid QR entry key?"}
+  Access -->|yes| Form["Countdown then submission prompt"]
   SMS["Text message"] --> Voice["Google Voice"]
   Voice -->|forwards by email| Relay["Apps Script relay"]
 
@@ -66,10 +67,23 @@ flowchart LR
   Panel --> Draw["Draw one at random"]
 ```
 Every way in enforces the same window and the same sanitising, because the
-endpoint is what a QR code points at — the form is not a gate, it is a
-convenience. Texting in needs no mailbox password anywhere: the site holds one
+server checks the submission window independently of the form. The web page
+and its GET/POST submission API also require the signed QR entry key. Texting in needs no mailbox password anywhere: the site holds one
 secret scoped to one endpoint, and a
 [small relay script](docs/relay/gmail-apps-script.gs) posts to it.
+
+### Printing the submission QR
+
+Download the QR from **Admin → Bad Decisions** after deploying this version.
+Older QR codes that contain only `/bad-decisions` now return 404. The new code
+contains a stable entry key derived from `ADMIN_SECRET`; keep that secret stable
+or reprint the QR after rotating it. Missing configuration fails closed.
+
+The submission entry has no public menu or button, is excluded from the sitemap
+and AI page list, and is marked noindex. A visitor with the QR link sees only the
+countdown until the configured opening time, then the prompt and submission
+controls. A shared copy of the QR link also grants access: browsers cannot prove
+that a URL was opened by a camera scan.
 
 ### What is actually interesting here
 
