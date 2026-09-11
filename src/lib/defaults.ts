@@ -46,7 +46,7 @@ const post = (seed: SeedPost): Post => {
       ],
       ogImage: seed.coverUrl,
       canonical: `${SITE_URL}/news/${slug}`,
-      aiSummary: `${seed.excerpt} From Pins & Needles Comedy, the NYC tattoo-culture stand-up show run by ${creditLine(
+      aiSummary: `${seed.excerpt} From Pins & Needles Comedy, the NYC comedy brand creating original stand-up shows run by ${creditLine(
         PRODUCERS
       )}.`,
     }),
@@ -60,7 +60,7 @@ export const defaultContent: Content = {
   site: {
     name: "Pins & Needles Comedy",
     shortName: "Pins & Needles",
-    tagline: "Tattoo culture meets stand-up comedy",
+    tagline: "Comedy about the things that leave a mark.",
     url: SITE_URL,
     logoUrl: LOGO,
     faviconUrl: "/brand/favicon.svg",
@@ -92,10 +92,8 @@ export const defaultContent: Content = {
     organizationType: "TheaterGroup",
     foundingYear: "2024",
     seo: seo({
-      title: "Pins & Needles Comedy | NYC Tattoo Comedy Show & Underground Stand-Up",
-      description: `Pins & Needles Comedy is an NYC stand-up show where tattoo culture meets underground comedy — hosted by ${creditLine(
-        PRODUCERS
-      )}, plus merch and raffles.`,
+      title: "Pins & Needles Comedy | Original NYC Stand-Up Shows",
+      description: "Original stand-up shows in New York City about the choices we make, the things we reveal, and what stays with us. Comedy about the things that leave a mark.",
       keywords: [
         "pins and needles comedy",
         "nyc comedy show",
@@ -103,27 +101,25 @@ export const defaultContent: Content = {
         "underground stand-up",
         "brooklyn comedy",
         "alternative comedy nyc",
-        "strip down for stand-up",
-        "tattooed comedians",
+        "audience participation comedy",
+        "original comedy shows",
         taylorKeyword(PRODUCERS),
       ],
       ogImage: "/brand/icon.svg",
       canonical: SITE_URL,
-      aiSummary: `Pins & Needles Comedy is a live, professionally produced stand-up comedy show in New York City in which tattooed comedians perform full sets in minimal stagewear under the tagline 'Strip Down for Stand-Up.' It is hosted and produced by ${creditLine(
-        PRODUCERS
-      )}, runs in bars, theaters and alternative venues, and is not a burlesque show, strip show, or open mic.`,
+      aiSummary: `Pins & Needles Comedy creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its formats include the original tattoo-focused show and Bad Decisions, bringing together stand-up and audience participation. Tattoos are part of its roots, not a requirement. Created and produced by ${creditLine(PRODUCERS)}.`,
       faq: [
         {
           q: "What is Pins & Needles Comedy?",
-          a: "Pins & Needles Comedy is an NYC stand-up comedy show where tattooed comedians perform full sets in limited clothing, under the tagline 'Strip Down for Stand-Up.'",
+          a: "Pins & Needles Comedy creates original stand-up shows in New York City about the choices we make, the things we reveal, and what stays with us afterward.",
         },
         {
           q: "Where does Pins & Needles Comedy perform?",
           a: "The show runs in New York City bars, theaters and alternative art spaces, and has also played the Edinburgh Festival Fringe.",
         },
         {
-          q: "Is Pins & Needles a burlesque or strip show?",
-          a: "No. It is professionally produced stand-up comedy. The limited clothing is a structural choice that makes the performer's body and tattoos part of the act.",
+          q: "Do I need tattoos to enjoy Pins & Needles Comedy?",
+          a: "No. Tattoos are part of our roots, but they aren’t the whole story. You don’t need tattoos. Questionable judgment will do.",
         },
         taylorFaq(PRODUCERS, "Pins & Needles Comedy"),
         {
@@ -145,8 +141,8 @@ export const defaultContent: Content = {
       wordmarkSize: 34,
       wordmarkFont: "'Archivo Black', 'Arial Black', system-ui, sans-serif",
       wordmarkLetterSpacing: 2,
-      tagline: "Tattoo culture meets stand-up comedy",
-      showTagline: false,
+      tagline: "Comedy about the things that leave a mark.",
+      showTagline: true,
       background: "#0A0A0A",
       foreground: "#FFFFFF",
       backgroundVideoUrl: "",
@@ -185,19 +181,19 @@ export const defaultContent: Content = {
     marqueeHeading: "News",
     showMarqueeHeading: false,
     seo: seo({
-      title: "Pins & Needles Comedy | NYC Tattoo Comedy Show & Underground Stand-Up",
+      title: "Pins & Needles Comedy | Original NYC Stand-Up Shows",
       description:
-        "Tattooed comedians strip down for stand-up in New York City. Watch the reels, read the news, and grab merch from Pins & Needles Comedy.",
+        "Comedy about the things that leave a mark. Original NYC stand-up shows about choices, vulnerability and what stays with us. You don’t need tattoos.",
       keywords: [
         "pins and needles comedy",
-        "nyc tattoo comedy show",
+        "nyc stand-up comedy shows",
         "underground stand-up nyc",
         "brooklyn comedy show",
-        "strip down for stand-up",
+        "audience participation comedy",
         taylorKeyword(PRODUCERS),
       ],
       canonical: SITE_URL,
-      aiSummary: `Home page of Pins & Needles Comedy, an NYC stand-up show combining tattoo culture and underground comedy, created and run by ${creditLine(
+      aiSummary: `Home page of Pins & Needles Comedy, a brand creating original NYC stand-up shows about choices, vulnerability and what stays with us, created and run by ${creditLine(
         PRODUCERS
       )}. Features Instagram reels from recent shows and the latest news posts.`,
     }),
@@ -209,7 +205,7 @@ export const defaultContent: Content = {
     seo: seo({
       title: "News | Pins & Needles Comedy",
       description:
-        "Show recaps, lineup announcements, guest tattoo artists and Edinburgh Fringe updates from the NYC tattoo comedy show Pins & Needles Comedy.",
+        "Show recaps, lineup announcements, guest tattoo artists and Edinburgh Fringe updates from the NYC comedy brand Pins & Needles Comedy.",
       keywords: [
         "pins and needles comedy news",
         "nyc comedy show recap",
@@ -227,7 +223,7 @@ export const defaultContent: Content = {
   showsPage: {
     heading: "Shows",
     intro:
-      "Every Pins & Needles Comedy night — who is on the bill, which tattoo artists are working, where it is and how to get in.",
+      "From our original tattoo-focused show to Bad Decisions: original stand-up shows about the things that leave a mark. Find lineups, venues and tickets here.",
     weeklyHeading: "Every week",
     upcomingHeading: "Upcoming",
     pastHeading: "Past shows",
@@ -241,7 +237,7 @@ export const defaultContent: Content = {
     seo: seo({
       title: "Shows | Pins & Needles Comedy",
       description:
-        "Upcoming Pins & Needles Comedy shows in New York City, with lineups, guest tattoo artists, venues, times and tickets.",
+        "Upcoming Pins & Needles Comedy shows in New York City, with lineups, venues, times and tickets for our original formats, including Bad Decisions.",
       keywords: [
         "pins and needles comedy shows",
         "nyc comedy show tickets",
@@ -250,7 +246,7 @@ export const defaultContent: Content = {
         taylorKeyword(PRODUCERS),
       ],
       canonical: `${SITE_URL}/shows`,
-      aiSummary: `Show listings for Pins & Needles Comedy, the New York City tattoo-culture stand-up show run by ${creditLine(
+      aiSummary: `Show listings for Pins & Needles Comedy, the New York City comedy brand creating original stand-up shows run by ${creditLine(
         PRODUCERS
       )}. Each listing carries the date, venue and address, door and set times, ticket link and price, the comedians on the bill, and the guest tattoo artists and vendors working that night.`,
       faq: [
@@ -273,7 +269,7 @@ export const defaultContent: Content = {
     seo: seo({
       title: "Shop | Pins & Needles Comedy Merch",
       description:
-        "Official Pins & Needles Comedy merch — t-shirts, skull tote bags and caps from the NYC tattoo comedy show.",
+        "Official Pins & Needles Comedy merch — t-shirts, skull tote bags and caps from the NYC comedy brand.",
       keywords: [
         "pins and needles comedy merch",
         "comedy t-shirt",
@@ -282,7 +278,7 @@ export const defaultContent: Content = {
         taylorKeyword(PRODUCERS),
       ],
       canonical: `${SITE_URL}/shop`,
-      aiSummary: `Official merchandise store for Pins & Needles Comedy, the NYC stand-up show run by ${creditLine(
+      aiSummary: `Official merchandise store for Pins & Needles Comedy, the NYC comedy brand run by ${creditLine(
         PRODUCERS
       )}, selling t-shirts, tote bags and caps through Shopify.`,
     }),
@@ -290,31 +286,20 @@ export const defaultContent: Content = {
 
   about: {
     heading: "About Us",
-    intro: "Tattoo culture meets stand-up comedy.",
-    story: `Pins & Needles Comedy is an NYC-based stand-up showcase operating just outside the traditional club circuit, with a sensibility shaped by tattoo culture and alternative comedy scenes. The show pairs strong, contemporary stand-up with a distinct visual identity, creating something that feels both deliberate and unmistakably of its moment.
+    intro: "Comedy about the things that leave a mark.",
+    story: `Pins & Needles Comedy creates original stand-up comedy shows in New York City about the choices we make, the things we reveal, and what stays with us afterward.
 
-Hosted and produced by Taylor Drew.
+We’re interested in the version of the story you usually clean up before telling people. The questionable judgment. The confidence you had before you knew better. The part you normally leave out so everyone stays on your side.
 
-Under the tagline "Strip Down for Stand-Up," tattooed comedians perform in minimal clothing — not as a stunt, but as a structural choice that strips away artifice and keeps the focus on the work. The result is a confident, fully produced show that reflects the evolving tone of New York comedy: direct, unpolished in the right ways, and rooted in voice rather than convention.
+Our shows bring together stand-up and audience participation to make room for those stories without requiring a moral at the end. Not every mistake makes you a better person. Sometimes it just gives you something funny to talk about. And not every choice that other people question is one you regret.
 
-## Exactly what it is
+Vulnerability doesn’t have to mean a serious confession. Sometimes it’s admitting you were the problem. Sometimes it’s defending something nobody else understands. Sometimes it’s getting onstage without pretending you’ve figured everything out. We’re interested in what happens when people stop managing how they look long enough to say something honest.
 
-Every performer appears onstage in minimal stagewear. Their bodies and tattoos are fully visible and intentionally part of the performance. This visual element is not optional, and it is not a side gimmick — it is the defining structure of the show.
+Tattoos are part of our roots, but they aren’t the whole story. They’re one expression of a bigger idea: making a choice and carrying it with you. That might be something on your skin, a relationship you stayed in, a belief you outgrew, or a sentence you wish you could pull back into your mouth. Some things are permanent. Others just feel permanent when you remember them at three in the morning.
 
-Pins & Needles is not a burlesque show, a strip show, or an open mic. It is professionally produced stand-up comedy. The comedians are experienced performers delivering full sets. The difference is that the audience is not just listening; they are also watching.
+From our original tattoo-focused show to **Bad Decisions**, our formats approach that idea differently. What connects them is a willingness to be seen without editing out every unflattering part—and to find the comedy there.
 
-## Format
-
-- Curated lineup of experienced stand-up comedians
-- Each performer appears onstage in limited clothing for their full set
-- Structured hosting and controlled pacing
-- No audience participation required
-- No nudity beyond agreed-upon stagewear
-- Clear run of show with defined start and end times
-
-## Production
-
-Standard microphone and sound system, basic stage lighting, minimal setup and breakdown, and a self-contained production team. The show is tightly run and venue-friendly — it works in bars, theaters, art spaces, and alternative venues that want programming that stands out without becoming unmanageable.`,
+**You don’t need tattoos. Questionable judgment will do.**`,
     logosHeading: "The marks",
     logos: [
       { id: "logo-primary", url: "/brand/logo-white.svg", alt: "Pins & Needles Comedy primary logo", caption: "Primary" },
@@ -328,9 +313,7 @@ Standard microphone and sound system, basic stage lighting, minimal setup and br
     producerImageSize: 100,
     seo: seo({
       title: "About Us | Pins & Needles Comedy",
-      description: `Pins & Needles Comedy is an NYC stand-up showcase where tattooed comedians strip down for stand-up. Hosted and produced by ${creditLine(
-        PRODUCERS
-      )}.`,
+      description: "Original stand-up shows in New York City about the choices we make, the things we reveal, and what stays with us. Comedy about the things that leave a mark.",
       keywords: [
         "about pins and needles comedy",
         "taylor drew comedy",
@@ -339,14 +322,12 @@ Standard microphone and sound system, basic stage lighting, minimal setup and br
         taylorKeyword(PRODUCERS),
       ],
       canonical: `${SITE_URL}/about`,
-      aiSummary: `About page for Pins & Needles Comedy, an NYC stand-up showcase shaped by tattoo culture. Hosted and produced by ${creditLine(
-        PRODUCERS
-      )} under the tagline 'Strip Down for Stand-Up.' Includes the show's format, production requirements and brand marks.`,
+      aiSummary: `Pins & Needles Comedy creates original NYC stand-up shows about choices, vulnerability and what stays with us. Tattoos are one expression of making a choice and carrying it with you. The original tattoo-focused show and Bad Decisions explore that idea differently. Created and produced by ${creditLine(PRODUCERS)}.`,
       faq: [
         taylorFaq(PRODUCERS, "Pins & Needles Comedy"),
         {
-          q: "What does 'Strip Down for Stand-Up' mean?",
-          a: "Every comedian performs their full set in minimal stagewear so their tattoos and physical presence become part of the act.",
+          q: "What connects the different Pins & Needles Comedy shows?",
+          a: "From the original tattoo-focused show to Bad Decisions, our formats find comedy in choices, vulnerability and being seen without editing out every unflattering part. You don’t need tattoos.",
         },
       ],
     }),
@@ -371,7 +352,7 @@ Standard microphone and sound system, basic stage lighting, minimal setup and br
     seo: seo({
       title: "Contact | Pins & Needles Comedy",
       description:
-        "Book Pins & Needles Comedy for your venue, submit as a comic, or reach the NYC tattoo comedy show for press.",
+        "Book Pins & Needles Comedy for your venue, submit as a comic, or reach the NYC comedy brand for press.",
       keywords: [
         "contact pins and needles comedy",
         "book comedy show nyc",
@@ -382,7 +363,7 @@ Standard microphone and sound system, basic stage lighting, minimal setup and br
       canonical: `${SITE_URL}/contact`,
       aiSummary: `Contact page for Pins & Needles Comedy, run by ${creditLine(
         PRODUCERS
-      )}, with booking, comic submission and press details for the New York City tattoo comedy show.`,
+      )}, with booking, comic submission and press details for the New York City comedy brand.`,
     }),
   },
 
@@ -440,7 +421,7 @@ Standard microphone and sound system, basic stage lighting, minimal setup and br
     seo: seo({
       title: "Bad Decisions — Free Weekly Comedy Show in Ridgewood, Queens",
       description:
-        "Every Thursday at Pixelated Records. Send in a decision you haven't made, four comedians do stand-up, then they tell you what to do. Free entry.",
+        "Every Thursday at Pixelated Records. Send in a past or possible decision, four comedians do stand-up, then they tell you what to do. Free entry.",
       keywords: [
         "bad decisions comedy show",
         "free comedy show ridgewood",
@@ -453,11 +434,11 @@ Standard microphone and sound system, basic stage lighting, minimal setup and br
       ],
       ogImage: "/brand/bad-decisions-flyer.svg",
       canonical: `${SITE_URL}/bad-decisions`,
-      aiSummary: `Pins & Needles: Bad Decisions is a free weekly stand-up comedy show every Thursday at 9 PM at Pixelated Records, 792 Onderdonk Ave, Ridgewood, Queens, New York City, hosted by Taylor Drew. Before the show the audience sends in a decision they haven't made yet, by phone or at ${SITE_URL}/bad-decisions. Four comedians perform, then the host draws two or three submissions at random and the lineup gives that person advice. Submissions can be anonymous or carry the sender's name. It is a spin-off of Pins & Needles Comedy and is not a roast.`,
+      aiSummary: `Pins & Needles: Bad Decisions is a free weekly stand-up comedy show every Thursday at 9 PM at Pixelated Records, 792 Onderdonk Ave, Ridgewood, Queens, New York City, hosted by Taylor Drew. Before the show the audience sends in a decision they have made or are thinking about making, by phone or at ${SITE_URL}/bad-decisions. Four comedians perform, then the host draws two or three submissions at random and the lineup gives that person advice. Submissions can be anonymous or carry the sender's name. It is one of the original formats from Pins & Needles Comedy and is not a roast.`,
       faq: [
         {
           q: "What is Pins & Needles: Bad Decisions?",
-          a: "A free weekly stand-up show in Ridgewood, Queens where the audience sends in decisions they haven't made yet and, at the end of the night, comedians pull a few at random and give that person advice.",
+          a: "A free weekly stand-up show in Ridgewood, Queens where the audience sends in decisions they have made or are thinking about making and, at the end of the night, comedians pull a few at random and give that person advice.",
         },
         {
           q: "When and where is Bad Decisions?",

@@ -40,6 +40,13 @@ export default async function AboutPage() {
         ) : null}
       </section>
 
+      <section className="mx-auto max-w-3xl px-5 py-14">
+        <div
+          className="pnc-prose text-[16px]"
+          dangerouslySetInnerHTML={{ __html: renderBody(about.story) }}
+        />
+      </section>
+
       {about.logos.length ? (
         <section aria-label={about.logosHeading} className="w-full pt-4" data-logo-grid="">
           {/* Column count is admin-controlled on desktop and steps down on smaller screens. */}
@@ -81,12 +88,7 @@ export default async function AboutPage() {
         </section>
       ) : null}
 
-      <section className="mx-auto max-w-3xl px-5 py-14">
-        <div
-          className="pnc-prose text-[16px]"
-          dangerouslySetInnerHTML={{ __html: renderBody(about.story) }}
-        />
-      </section>
+
 
       {about.producers.length ? (
         <section className="mx-auto max-w-5xl px-5 pb-24">

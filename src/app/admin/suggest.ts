@@ -18,7 +18,7 @@ export type Suggestion = {
 const BRAND_TERMS = [
   "pins and needles comedy",
   "nyc comedy show",
-  "tattoo comedy",
+  "audience participation comedy",
   "underground stand-up",
 ];
 
@@ -64,7 +64,7 @@ export function suggestFor(
       return make(
         `${post.title} | ${site.shortName || brand}`,
         post.excerpt || text,
-        `${post.title}. ${post.excerpt || clamp(text, 320)} Published ${post.date} by ${brand}, an NYC stand-up comedy show run by ${creditLine(
+        `${post.title}. ${post.excerpt || clamp(text, 320)} Published ${post.date} by ${brand}, an NYC comedy brand run by ${creditLine(
           content.about.producers
         )}.`,
         `${post.title} ${post.excerpt} ${text}`,
@@ -123,8 +123,8 @@ export function suggestFor(
     case "shows":
       return make(
         `Shows | ${brand}`,
-        `Upcoming ${brand} shows in New York City — lineups, guest tattoo artists, venues, times and tickets.`,
-        `Show listings for ${brand}, the NYC tattoo-culture stand-up show run by ${creditLine(
+        `Upcoming ${brand} shows in New York City — lineups, venues, times and tickets for original formats including Bad Decisions.`,
+        `Show listings for ${brand}, the NYC comedy brand creating original stand-up shows run by ${creditLine(
           content.about.producers
         )}. Each listing carries the date, venue and address, door and set times, ticket link and price, the comedians on the bill, and the guest tattoo artists and vendors working that night.`,
         content.shows.map((entry) => `${entry.title} ${entry.tagline} ${entry.venueName}`).join(" "),
@@ -140,9 +140,9 @@ export function suggestFor(
       );
     case "home":
       return make(
-        `${brand} | NYC Tattoo Comedy Show & Underground Stand-Up`,
-        `${site.tagline}. Watch reels from recent shows, read the latest news, and grab merch from ${brand}.`,
-        `Home page of ${brand}, a New York City stand-up comedy show created and run by ${creditLine(
+        `${brand} | Original NYC Stand-Up Shows`,
+        `${site.tagline.replace(/[.!?]+$/, "")}. Watch reels from recent shows, read the latest news, and grab merch from ${brand}.`,
+        `Home page of ${brand}, a brand creating original New York City stand-up comedy shows, created and run by ${creditLine(
           content.about.producers
         )}. Shows Instagram reels from recent nights and the latest news posts.`,
         `${brand} ${site.tagline} ${content.about.story}`,
@@ -152,7 +152,7 @@ export function suggestFor(
     case "news":
       return make(
         `News | ${brand}`,
-        `Show recaps, lineup announcements and guest tattoo artists from ${brand}, the NYC tattoo comedy show.`,
+        `Show recaps, lineup announcements and guest tattoo artists from ${brand}, the NYC comedy brand.`,
         `The news archive for ${brand}, hosted by ${creditLine(
           content.about.producers
         )}: recaps of past shows, upcoming lineups, guest tattoo artist announcements and festival appearances.`,
@@ -163,8 +163,8 @@ export function suggestFor(
     case "shop":
       return make(
         `Shop | ${brand} Merch`,
-        `Official ${brand} merch — t-shirts, tote bags and caps from the NYC tattoo comedy show.`,
-        `Official merchandise store for ${brand}, the NYC stand-up show run by ${creditLine(
+        `Official ${brand} merch — t-shirts, tote bags and caps from the NYC comedy brand.`,
+        `Official merchandise store for ${brand}, the NYC comedy brand run by ${creditLine(
           content.about.producers
         )}, selling t-shirts, tote bags and caps.`,
         `${content.shop.heading} ${content.shop.intro} merch t-shirt tote cap`,
@@ -174,9 +174,7 @@ export function suggestFor(
     case "about":
       return make(
         `About Us | ${brand}`,
-        `${brand} is an NYC stand-up showcase where tattooed comedians strip down for stand-up. Hosted by ${creditLine(
-          content.about.producers
-        )}.`,
+        `${brand} creates original NYC stand-up shows about choices, vulnerability and what stays with us. ${site.tagline}`,
         `About page for ${brand}, hosted by ${creditLine(content.about.producers)}. ${clamp(
           stripMarkdown(content.about.story),
           320
@@ -188,8 +186,8 @@ export function suggestFor(
         [
           taylorFaq(content.about.producers, brand),
           {
-            q: `Is ${brand} a burlesque or strip show?`,
-            a: "No. It is professionally produced stand-up comedy — the limited clothing is a structural choice that makes the performer's tattoos and physical presence part of the act.",
+            q: `Do I need tattoos to enjoy ${brand}?`,
+            a: "No. Tattoos are part of our roots, but they aren’t the whole story. You don’t need tattoos. Questionable judgment will do.",
           },
         ]
       );
@@ -200,7 +198,7 @@ export function suggestFor(
       return make(
         `${weekly.title.replace(/^Pins & Needles:\s*/i, "")} — Free Weekly Comedy in ${weekly.city || "Queens"}`,
         `${when} at ${weekly.venueName || where}. ${weekly.tagline} ${weekly.price ? `${weekly.price} entry.` : ""}`,
-        `${weeklySummary(weekly)} Before the show the audience sends in a decision they haven't made yet at ${root}/bad-decisions; after four comedians perform, the host draws a few at random and the lineup gives that person advice. Submissions can be anonymous or named. A spin-off of ${brand}, hosted by ${creditLine(
+        `${weeklySummary(weekly)} Before the show the audience sends in a decision they have made or are thinking about making at ${root}/bad-decisions; after four comedians perform, the host draws a few at random and the lineup gives that person advice. Submissions can be anonymous or named. An original format from ${brand}, hosted by ${creditLine(
           content.about.producers
         )}. Not a roast.`,
         `${weekly.title} ${weekly.tagline} ${weekly.howItWorks} ${where} ${weekly.city} free weekly comedy`,
@@ -216,7 +214,7 @@ export function suggestFor(
         [
           {
             q: `What is ${weekly.title}?`,
-            a: `A ${weekly.price ? `${weekly.price.toLowerCase()} ` : ""}weekly stand-up show${where ? ` at ${where}` : ""} where the audience sends in decisions they haven't made yet and comedians pull a few at random and give that person advice.`,
+            a: `A ${weekly.price ? `${weekly.price.toLowerCase()} ` : ""}weekly stand-up show${where ? ` at ${where}` : ""} where the audience sends in decisions they have made or are thinking about making and comedians pull a few at random and give that person advice.`,
           },
           { q: `When is ${weekly.title}?`, a: `${when}${where ? ` at ${where}` : ""}.` },
           {
@@ -229,7 +227,7 @@ export function suggestFor(
     case "contact":
       return make(
         `Contact | ${brand}`,
-        `Book ${brand} for your venue, submit as a comic, or reach the NYC tattoo comedy show for press.`,
+        `Book ${brand} for your venue, submit as a comic, or reach the NYC comedy brand for press.`,
         `Contact page for ${brand}, run by ${creditLine(
           content.about.producers
         )}, with booking, comic submission and press details.`,
@@ -240,16 +238,12 @@ export function suggestFor(
     case "site":
     default:
       return make(
-        `${brand} | NYC Tattoo Comedy Show & Underground Stand-Up`,
-        `${brand} is an NYC stand-up show where tattoo culture meets underground comedy — hosted by ${creditLine(
-          content.about.producers
-        )}.`,
-        `${brand} is a live, professionally produced stand-up comedy show in New York City in which tattooed comedians perform full sets in minimal stagewear under the tagline "Strip Down for Stand-Up." It is hosted by ${creditLine(
-          content.about.producers
-        )}.`,
+        `${brand} | Original NYC Stand-Up Shows`,
+        `${brand} creates original NYC stand-up shows about choices, vulnerability and what stays with us. ${site.tagline}`,
+        `${brand} creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its formats include the original tattoo-focused show and Bad Decisions, with stand-up and audience participation. Tattoos are part of its roots, not a requirement. Produced by ${creditLine(content.about.producers)}.`,
         `${brand} ${site.tagline} ${content.about.story}`,
         "/",
-        ["strip down for stand-up", "tattooed comedians", taylorKeyword(content.about.producers)],
+        ["original comedy shows", "audience participation comedy", taylorKeyword(content.about.producers)],
         fallbackImage,
         [taylorFaq(content.about.producers, brand)]
       );
