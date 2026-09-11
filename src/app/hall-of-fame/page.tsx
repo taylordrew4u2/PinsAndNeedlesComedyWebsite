@@ -6,7 +6,7 @@ import { breadcrumbSchema, faqSchema } from "@/lib/schema";
 import PageHeader from "@/components/PageHeader";
 import { getContent } from "@/lib/store";
 import { toMetadata } from "@/lib/meta";
-import { performerLink, publishedPerformers } from "@/lib/hall-of-fame";
+import { performerSocial, publishedPerformers } from "@/lib/hall-of-fame";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
@@ -45,13 +45,13 @@ export default async function HallOfFamePage() {
         {performers.length ? (
           <div className={styles.grid}>
             {performers.map((person) => {
-              const link = performerLink(person.linkUrl);
+              const link = performerSocial(person);
               return (
                 <article key={person.id} className={styles.card}>
                   <FameStar name={person.name} />
                   {person.credit ? <p className={styles.credit}>{person.credit}</p> : null}
                     {person.bio ? <p className={styles.bio}>{person.bio}</p> : null}
-                    {link ? <a href={link} target="_blank" rel="noopener noreferrer" className={styles.link}>{person.linkLabel || "Find them online"} <span aria-hidden="true">↗</span></a> : null}
+                    {link ? <a href={link.url} aria-label={`Visit ${person.name} on social media`} target="_blank" rel="noopener noreferrer" className={styles.link}>{link.label} <span aria-hidden="true">↗</span></a> : null}
                 </article>
               );
             })}

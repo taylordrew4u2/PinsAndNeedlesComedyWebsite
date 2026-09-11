@@ -386,6 +386,8 @@ export type SiteSettings = {
 };
 
 export type HallPerformer = {
+  socialPlatform?: "instagram" | "tiktok" | "x" | "youtube" | "threads" | "bluesky";
+  socialHandle?: string;
   id: string;
   name: string;
   credit: string;
