@@ -83,3 +83,14 @@ test("admission suggestions handle free entry, prices and missing values", async
   assert.equal(admissionSentence("$15"), "Admission: $15.");
   assert.equal(admissionSentence(""), "");
 });
+
+test("FAQ generation preserves edited answers and does not duplicate questions", async () => {
+  const { addSuggestedFaqs } = await import("../src/lib/seo.ts");
+  const current = [{ q: "Where is the show?", a: "My edited answer." }];
+  const suggested = [{ q: " where IS the show ", a: "Generated answer." }, { q: "Who performs?", a: "Our lineup." }];
+  const result = addSuggestedFaqs(current, suggested);
+  assert.deepEqual(result, [...current, suggested[1]]);
+  assert.deepEqual(addSuggestedFaqs(result, suggested), result);
+  assert.equal(current.length, 1);
+  assert.deepEqual(addSuggestedFaqs([], suggested), suggested);
+});

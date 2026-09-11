@@ -101,3 +101,18 @@ export function admissionSentence(price: string): string {
   if (/^free(?:\s+(?:entry|admission))?$/i.test(clean)) return "Admission is free.";
   return `Admission: ${clean}.`;
 }
+
+/** Add generated FAQs once, preserving answers the editor has already written. */
+export function addSuggestedFaqs(current: Seo["faq"], suggested: Seo["faq"]): Seo["faq"] {
+  const normalize = (question: string) => question.trim().toLowerCase().replace(/[?!.]+$/, "").replace(/\s+/g, " ");
+  const result = current.map((entry) => ({ ...entry }));
+  const seen = new Set(current.map((entry) => normalize(entry.q)));
+  for (const entry of suggested) {
+    const key = normalize(entry.q);
+    if (key && entry.a.trim() && !seen.has(key)) {
+      result.push({ ...entry });
+      seen.add(key);
+    }
+  }
+  return result;
+}

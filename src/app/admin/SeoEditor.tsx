@@ -1,5 +1,6 @@
 "use client";
 
+import { addSuggestedFaqs } from "@/lib/seo";
 import type { Seo } from "@/lib/types";
 import type { Suggestion } from "./suggest";
 import { Area, Button, Label, Section, Tags, Text, Toggle } from "./ui";
@@ -130,9 +131,10 @@ export default function SeoEditor({
       </div>
 
       <div>
-        <Label hint="rendered as FAQPage structured data — the single biggest AI-SEO win">
+        <Label hint="Generate questions and answers for this page, then edit them as needed.">
           FAQ
         </Label>
+        <p className="mb-3 text-xs text-neutral-500">Generated FAQs are added without replacing your existing answers or duplicating questions.</p>
         <div className="grid gap-3">
           {seo.faq.map((entry, index) => (
             <div key={index} className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
@@ -171,8 +173,8 @@ export default function SeoEditor({
         <div className="mt-3 flex flex-wrap gap-2">
           <Button onClick={() => set("faq", [...seo.faq, { q: "", a: "" }])}>Add question</Button>
           {suggestion.faq.length ? (
-            <Button tone="ghost" onClick={() => set("faq", [...seo.faq, ...suggestion.faq])}>
-              Add suggested questions
+            <Button tone="ghost" onClick={() => set("faq", addSuggestedFaqs(seo.faq, suggestion.faq))}>
+              Generate FAQs
             </Button>
           ) : null}
         </div>

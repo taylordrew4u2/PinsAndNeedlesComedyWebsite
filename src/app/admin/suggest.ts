@@ -38,6 +38,27 @@ export function suggestFor(
   const root = base(content);
   const fallbackImage = site.seo.ogImage || site.logoUrl || "/brand/icon.svg";
 
+  const pageFaqs: Partial<Record<typeof key, Suggestion["faq"]>> = {
+    home: [
+      { q: `What is ${brand}?`, a: `${brand} creates original stand-up comedy shows in New York City about choices, vulnerability and what stays with us.` },
+      { q: "Where can I find upcoming shows?", a: `Visit ${root}/shows for announced dates, venues, lineups and ticket information.` },
+    ],
+    hall: [
+      { q: `Who is in the ${brand} Hall of Fame?`, a: `The Hall of Fame celebrates comedians who have performed with ${brand}. Performers are listed alphabetically by display name.` },
+      { q: "How can I follow a performer?", a: "Use the social profile link beneath their star when one is available." },
+    ],
+    news: [
+      { q: "What can I find in the news section?", a: `Read show recaps, lineup announcements and updates from ${brand}.` },
+      { q: "Where can I find upcoming show details?", a: `Visit ${root}/shows for dates, venues, lineups and ticket information.` },
+    ],
+    shop: [
+      { q: `Where can I find official ${brand} merchandise?`, a: `Browse the official shop at ${root}/shop. Check individual product listings for details.` },
+    ],
+    contact: [
+      { q: `How can I contact ${brand}?`, a: `Use the contact information at ${root}/contact for venue bookings, performer submissions and press inquiries.` },
+    ],
+  };
+
   const make = (
     title: string,
     description: string,
@@ -54,7 +75,7 @@ export function suggestFor(
     aiSummary: sentenceSummary(aiSummary, 480),
     ogImage: image,
     canonical: `${root}${path}`,
-    faq,
+    faq: faq.length ? faq : pageFaqs[key] || [{ q: `What is ${brand}?`, a: `${brand} creates original stand-up comedy shows in New York City.` }],
   });
 
   switch (key) {
