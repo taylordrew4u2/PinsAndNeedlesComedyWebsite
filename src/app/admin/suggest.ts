@@ -29,7 +29,7 @@ function base(content: Content) {
 /** Build an SEO suggestion for one page or post. All of it is editable afterwards. */
 export function suggestFor(
   content: Content,
-  key: "site" | "home" | "news" | "shows" | "show" | "shop" | "about" | "contact" | "post" | "weekly",
+  key: "hall" | "site" | "home" | "news" | "shows" | "show" | "shop" | "about" | "contact" | "post" | "weekly",
   post?: Post,
   show?: Show
 ): Suggestion {
@@ -120,6 +120,15 @@ export function suggestFor(
         ]
       );
     }
+    case "hall":
+      return make(
+        `Hall of Fame | ${brand}`,
+        `Meet the performers who have taken the stage with ${brand} in New York City. The people who left a mark.`,
+        `${brand} celebrates its past performers in the Hall of Fame. ${content.hallOfFame.intro}`,
+        `${content.hallOfFame.heading} ${content.hallOfFame.intro}`,
+        "/hall-of-fame",
+        ["nyc stand-up comedians", "comedy performers"]
+      );
     case "shows":
       return make(
         `Shows | ${brand}`,

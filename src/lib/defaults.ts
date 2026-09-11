@@ -199,6 +199,21 @@ export const defaultContent: Content = {
     }),
   },
 
+  hallOfFame: {
+    heading: "Hall of Fame",
+    intro: "The people who left a mark. A little love for everyone who’s taken the stage with Pins & Needles Comedy.",
+    emptyText: "The wall is taking shape. Our performers will be up here soon.",
+    showInNav: true,
+    performers: [],
+    seo: seo({
+      title: "Hall of Fame | Pins & Needles Comedy",
+      description: "Meet the performers who have taken the stage with Pins & Needles Comedy in New York City. The people who left a mark.",
+      canonical: `${SITE_URL}/hall-of-fame`,
+      keywords: ["pins and needles comedy", "nyc stand-up comedians", "comedy hall of fame"],
+      aiSummary: "The Pins & Needles Comedy Hall of Fame celebrates the performers who have appeared at its original stand-up shows in New York City.",
+    }),
+  },
+
   news: {
     heading: "News",
     intro: "Recaps, lineups, flash sheets and announcements from Pins & Needles Comedy.",

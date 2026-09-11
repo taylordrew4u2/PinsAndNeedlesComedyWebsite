@@ -11,6 +11,7 @@ import NewsTab from "./tabs/NewsTab";
 import ShowsTab from "./tabs/ShowsTab";
 import WeeklyTab from "./tabs/WeeklyTab";
 import ShopTab from "./tabs/ShopTab";
+import HallOfFameTab from "./tabs/HallOfFameTab";
 import AboutTab from "./tabs/AboutTab";
 import ContactTab from "./tabs/ContactTab";
 
@@ -21,6 +22,7 @@ const TABS = [
   { id: "weekly", label: "Bad Decisions" },
   { id: "news", label: "News" },
   { id: "shop", label: "Shop" },
+  { id: "hall", label: "Hall of Fame" },
   { id: "about", label: "About Us" },
   { id: "contact", label: "Contact" },
   { id: "site", label: "Site & SEO" },
@@ -235,6 +237,7 @@ export default function AdminApp({
         {tab === "weekly" ? <WeeklyTab content={content} update={update} /> : null}
         {tab === "news" ? <NewsTab content={content} update={update} /> : null}
         {tab === "shop" ? <ShopTab content={content} update={update} /> : null}
+        {tab === "hall" ? <HallOfFameTab content={content} update={update} /> : null}
         {tab === "about" ? <AboutTab content={content} update={update} /> : null}
         {tab === "contact" ? <ContactTab content={content} update={update} /> : null}
         {tab === "site" ? <SiteTab content={content} update={update} /> : null}

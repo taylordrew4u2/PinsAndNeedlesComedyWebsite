@@ -385,6 +385,27 @@ export type SiteSettings = {
   seo: Seo;
 };
 
+export type HallPerformer = {
+  socialPlatform?: "instagram" | "tiktok" | "x" | "youtube" | "threads" | "bluesky";
+  socialHandle?: string;
+  id: string;
+  name: string;
+  credit: string;
+  bio: string;
+  linkUrl: string;
+  linkLabel: string;
+  published: boolean;
+};
+
+export type HallOfFamePage = {
+  heading: string;
+  intro: string;
+  emptyText: string;
+  showInNav: boolean;
+  performers: HallPerformer[];
+  seo: Seo;
+};
+
 export type Content = {
   version: number;
   updatedAt: string;
@@ -392,6 +413,7 @@ export type Content = {
   home: HomePage;
   news: NewsPage;
   showsPage: ShowsPage;
+  hallOfFame: HallOfFamePage;
   shop: ShopPage;
   about: AboutPage;
   contact: ContactPage;
