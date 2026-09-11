@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { renderBody } from "@/lib/render";
 import type { Metadata } from "next";
 import HeroPanel from "@/components/HeroPanel";
 import ReelGrid from "@/components/ReelGrid";
@@ -39,22 +38,6 @@ export default async function HomePage() {
 
       <HeroPanel hero={home.hero} nav={site.nav} active="/" />
 
-      <section aria-label="About Pins & Needles Comedy" className="mx-auto max-w-3xl px-5 py-12 sm:py-16">
-        <div
-          className="pnc-prose text-lg leading-relaxed sm:text-xl"
-          dangerouslySetInnerHTML={{ __html: renderBody(content.about.story.split(/\n\s*\n/)[0]) }}
-        />
-        <p className="mt-6 text-[15px] leading-relaxed text-[var(--pnc-muted)]">
-          From our original tattoo-focused show to Bad Decisions, we’re interested in
-          the version of the story you usually clean up before telling people.
-        </p>
-        <p className="mt-6 text-lg">You don’t need tattoos. Questionable judgment will do.</p>
-        <div className="mt-8 flex flex-wrap gap-6 text-sm">
-          <Link href="/shows" className="underline underline-offset-4 hover:text-[var(--pnc-accent)]">Find a show</Link>
-          <Link href="/about" className="underline underline-offset-4 hover:text-[var(--pnc-accent)]">What we’re about</Link>
-        </div>
-      </section>
-
       {content.weekly.enabled && content.weekly.showOnHome ? (
         <WeeklyStrip weekly={content.weekly} text={content.weekly.homeStripText} />
       ) : null}
@@ -69,6 +52,20 @@ export default async function HomePage() {
       <NewsMarquee posts={posts} settings={blogSettings} fallbackImage={site.logoUrl} />
 
       <ReelGrid reels={content.reels} settings={home.reelsBottom} instagramUrl={instagramUrl} />
+
+      <section aria-labelledby="home-brand-heading" className="border-t border-white/10 px-5 py-8 sm:py-10">
+        <div className="mx-auto grid max-w-6xl gap-5 sm:grid-cols-2 sm:gap-12">
+          <h2 id="home-brand-heading" className="max-w-sm text-xl leading-tight sm:text-2xl">
+            Comedy about the things<br className="hidden sm:block" /> that leave a mark.
+          </h2>
+          <div className="max-w-lg text-sm leading-relaxed text-[var(--pnc-muted)]">
+            <p>Original stand-up shows in New York City. You don’t need tattoos. Questionable judgment will do.</p>
+            <Link href="/about" className="mt-3 inline-block text-[var(--pnc-fg)] underline underline-offset-4 hover:text-[var(--pnc-accent)]">
+              More about Pins &amp; Needles <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
