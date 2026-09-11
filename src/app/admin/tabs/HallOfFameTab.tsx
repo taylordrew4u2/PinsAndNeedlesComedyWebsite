@@ -1,7 +1,6 @@
 "use client";
 import type { Content, HallPerformer } from "@/lib/types";
 import { Area, Button, Card, Row, Section, Text, Toggle } from "../ui";
-import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
 import type { Update } from "../types";
@@ -25,14 +24,12 @@ export default function HallOfFameTab({ content, update }: { content: Content; u
       <Text label="Empty page message" value={hall.emptyText} onChange={(v) => update((d) => void (d.hallOfFame.emptyText = v))} />
       <Toggle label="Show Hall of Fame in navigation" value={hall.showInNav} onChange={(v) => update((d) => void (d.hallOfFame.showInNav = v))} />
     </Section>
-    <Section title={`Performers (${hall.performers.length})`} hint="Cards appear in this order. New entries stay unpublished until you are ready.">
+    <Section title={`Performers (${hall.performers.length})`} hint="Stars appear in this order. No photo needed. New entries stay unpublished until you are ready.">
       <Button tone="primary" onClick={() => update((d) => void d.hallOfFame.performers.push({
-        id: crypto.randomUUID(), name: "", photoUrl: "", photoAlt: "", credit: "", bio: "", linkUrl: "", linkLabel: "Instagram", published: false,
+        id: crypto.randomUUID(), name: "", credit: "", bio: "", linkUrl: "", linkLabel: "Instagram", published: false,
       }))}>Add performer</Button>
       {hall.performers.map((person, index) => <Card key={person.id} title={person.name || "New performer"} subtitle={person.published ? "Published" : "Draft"} defaultOpen={true}>
         <Text label="Name" value={person.name} onChange={(v) => setPerson(index, { name: v })} />
-        <MediaField label="Performer photo" hint="Original color photo, cropped to a portrait." value={person.photoUrl} onChange={(v) => setPerson(index, { photoUrl: v })} aspect={4/5} previewHeight={180} />
-        <Text label="Photo description" value={person.photoAlt} onChange={(v) => setPerson(index, { photoAlt: v })} />
         <Text label="Credit or show" hint="For example: Headliner · September 2026" value={person.credit} onChange={(v) => setPerson(index, { credit: v })} />
         <Area label="Short bio" rows={3} value={person.bio} onChange={(v) => setPerson(index, { bio: v })} />
         <Row>

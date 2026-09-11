@@ -388,8 +388,6 @@ export type SiteSettings = {
 export type HallPerformer = {
   id: string;
   name: string;
-  photoUrl: string;
-  photoAlt: string;
   credit: string;
   bio: string;
   linkUrl: string;

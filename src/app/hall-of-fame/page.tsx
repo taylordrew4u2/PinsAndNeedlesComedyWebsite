@@ -1,3 +1,4 @@
+import FameStar from "./FameStar";
 import styles from "./hall.module.css";
 import type { Metadata } from "next";
 import JsonLd from "@/components/JsonLd";
@@ -47,22 +48,8 @@ export default async function HallOfFamePage() {
               const link = performerLink(person.linkUrl);
               return (
                 <article key={person.id} className={styles.card}>
-                  <div className={styles.frame}>
-                    <div className={styles.mat}><div className={styles.portrait}>
-                    {person.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={person.photoUrl} alt={person.photoAlt || person.name} loading="lazy"  />
-                    ) : (
-                      <div aria-hidden="true" className={styles.initials}>
-                        {person.name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}
-                      </div>
-                    )}
-                    </div></div>
-                  </div>
-                  <div className={styles.plaque}>
-                    <h2 className={styles.name}>{person.name}</h2>
-                    {person.credit ? <p className={styles.credit}>{person.credit}</p> : null}
-                  </div>
+                  <FameStar name={person.name} />
+                  {person.credit ? <p className={styles.credit}>{person.credit}</p> : null}
                     {person.bio ? <p className={styles.bio}>{person.bio}</p> : null}
                     {link ? <a href={link} target="_blank" rel="noopener noreferrer" className={styles.link}>{person.linkLabel || "Find them online"} <span aria-hidden="true">↗</span></a> : null}
                 </article>
@@ -71,10 +58,8 @@ export default async function HallOfFamePage() {
           </div>
         ) : (
           <div className={styles.empty}>
-            <div className={styles.emptyInner}>
-              <p className={styles.emptyMark} aria-hidden="true">P&amp;N</p>
-              <p className={styles.emptyText}>{hall.emptyText}</p>
-            </div>
+            <div className={styles.emptyStar} aria-hidden="true"><FameStar name="Pins & Needles" /></div>
+            <p className={styles.emptyText}>{hall.emptyText}</p>
           </div>
         )}
       </section>

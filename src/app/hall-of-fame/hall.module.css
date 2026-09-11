@@ -1,5 +1,6 @@
 .hall {
   --gold: #c6a76b;
+  --stone-grain: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22160%22%20height%3D%22160%22%3E%3Cfilter%20id%3D%22grain%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%22.75%22%20numOctaves%3D%223%22%20stitchTiles%3D%22stitch%22/%3E%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22/%3E%3C/filter%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20filter%3D%22url%28%23grain%29%22%20opacity%3D%22.22%22/%3E%3C/svg%3E");
   --cream: #f2eadb;
   color: var(--cream);
   background: radial-gradient(ellipse at 50% 12%, #24201a 0, #121211 38%, #0a0a0a 76%);
@@ -15,21 +16,36 @@
 .description { max-width: 550px; margin: auto; font-size: 15px; line-height: 1.9; color: #b9b2a5; text-wrap: pretty; }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 56px 36px; }
 .card { min-width: 0; text-align: center; }
-.frame { padding: 7px; border: 1px solid #a98a52; background: linear-gradient(135deg, #d2ba81, #705525 22%, #bca16b 48%, #715b35 76%, #c8af78); box-shadow: 0 14px 40px #0008; }
-.mat { border: 1px solid #54462d; padding: 11px; background: #131310; }
-.portrait { aspect-ratio: 4 / 5; overflow: hidden; background: #23221c; border: 1px solid #c6a76b55; }
-.portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.initials { height: 100%; display: grid; place-items: center; color: #c6a76b; font: 64px Georgia, serif; background: radial-gradient(ellipse, #353025, #141410); }
-.plaque { position: relative; margin: 18px 12px 0; padding: 20px 14px; border: 1px solid #b59762; color: #251e13; background: linear-gradient(110deg, #b6975d, #e0cd9c 45%, #c0a16a); box-shadow: inset 0 0 0 3px #d9c495, inset 0 0 0 4px #998052, 0 6px 20px #0005; }
-.name { font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 400; line-height: 1.2; overflow-wrap: anywhere; text-wrap: balance; }
-.credit { margin-top: 9px; font-size: 9px; line-height: 1.6; text-transform: uppercase; letter-spacing: .16em; }
+.tile {
+  position: relative; aspect-ratio: 1; container-type: inline-size;
+  background-color: #242424;
+  background-image: var(--stone-grain), linear-gradient(135deg, #2a2a29, #171716);
+  background-size: 160px 160px, 100% 100%;
+  border: 1px solid #53504a; box-shadow: inset 0 0 0 3px #1118, 0 10px 30px #0006;
+}
+.starBorder, .starStone {
+  position: absolute; clip-path: polygon(50% 3%,61% 37%,97% 37%,68% 58%,79% 92%,50% 71%,21% 92%,32% 58%,3% 37%,39% 37%);
+}
+.starBorder { inset: 5%; background: linear-gradient(120deg, #f1d69e, #98763f 48%, #e1c38b 75%, #a17f47); }
+.starStone {
+  inset: 4px; background-color: #c48f86;
+  background-image: var(--stone-grain), linear-gradient(130deg, #d3a29a55, #a36c6744);
+  background-size: 160px 160px, 100% 100%;
+}
+.starName {
+  position: absolute; top: 40%; left: 20%; width: 60%; margin: 0;
+  font-family: Georgia, 'Times New Roman', serif; font-weight: 700; line-height: 1.12;
+  text-transform: uppercase; letter-spacing: .025em; text-align: center; text-wrap: balance;
+  overflow-wrap: anywhere; color: #32291c; text-shadow: 0 1px #f5d9b377;
+}
+.medallion { position: absolute; width: 13%; height: 13%; left: 43.5%; top: 56%; }
+.credit { margin: 18px 8px 0; color: var(--gold); font-size: 10px; line-height: 1.6; text-transform: uppercase; letter-spacing: .16em; }
 .bio { padding: 0 12px; margin-top: 20px; color: #b9b2a5; font-size: 13px; line-height: 1.8; white-space: pre-line; }
 .link { display: inline-block; margin-top: 16px; padding: 4px 0; color: var(--gold); font-size: 11px; letter-spacing: .08em; border-bottom: 1px solid #c6a76b60; }
 .link:hover { color: var(--cream); border-color: var(--cream); }
 .link:focus-visible { outline: 2px solid var(--gold); outline-offset: 6px; }
-.empty { max-width: 680px; margin: auto; padding: 7px; border: 1px solid #c6a76b70; background: #171613; }
-.emptyInner { padding: 48px 28px; border: 1px solid #c6a76b30; text-align: center; }
-.emptyMark { color: var(--gold); font: italic 30px Georgia, serif; margin-bottom: 18px; }
+.empty { max-width: 380px; margin: auto; text-align: center; }
+.emptyStar { margin-bottom: 28px; }
 .emptyText { max-width: 360px; margin: auto; color: #b9b2a5; font: 18px/1.8 Georgia, serif; }
 @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 44px 28px; } }
 @media (max-width: 560px) {
@@ -39,5 +55,5 @@
   .eyebrow { font-size: 9px; letter-spacing: .22em; }
   .description { font-size: 14px; }
   .grid { grid-template-columns: minmax(0, 1fr); max-width: 340px; margin: auto; }
-  .emptyInner { padding: 32px 20px; }
+
 }
