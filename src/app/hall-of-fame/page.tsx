@@ -35,7 +35,7 @@ export default async function HallOfFamePage() {
                 <ellipse cx={82 - (leaf > 2 ? (leaf - 2) * 4 : 0)} cy={27 + leaf * 11} rx="3" ry="7" transform={`rotate(35 82 ${27 + leaf * 11})`} />
               </g>
             ))}
-            <text x="50" y="56" textAnchor="middle" fill="currentColor" fontFamily="Georgia, serif" fontSize="19">P&amp;N</text>
+            <path d="m50 34 4.5 10 11 1-8.3 7.4 2.5 10.6L50 57.5 40.3 63l2.5-10.6L34.5 45l11-1Z" fill="currentColor" />
           </svg>
           <p className={styles.eyebrow}>Pins &amp; Needles Comedy</p>
           <h1 className={styles.title}>{hall.heading}</h1>
