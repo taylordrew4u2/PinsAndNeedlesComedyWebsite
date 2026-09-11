@@ -2,6 +2,7 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defaultContent } from "./defaults";
+import { hallNavigation } from "./hall-of-fame";
 import { merge } from "./merge";
 import { upgradeBrandCopy } from "./brand-copy";
 import { healAssetPaths } from "./assets";
@@ -70,6 +71,7 @@ function normalize(content: Content): Content {
   const healed = healAssetPaths(upgradeBrandCopy(content, defaultContent));
   return {
     ...healed,
+    site: { ...healed.site, nav: hallNavigation(healed.site.nav, healed.hallOfFame) },
     shows: healed.shows.map((show) => ({ ...show, series: show.series ?? "" })),
   };
 }

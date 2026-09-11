@@ -43,6 +43,7 @@ ${site.socials.map((social) => `${social.label}: ${social.url}`).join("\n")}
       : ""
   }
 - [News](${base}/news): ${content.news.seo.aiSummary || content.news.seo.description}
+- [Hall of Fame](${base}/hall-of-fame): ${content.hallOfFame.seo.aiSummary || content.hallOfFame.seo.description}
 - [About Us](${base}/about): ${about.seo.aiSummary || about.seo.description}
 - [Shop](${base}/shop): ${shop.seo.aiSummary || shop.seo.description}
 - [Contact](${base}/contact): ${contact.seo.aiSummary || contact.seo.description}
