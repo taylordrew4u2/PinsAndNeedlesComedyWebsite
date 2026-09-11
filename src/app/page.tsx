@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import HeroPanel from "@/components/HeroPanel";
 import ReelGrid from "@/components/ReelGrid";
@@ -51,21 +50,10 @@ export default async function HomePage() {
       ) : null}
       <NewsMarquee posts={posts} settings={blogSettings} fallbackImage={site.logoUrl} />
 
-      <ReelGrid reels={content.reels} settings={home.reelsBottom} instagramUrl={instagramUrl} />
+      {content.reels.some((reel) => reel.published) || !home.reelsTop.enabled ? (
+        <ReelGrid reels={content.reels} settings={home.reelsBottom} instagramUrl={instagramUrl} />
+      ) : null}
 
-      <section aria-labelledby="home-brand-heading" className="border-t border-white/10 px-5 py-8 sm:py-10">
-        <div className="mx-auto grid max-w-6xl gap-5 sm:grid-cols-2 sm:gap-12">
-          <h2 id="home-brand-heading" className="max-w-sm text-xl leading-tight sm:text-2xl">
-            Comedy about the things<br className="hidden sm:block" /> that leave a mark.
-          </h2>
-          <div className="max-w-lg text-sm leading-relaxed text-[var(--pnc-muted)]">
-            <p>Original stand-up shows in New York City. You don’t need tattoos. Questionable judgment will do.</p>
-            <Link href="/about" className="mt-3 inline-block text-[var(--pnc-fg)] underline underline-offset-4 hover:text-[var(--pnc-accent)]">
-              More about Pins &amp; Needles <span aria-hidden="true">↗</span>
-            </Link>
-          </div>
-        </div>
-      </section>
     </main>
   );
 }

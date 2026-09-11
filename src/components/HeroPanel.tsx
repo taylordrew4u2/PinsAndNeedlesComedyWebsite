@@ -16,7 +16,7 @@ export default function HeroPanel({
       aria-label="Pins & Needles Comedy"
       className="relative flex w-full flex-col items-center justify-center overflow-hidden"
       style={{
-        minHeight: `${hero.heightVh}vh`,
+        minHeight: `min(${hero.heightVh}vh, 360px)`,
         background: hero.background,
         color: hero.foreground,
       }}
@@ -33,7 +33,7 @@ export default function HeroPanel({
         />
       ) : null}
 
-      <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-5 py-10">
+      <div className="relative flex flex-1 flex-col items-center justify-center gap-3 px-5 py-6 sm:py-8">
         {hero.logoUrl ? (
           <Link href="/" aria-label="Pins & Needles Comedy — home">
             <Image
@@ -42,9 +42,9 @@ export default function HeroPanel({
               width={1024}
               height={1024}
               priority
-              sizes="(max-width: 640px) 70vw, 40vw"
+              sizes="(max-width: 640px) 48vw, 240px"
               style={{
-                width: `min(${hero.logoScale}vh, 78vw)`,
+                width: `min(${hero.logoScale}vh, 48vw, 240px)`,
                 height: "auto",
               }}
             />
@@ -53,7 +53,7 @@ export default function HeroPanel({
 
         {hero.showWordmark ? (
           <h1
-            className="text-center leading-[1.05]"
+            className={hero.logoUrl ? "sr-only" : "text-center leading-[1.05]"}
             style={{
               fontFamily: hero.wordmarkFont,
               fontSize: `clamp(18px, ${hero.wordmarkSize / 10}vw, ${hero.wordmarkSize}px)`,
@@ -68,8 +68,7 @@ export default function HeroPanel({
 
         {hero.showTagline && hero.tagline ? (
           <p
-            className="text-center uppercase opacity-70"
-            style={{ fontSize: 12, letterSpacing: "0.25em" }}
+            className="max-w-xs text-center text-sm leading-relaxed text-current/70 sm:max-w-none"
           >
             {hero.tagline}
           </p>
@@ -78,7 +77,7 @@ export default function HeroPanel({
 
       <nav
         aria-label="Primary"
-        className="relative flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-2 px-4 pb-6 pt-2 uppercase"
+        className="relative flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-3 px-4 pb-6 pt-2 uppercase"
         style={{
           fontSize: hero.navSize,
           letterSpacing: `${hero.navLetterSpacing / 100}em`,
