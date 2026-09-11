@@ -59,15 +59,14 @@ export default async function ShowsIndexPage() {
           <h2 className="mb-4 text-[11px] uppercase tracking-[0.32em] text-[var(--pnc-muted)]">
             {showsPage.weeklyHeading}
           </h2>
-          <Link
-            href="/bad-decisions"
-            className="group flex flex-col gap-4 border border-white/15 p-5 transition-colors hover:border-white/40 sm:flex-row sm:items-center sm:justify-between"
+          <div
+            className="flex flex-col gap-4 border border-white/15 p-5 sm:flex-row sm:items-center sm:justify-between"
           >
             <span className="min-w-0">
               <span className="block text-[10px] uppercase tracking-[0.24em] text-[var(--pnc-muted)]">
                 {weeklyScheduleLine(weekly)}
               </span>
-              <span className="mt-1.5 block text-[20px] leading-snug group-hover:underline">{weekly.title}</span>
+              <span className="mt-1.5 block text-[20px] leading-snug">{weekly.title}</span>
               <span className="mt-1 block text-[13px] leading-snug text-[var(--pnc-muted)]">
                 {weeklyVenueLine(weekly)}
                 {weekly.price ? ` · ${weekly.price}` : ""}
@@ -79,10 +78,7 @@ export default async function ShowsIndexPage() {
                 </span>
               ) : null}
             </span>
-            <span className="shrink-0 border border-white px-4 py-2 text-center text-[12px] uppercase tracking-[0.22em] transition-colors group-hover:bg-white group-hover:text-[var(--pnc-bg)]">
-              {weekly.homeStripCta || "Send in a decision"}
-            </span>
-          </Link>
+          </div>
         </section>
       ) : null}
 

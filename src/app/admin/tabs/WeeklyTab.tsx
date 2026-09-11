@@ -25,12 +25,12 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
 
       <Section
         title="Bad Decisions page"
-        hint="Lives at /bad-decisions — that address is what the QR code and the flyer point at. Everything here is the standing detail; each week's bill is a show in the Shows tab marked as part of this weekly."
+        hint="Private submission screen: accessible through the QR code, with no public menu link. Everything here is the standing detail; each week's bill is a show in the Shows tab marked as part of this weekly."
       >
         <QrCode />
         <Toggle
           label="Page is live"
-          hint="off = /bad-decisions is a 404 and the form stops taking submissions"
+          hint="off = the QR entry is a 404 and the form stops taking submissions"
           value={weekly.enabled}
           onChange={set("enabled")}
         />
@@ -211,7 +211,7 @@ function QrCode() {
         className="h-28 w-28 shrink-0 rounded bg-white p-2"
       />
       <div className="text-[12px] text-neutral-400">
-        <p>Points at /bad-decisions on the live site. Print it on the flyer or the table tent.</p>
+        <p>Private QR entry: countdown until submissions open, then the prompt. Download this new code for flyers and table tents; older codes pointing to the plain page will not work.</p>
         <a
           href={`/api/admin/decisions/qr?v=${key}`}
           target="_blank"

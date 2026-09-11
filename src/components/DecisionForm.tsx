@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DECISION_MAX, NAME_MAX } from "@/lib/decisions";
+import { countdownParts } from "@/lib/countdown";
 import { formatPhone, smsHref } from "@/lib/sms";
 
 /**
@@ -9,12 +10,12 @@ import { formatPhone, smsHref } from "@/lib/sms";
  * one button, and a thank-you that replaces the form so nobody sends twice
  * by accident.
  *
- * Outside the show's window the form is replaced by a note saying when it
- * opens. The poll that keeps the count moving also watches for the window
+ * Outside the show's window the form is replaced by a countdown. The poll that keeps the count moving also watches for the window
  * opening, so a phone left face-up on the table turns into a live form on
  * its own.
  */
 export default function DecisionForm({
+  qrKey,
   question,
   placeholder,
   namePrompt,
@@ -25,9 +26,13 @@ export default function DecisionForm({
   initialCount,
   initialOpen,
   initialClosedText,
+  initialOpensAt,
+  initialClosesAt,
+  initialServerNow,
   smsNumber,
   smsNote,
 }: {
+  qrKey: string;
   question: string;
   placeholder: string;
   namePrompt: string;
@@ -38,6 +43,9 @@ export default function DecisionForm({
   initialCount: number | null;
   initialOpen: boolean;
   initialClosedText: string;
+  initialOpensAt: string;
+  initialClosesAt: string;
+  initialServerNow: number;
   smsNumber: string;
   smsNote: string;
 }) {
@@ -52,24 +60,79 @@ export default function DecisionForm({
   const [open, setOpen] = useState(initialOpen);
   const [closedText, setClosedText] = useState(initialClosedText);
 
-  // Watch for the window opening, and keep the count moving once it has.
+  const [opensAt, setOpensAt] = useState(initialOpensAt);
+  const [now, setNow] = useState(initialServerNow);
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  // The server owns the gate. Refresh at its boundary and on return to the tab;
+  // a slow or disconnected phone must never open the form on its clock alone.
   useEffect(() => {
+    let disposed = false;
+    let pending = false;
+    let serverTime = initialServerNow;
+    let syncedAt = performance.now();
+    let boundary = Date.parse(initialOpen ? initialClosesAt : initialOpensAt);
+    let nextPoll = 0;
+    const controller = new AbortController();
     const tick = async () => {
+      const current = serverTime + performance.now() - syncedAt;
+      setNow(current);
+      if (pending || (current < nextPoll && (!Number.isFinite(boundary) || current < boundary))) return;
+      pending = true;
+      nextPoll = current + 30_000;
+      boundary = NaN;
       try {
-        const response = await fetch("/api/decisions", { cache: "no-store" });
+        const response = await fetch("/api/decisions", { cache: "no-store", headers: { "X-Decisions-QR": qrKey }, signal: controller.signal });
+        if (!response.ok) throw new Error("Unavailable");
         const data = await response.json();
-        if (typeof data.open === "boolean") setOpen(data.open);
+        if (disposed || typeof data.open !== "boolean") return;
+        if (typeof data.serverNow === "number") {
+          serverTime = data.serverNow;
+          syncedAt = performance.now();
+          setNow(serverTime);
+        }
+        setOpen(data.open);
+        if (!data.open) {
+          setDone(false);
+          setDecision("");
+          setName("");
+          setNamed(false);
+        }
+        if (typeof data.opensAt === "string") setOpensAt(data.opensAt);
         if (typeof data.closedText === "string") setClosedText(data.closedText);
         setCount(typeof data.count === "number" ? data.count : null);
+        const target = Date.parse(data.open ? data.closesAt : data.opensAt);
+        boundary = target > serverTime ? target : NaN;
+        nextPoll = serverTime + 30_000;
       } catch {
-        // A missed tick is nothing; the next one will land.
+        // Retry soon at zero rather than opening a form the server cannot accept.
+        nextPoll = current + 5_000;
+      } finally {
+        pending = false;
       }
     };
-    // Half a minute is plenty for a number that only has to feel alive, and
-    // it halves what a full room asks of the store.
-    const timer = setInterval(tick, 30_000);
-    return () => clearInterval(timer);
-  }, []);
+    const resume = () => {
+      if (document.visibilityState === "visible") {
+        nextPoll = 0;
+        void tick();
+      }
+    };
+    void tick();
+    const timer = setInterval(() => void tick(), 1_000);
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    return () => {
+      disposed = true;
+      controller.abort();
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", resume);
+    };
+  }, [initialOpen, initialOpensAt, initialClosesAt, initialServerNow, qrKey]);
+
+  useEffect(() => {
+    if (open) heading.current?.focus();
+  }, [open]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -79,10 +142,14 @@ export default function DecisionForm({
     try {
       const response = await fetch("/api/decisions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Decisions-QR": qrKey },
         body: JSON.stringify({ decision, name, anonymous: !named, website }),
       });
       const data = await response.json().catch(() => ({}));
+      if (data.open === false) {
+        setOpen(false);
+        setClosedText(data.error || "Submissions are closed.");
+      }
       if (!response.ok || !data.ok) throw new Error(data.error || "Couldn't send that.");
       if (typeof data.count === "number") setCount(data.count);
       setDone(true);
@@ -123,15 +190,24 @@ export default function DecisionForm({
       </p>
     ) : null;
 
-  // Outside the window this is a note, not a shut door. Most people who find
-  // this page are not in the room on a Thursday night, and an empty bordered
-  // panel at the top of the page made a running show look cancelled.
   if (!open) {
+    const parts = countdownParts(opensAt, now);
     return (
-      <div className="border-l-2 border-[var(--pnc-accent)] pl-4">
-        <p className="text-[17px] leading-relaxed">{closedText}</p>
-        {texting ? <div className="mt-2">{texting}</div> : null}
-      </div>
+      <section className="text-center" aria-label="Countdown to Bad Decisions submissions">
+        {parts ? (
+          <>
+            <h1 className="text-[11px] uppercase tracking-[0.24em] text-[var(--pnc-muted)]">Next show · submissions open in</h1>
+            <div role="timer" aria-live="off" className="mt-6 grid grid-cols-4 gap-2 sm:gap-5">
+              {Object.entries(parts).map(([unit, value]) => (
+                <div key={unit}>
+                  <span className="block text-4xl tabular-nums sm:text-6xl">{String(value).padStart(2, "0")}</span>
+                  <span className="mt-2 block text-[10px] uppercase tracking-[0.15em] text-[var(--pnc-muted)]">{unit}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : <p role="status">{closedText || "The next show will be announced soon."}</p>}
+      </section>
     );
   }
 
@@ -157,13 +233,13 @@ export default function DecisionForm({
   }
 
   return (
-    <form onSubmit={submit} className="border border-white/15 p-5 sm:p-6">
+    <form onSubmit={submit}>
+      <h1 ref={heading} tabIndex={-1} id="decision-question" className="text-3xl leading-tight outline-none sm:text-4xl">{question}</h1>
       <label className="block">
-        <span className="block text-[20px] leading-snug sm:text-[22px]" style={{ fontFamily: "var(--pnc-heading)" }}>
-          {question}
-        </span>
+        <span className="sr-only">Your decision</span>
         <textarea
           required
+          aria-describedby="decision-question"
           rows={6}
           maxLength={DECISION_MAX}
           value={decision}

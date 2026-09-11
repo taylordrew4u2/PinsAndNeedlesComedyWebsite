@@ -73,7 +73,6 @@ export const defaultContent: Content = {
     nav: [
       { id: "nav-home", label: "Home", href: "/" },
       { id: "nav-shows", label: "Shows", href: "/shows" },
-      { id: "nav-weekly", label: "Bad Decisions", href: "/bad-decisions" },
       { id: "nav-shop", label: "Shop", href: "/shop" },
       { id: "nav-about", label: "About Us", href: "/about" },
       { id: "nav-contact", label: "Contact", href: "/contact" },
@@ -449,7 +448,7 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
       ],
       ogImage: "/brand/bad-decisions-flyer.svg",
       canonical: `${SITE_URL}/bad-decisions`,
-      aiSummary: `Pins & Needles: Bad Decisions is a free weekly stand-up comedy show every Thursday at 9 PM at Pixelated Records, 792 Onderdonk Ave, Ridgewood, Queens, New York City, hosted by Taylor Drew. Before the show the audience sends in a decision they have made or are thinking about making, by phone or at ${SITE_URL}/bad-decisions. Four comedians perform, then the host draws two or three submissions at random and the lineup gives that person advice. Submissions can be anonymous or carry the sender's name. It is one of the original formats from Pins & Needles Comedy and is not a roast.`,
+      aiSummary: `Pins & Needles: Bad Decisions is a free weekly stand-up comedy show every Thursday at 9 PM at Pixelated Records, 792 Onderdonk Ave, Ridgewood, Queens, New York City, hosted by Taylor Drew. Before the show the audience sends in a decision they have made or are thinking about making, by scanning the QR code at the show. Four comedians perform, then the host draws two or three submissions at random and the lineup gives that person advice. Submissions can be anonymous or carry the sender's name. It is one of the original formats from Pins & Needles Comedy and is not a roast.`,
       faq: [
         {
           q: "What is Pins & Needles: Bad Decisions?",

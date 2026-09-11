@@ -37,11 +37,7 @@ ${site.socials.map((social) => `${social.label}: ${social.url}`).join("\n")}
 ## Pages
 
 - [Home](${base}/): ${content.home.seo.aiSummary || content.home.seo.description}
-- [Shows](${base}/shows): ${content.showsPage.seo.aiSummary || content.showsPage.seo.description}${
-    weekly.enabled
-      ? `\n- [${weekly.title}](${base}/bad-decisions): ${weekly.seo.aiSummary || weekly.seo.description || weeklySummary(weekly)}`
-      : ""
-  }
+- [Shows](${base}/shows): ${content.showsPage.seo.aiSummary || content.showsPage.seo.description}
 - [News](${base}/news): ${content.news.seo.aiSummary || content.news.seo.description}
 - [Hall of Fame](${base}/hall-of-fame): ${content.hallOfFame.seo.aiSummary || content.hallOfFame.seo.description}
 - [About Us](${base}/about): ${about.seo.aiSummary || about.seo.description}
@@ -60,7 +56,7 @@ ${
   weekly.enabled
     ? `## Weekly show
 
-${weeklySummary(weekly)} Submit a decision at ${base}/bad-decisions.
+${weeklySummary(weekly)} Audience submissions are available by scanning the QR code at the show.
 `
     : ""
 }

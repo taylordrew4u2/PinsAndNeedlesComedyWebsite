@@ -1,3 +1,4 @@
+import { decisionQrKey } from "@/lib/decision-access";
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
 import { decisionsQrSvg } from "@/lib/qr";
@@ -13,7 +14,9 @@ export async function GET() {
 
   const { site } = await getContent();
   const base = (site.url || "").replace(/\/+$/, "");
-  const target = base ? `${base}/bad-decisions` : "";
+  const key = decisionQrKey();
+  if (!key) return NextResponse.json({ ok: false, error: "ADMIN_SECRET is not configured" }, { status: 503 });
+  const target = base ? `${base}/bad-decisions?qr=${key}` : "";
   if (!target) {
     return NextResponse.json({ ok: false, error: "Site URL is not set" }, { status: 400 });
   }

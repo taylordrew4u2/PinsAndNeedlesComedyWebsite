@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { WeeklyPage } from "@/lib/types";
 import { weeklyScheduleLine } from "@/lib/decisions";
 
@@ -26,12 +25,7 @@ export default function WeeklyStrip({ weekly, text }: { weekly: WeeklyPage; text
             </span>
             {text}
           </p>
-          <Link
-            href="/bad-decisions"
-            className="shrink-0 self-start rounded-sm bg-white px-4 py-2 text-center text-[12px] font-medium uppercase tracking-[0.22em] text-black transition-colors hover:bg-[var(--pnc-accent)] hover:text-white sm:self-auto"
-          >
-            {weekly.homeStripCta || "Send yours in"}
-          </Link>
+
         </div>
       </div>
     </section>
