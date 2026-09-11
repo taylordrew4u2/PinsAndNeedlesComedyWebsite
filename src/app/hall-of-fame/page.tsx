@@ -1,3 +1,4 @@
+import styles from "./hall.module.css";
 import type { Metadata } from "next";
 import JsonLd from "@/components/JsonLd";
 import { breadcrumbSchema, faqSchema } from "@/lib/schema";
@@ -17,47 +18,63 @@ export default async function HallOfFamePage() {
   const performers = publishedPerformers(hall);
   const faq = faqSchema(hall.seo);
   return (
-    <main>
+    <main className={styles.hall}>
       <JsonLd data={breadcrumbSchema(site.url, [{ name: "Home", path: "/" }, { name: hall.heading, path: "/hall-of-fame" }])} />
       {faq ? <JsonLd data={faq} /> : null}
       <PageHeader hero={home.hero} nav={site.nav} active="/hall-of-fame" />
-      <section className="mx-auto max-w-6xl px-5 pb-20 pt-12 sm:pt-16">
-        <div className="mb-10 border-b border-white/15 pb-8 sm:mb-12">
-          <p className="mb-4 text-[10px] uppercase tracking-[0.3em] text-[var(--pnc-accent)]">Pins &amp; Needles Comedy · Alumni</p>
-          <h1 className="text-4xl leading-none sm:text-6xl lg:text-7xl">{hall.heading}</h1>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-[var(--pnc-muted)]">{hall.intro}</p>
+      <section className={styles.gallery}>
+        <div className={styles.intro}>
+          <svg className={styles.crest} viewBox="0 0 100 100" aria-hidden="true" fill="none">
+            <circle cx="50" cy="50" r="28" stroke="currentColor" strokeWidth=".7" />
+            <circle cx="50" cy="50" r="23" stroke="currentColor" strokeWidth=".4" />
+            <path d="M46 87C9 72 7 35 27 14M54 87C91 72 93 35 73 14" stroke="currentColor" strokeWidth="1.1" />
+            {[0, 1, 2, 3, 4].map((leaf) => (
+              <g key={leaf} fill="currentColor">
+                <ellipse cx={18 + (leaf > 2 ? (leaf - 2) * 4 : 0)} cy={27 + leaf * 11} rx="3" ry="7" transform={`rotate(-35 18 ${27 + leaf * 11})`} />
+                <ellipse cx={82 - (leaf > 2 ? (leaf - 2) * 4 : 0)} cy={27 + leaf * 11} rx="3" ry="7" transform={`rotate(35 82 ${27 + leaf * 11})`} />
+              </g>
+            ))}
+            <text x="50" y="56" textAnchor="middle" fill="currentColor" fontFamily="Georgia, serif" fontSize="19">P&amp;N</text>
+          </svg>
+          <p className={styles.eyebrow}>Pins &amp; Needles Comedy</p>
+          <h1 className={styles.title}>{hall.heading}</h1>
+          <div className={styles.rule} aria-hidden="true">✦</div>
+          <p className={styles.description}>{hall.intro}</p>
         </div>
         {performers.length ? (
-          <div className="grid grid-cols-1 gap-x-6 gap-y-10 min-[400px]:grid-cols-2 lg:grid-cols-3">
-            {performers.map((person, index) => {
+          <div className={styles.grid}>
+            {performers.map((person) => {
               const link = performerLink(person.linkUrl);
               return (
-                <article key={person.id} className="group min-w-0">
-                  <div className="relative aspect-[4/5] overflow-hidden border border-white/15 bg-neutral-900">
+                <article key={person.id} className={styles.card}>
+                  <div className={styles.frame}>
+                    <div className={styles.mat}><div className={styles.portrait}>
                     {person.photoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={person.photoUrl} alt={person.photoAlt || person.name} loading="lazy" className="h-full w-full object-cover" />
+                      <img src={person.photoUrl} alt={person.photoAlt || person.name} loading="lazy"  />
                     ) : (
-                      <div aria-hidden="true" className="flex h-full items-center justify-center text-6xl font-bold text-white/20 sm:text-8xl">
-                        {person.name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("")}
+                      <div aria-hidden="true" className={styles.initials}>
+                        {person.name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}
                       </div>
                     )}
-                    <span aria-hidden="true" className="absolute left-3 top-3 bg-[var(--pnc-bg)] px-2 py-1 text-[10px] tracking-[0.18em] text-[var(--pnc-accent)]">№ {String(index + 1).padStart(3, "0")}</span>
+                    </div></div>
                   </div>
-                  <div className="border-b border-white/15 py-4">
-                    <h2 className="break-words text-xl leading-tight sm:text-2xl">{person.name}</h2>
-                    {person.credit ? <p className="mt-2 text-[10px] uppercase tracking-[0.15em] text-[var(--pnc-accent)]">{person.credit}</p> : null}
-                    {person.bio ? <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-[var(--pnc-muted)]">{person.bio}</p> : null}
-                    {link ? <a href={link} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs underline underline-offset-4 hover:text-[var(--pnc-accent)]">{person.linkLabel || "Find them online"} <span aria-hidden="true">↗</span></a> : null}
+                  <div className={styles.plaque}>
+                    <h2 className={styles.name}>{person.name}</h2>
+                    {person.credit ? <p className={styles.credit}>{person.credit}</p> : null}
                   </div>
+                    {person.bio ? <p className={styles.bio}>{person.bio}</p> : null}
+                    {link ? <a href={link} target="_blank" rel="noopener noreferrer" className={styles.link}>{person.linkLabel || "Find them online"} <span aria-hidden="true">↗</span></a> : null}
                 </article>
               );
             })}
           </div>
         ) : (
-          <div className="border border-dashed border-white/20 px-6 py-16 text-center">
-            <span aria-hidden="true" className="text-3xl text-[var(--pnc-accent)]">✦</span>
-            <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-[var(--pnc-muted)]">{hall.emptyText}</p>
+          <div className={styles.empty}>
+            <div className={styles.emptyInner}>
+              <p className={styles.emptyMark} aria-hidden="true">P&amp;N</p>
+              <p className={styles.emptyText}>{hall.emptyText}</p>
+            </div>
           </div>
         )}
       </section>
