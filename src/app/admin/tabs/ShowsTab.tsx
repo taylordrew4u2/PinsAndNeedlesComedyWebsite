@@ -100,25 +100,14 @@ export default function ShowsTab({ content, update }: { content: Content; update
       <UpcomingLineups content={content} update={update} />
       <Section
         title="Shows page"
-        hint="The headings and copy on /shows, plus how every show poster is cropped and laid out."
+        hint="Page heading, empty state and past-show archive settings. Upcoming dates and lineups are managed above."
       >
         <Text
           label="Heading"
           value={settings.heading}
           onChange={(v) => update((d) => void (d.showsPage.heading = v))}
         />
-        <Area
-          label="Intro"
-          rows={2}
-          value={settings.intro}
-          onChange={(v) => update((d) => void (d.showsPage.intro = v))}
-        />
         <Row>
-          <Text
-            label="Upcoming heading"
-            value={settings.upcomingHeading}
-            onChange={(v) => update((d) => void (d.showsPage.upcomingHeading = v))}
-          />
           <Text
             label="Past shows heading"
             value={settings.pastHeading}
@@ -140,7 +129,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
         />
         <Row>
           <Num
-            label="Gap between cards"
+            label="Past-show card spacing"
             value={settings.gap}
             min={0}
             max={64}
