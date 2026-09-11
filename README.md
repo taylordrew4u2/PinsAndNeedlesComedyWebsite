@@ -72,6 +72,29 @@ and its GET/POST submission API also require the signed QR entry key. Texting in
 secret scoped to one endpoint, and a
 [small relay script](docs/relay/gmail-apps-script.gs) posts to it.
 
+### Run Show
+
+- **Audience:** scan the existing signed QR to open the submission countdown/form.
+- **Host:** `/admin/run-show` uses the existing admin password and shows only the
+  question list, the current selection, and controls to show or clear a question.
+- **Display:** `/bad-decisions/live` is a separate public URL for the projector.
+  It shows the selected question and a small audience submission QR in the bottom
+  corner. Clearing the question keeps the QR visible. Names, other submissions,
+  and admin controls never appear on this screen.
+
+Open **Run Show** from admin, then **Open live screen** on the display computer.
+Choose **Show on screen** for any question. The live display checks for changes
+about every two seconds; the admin question list refreshes every ten seconds.
+Use **Clear screen** when finished. Deleting the selected submission or archiving
+the pile also clears the display. No selection produces a blank screen with the QR.
+
+Selection persists in `live-show/selection.json` on the configured content storage
+driver (local filesystem, private GitHub content repo, or private Blob storage).
+The public endpoint `/api/decisions/live` returns only the chosen question text.
+The corner QR uses the same signed audience entry as the admin's downloadable QR;
+its public image endpoint intentionally makes that audience entry available from
+the live display, without publishing the question list.
+
 ### Printing the submission QR
 
 Download the QR from **Admin → Bad Decisions** after deploying this version.
