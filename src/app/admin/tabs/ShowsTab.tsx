@@ -4,6 +4,7 @@ import type { Content, Show, ShowPerformer, ShowPhoto } from "@/lib/types";
 import { aspectValue } from "@/lib/render";
 import { emptySeo, slugify } from "@/lib/seo";
 import { Area, Button, Card, Num, Row, Section, Select, Text, Toggle } from "../ui";
+import UpcomingLineups from "../UpcomingLineups";
 import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
@@ -96,6 +97,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
 
   return (
     <>
+      <UpcomingLineups content={content} update={update} />
       <Section
         title="Shows page"
         hint="The headings and copy on /shows, plus how every show poster is cropped and laid out."
