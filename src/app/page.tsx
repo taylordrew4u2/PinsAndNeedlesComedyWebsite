@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import HeroPanel from "@/components/HeroPanel";
 import ReelGrid from "@/components/ReelGrid";
 import NewsMarquee from "@/components/NewsMarquee";
-import WeeklyStrip from "@/components/WeeklyStrip";
 import JsonLd from "@/components/JsonLd";
 import { getContent } from "@/lib/store";
 import { toMetadata } from "@/lib/meta";
@@ -36,10 +35,6 @@ export default async function HomePage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <HeroPanel hero={home.hero} nav={site.nav} active="/" />
-
-      {content.weekly.enabled && content.weekly.showOnHome ? (
-        <WeeklyStrip weekly={content.weekly} text={content.weekly.homeStripText} />
-      ) : null}
 
       <ReelGrid reels={content.reels} settings={home.reelsTop} instagramUrl={instagramUrl} />
 
