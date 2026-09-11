@@ -30,7 +30,7 @@ export default function PageHeader({
           />
         ) : null}
         <span
-          className="text-center leading-none"
+          className={hero.logoUrl ? "sr-only" : "text-center leading-none"}
           style={{
             fontFamily: hero.wordmarkFont,
             fontSize: 15,

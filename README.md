@@ -36,8 +36,8 @@ time during one bar hour, and it has to cost nothing to run.
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="docs/images/bad-decisions.png" alt="The Bad Decisions page: show time, venue, and a notice reading Submissions open an hour before the show." width="100%">
-<br><em>The audience page. The form only exists in the hour around the show — the rest of the week it says when it opens.</em>
+<img src="docs/images/bad-decisions.png" alt="The private Bad Decisions QR entry: a countdown until submissions open." width="100%">
+<br><em>The QR entry shows only a countdown, then switches to the submission prompt during the configured opening window.</em>
 </td>
 <td width="50%" valign="top">
 <img src="docs/images/admin.png" alt="The admin Bad Decisions tab: a Tonight panel with a live count, Draw one, Refresh and Archive everything buttons, above the page's own settings." width="100%">
@@ -50,7 +50,8 @@ time during one bar hour, and it has to cost nothing to run.
 
 ```mermaid
 flowchart LR
-  QR["QR code on the table"] --> Form["/bad-decisions form"]
+  QR["QR code on the table"] --> Access{"Valid QR entry key?"}
+  Access -->|yes| Form["Countdown then submission prompt"]
   SMS["Text message"] --> Voice["Google Voice"]
   Voice -->|forwards by email| Relay["Apps Script relay"]
 
@@ -66,10 +67,46 @@ flowchart LR
   Panel --> Draw["Draw one at random"]
 ```
 Every way in enforces the same window and the same sanitising, because the
-endpoint is what a QR code points at — the form is not a gate, it is a
-convenience. Texting in needs no mailbox password anywhere: the site holds one
+server checks the submission window independently of the form. The web page
+and its GET/POST submission API also require the signed QR entry key. Texting in needs no mailbox password anywhere: the site holds one
 secret scoped to one endpoint, and a
 [small relay script](docs/relay/gmail-apps-script.gs) posts to it.
+
+### Run Show
+
+- **Audience:** scan the existing signed QR to open the submission countdown/form.
+- **Host:** `/admin/run-show` uses the existing admin password and shows only the
+  question list, the current selection, and controls to show or clear a question.
+- **Display:** `/bad-decisions/live` is a separate public URL for the projector.
+  It shows the selected question and a small audience submission QR in the bottom
+  corner. Clearing the question keeps the QR visible. Names, other submissions,
+  and admin controls never appear on this screen.
+
+Open **Run Show** from admin, then **Open live screen** on the display computer.
+Choose **Show on screen** for any question. The live display checks for changes
+about every two seconds; the admin question list refreshes every ten seconds.
+Use **Clear screen** when finished. Deleting the selected submission or archiving
+the pile also clears the display. No selection produces a blank screen with the QR.
+
+Selection persists in `live-show/selection.json` on the configured content storage
+driver (local filesystem, private GitHub content repo, or private Blob storage).
+The public endpoint `/api/decisions/live` returns only the chosen question text.
+The corner QR uses the same signed audience entry as the admin's downloadable QR;
+its public image endpoint intentionally makes that audience entry available from
+the live display, without publishing the question list.
+
+### Printing the submission QR
+
+Download the QR from **Admin → Bad Decisions** after deploying this version.
+Older QR codes that contain only `/bad-decisions` now return 404. The new code
+contains a stable entry key derived from `ADMIN_SECRET`; keep that secret stable
+or reprint the QR after rotating it. Missing configuration fails closed.
+
+The submission entry has no public menu or button, is excluded from the sitemap
+and AI page list, and is marked noindex. A visitor with the QR link sees only the
+countdown until the configured opening time, then the prompt and submission
+controls. A shared copy of the QR link also grants access: browsers cannot prove
+that a URL was opened by a camera scan.
 
 ### What is actually interesting here
 

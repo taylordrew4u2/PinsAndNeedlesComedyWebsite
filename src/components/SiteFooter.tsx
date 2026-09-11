@@ -1,7 +1,13 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { SiteSettings } from "@/lib/types";
 
 export default function SiteFooter({ site }: { site: SiteSettings }) {
+  const pathname = usePathname();
+  if (pathname === "/bad-decisions" || pathname.startsWith("/bad-decisions/") || pathname === "/admin/run-show" || pathname === "/admin/run-show/") return null;
+
   return (
     <footer className="border-t border-white/10 px-5 py-8 text-[11px] tracking-[0.18em] uppercase text-[var(--pnc-muted)]">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

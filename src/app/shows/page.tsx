@@ -5,10 +5,11 @@ import JsonLd from "@/components/JsonLd";
 import ShowCard from "@/components/ShowCard";
 import { getContent } from "@/lib/store";
 import { toMetadata } from "@/lib/meta";
-import { breadcrumbSchema, faqSchema, showsListSchema } from "@/lib/schema";
-import { nyToday, splitShows } from "@/lib/shows";
+import { breadcrumbSchema, faqSchema } from "@/lib/schema";
+import { formatTime, nyToday, splitShows } from "@/lib/shows";
 import { formatDate } from "@/lib/render";
-import { nextWeeklyShow, weeklyScheduleLine, weeklyVenueLine } from "@/lib/decisions";
+import { upcomingPublicShows } from "@/lib/public-shows";
+import styles from "./shows.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,8 @@ export default async function ShowsIndexPage() {
   const content = await getContent();
   const { site, showsPage, weekly } = content;
   const today = nyToday();
-  const { upcoming, past } = splitShows(content.shows, today);
-  const nextWeekly = nextWeeklyShow(content.shows, weekly, today);
+  const { past } = splitShows(content.shows, today);
+  const upcoming = upcomingPublicShows(content.shows, weekly, today);
   const shownPast = showsPage.showPastShows ? past.slice(0, showsPage.pastLimit) : [];
   const faq = faqSchema(showsPage.seo);
 
@@ -34,7 +35,7 @@ export default async function ShowsIndexPage() {
 
   return (
     <main>
-      <JsonLd data={showsListSchema(content, today)} />
+      <JsonLd data={{ "@context": "https://schema.org", "@type": "ItemList", itemListElement: upcoming.map((show, index) => ({ "@type": "ListItem", position: index + 1, name: `${show.title} — ${show.date}`, url: `${site.url.replace(/\/$/, "")}${show.generated ? `/shows#${show.id}` : `/shows/${show.slug}`}` })) }} />
       <JsonLd
         data={breadcrumbSchema(site.url, [
           { name: "Home", path: "/" },
@@ -47,61 +48,33 @@ export default async function ShowsIndexPage() {
 
       <section className="mx-auto max-w-6xl px-5 pb-2 pt-8">
         <h1 className="text-3xl sm:text-4xl">{showsPage.heading}</h1>
-        {showsPage.intro ? (
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-[var(--pnc-muted)]">
-            {showsPage.intro}
-          </p>
-        ) : null}
+        <p className="mt-3 text-[15px] text-[var(--pnc-muted)]">The next five shows. Pick a night and see who’s on.</p>
       </section>
 
-      {weekly.enabled && weekly.showOnShowsPage ? (
-        <section className="mx-auto max-w-6xl px-5 pt-6">
-          <h2 className="mb-4 text-[11px] uppercase tracking-[0.32em] text-[var(--pnc-muted)]">
-            {showsPage.weeklyHeading}
-          </h2>
-          <Link
-            href="/bad-decisions"
-            className="group flex flex-col gap-4 border border-white/15 p-5 transition-colors hover:border-white/40 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <span className="min-w-0">
-              <span className="block text-[10px] uppercase tracking-[0.24em] text-[var(--pnc-muted)]">
-                {weeklyScheduleLine(weekly)}
-              </span>
-              <span className="mt-1.5 block text-[20px] leading-snug group-hover:underline">{weekly.title}</span>
-              <span className="mt-1 block text-[13px] leading-snug text-[var(--pnc-muted)]">
-                {weeklyVenueLine(weekly)}
-                {weekly.price ? ` · ${weekly.price}` : ""}
-              </span>
-              {nextWeekly?.lineup.length ? (
-                <span className="mt-2 block text-[13px] leading-snug">
-                  {formatDate(nextWeekly.date)}:{" "}
-                  {nextWeekly.lineup.map((person) => person.name).filter(Boolean).join(", ")}
-                </span>
-              ) : null}
-            </span>
-            <span className="shrink-0 border border-white px-4 py-2 text-center text-[12px] uppercase tracking-[0.22em] transition-colors group-hover:bg-white group-hover:text-[var(--pnc-bg)]">
-              {weekly.homeStripCta || "Send in a decision"}
-            </span>
-          </Link>
-        </section>
-      ) : null}
-
-      <section className="mx-auto max-w-6xl px-5 pb-14 pt-10">
-        <h2 className="mb-4 text-[11px] uppercase tracking-[0.32em] text-[var(--pnc-muted)]">
-          {showsPage.upcomingHeading}
-        </h2>
-
+      <section className="mx-auto max-w-6xl px-5 pb-14 pt-8" aria-label="Upcoming shows">
         {upcoming.length ? (
-          <div style={grid}>
-            {upcoming.map((show) => (
-              <ShowCard key={show.id} show={show} settings={showsPage} fallbackImage={site.logoUrl} />
-            ))}
+          <div className={styles.list}>
+            {upcoming.map((show) => {
+              const names = show.lineup.map((person) => person.name.trim()).filter(Boolean);
+              const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(new Date(`${show.date}T12:00:00Z`));
+              const status = show.status === "scheduled" ? "" : { "sold-out": "Sold out", postponed: "Postponed", cancelled: "Cancelled" }[show.status];
+              return <article key={show.id} id={show.id} className={styles.show}>
+                <div>
+                  <h2 className={styles.title}>{show.title}</h2>
+                  <p className={styles.format}>{show.series === weekly.slug ? "Stand-up comedy + audience participation" : "Live stand-up comedy"}</p>
+                  <p className={styles.date}><time dateTime={show.date}>{weekday}, {formatDate(show.date)}</time></p>
+                  <p className={styles.time}>{show.startTime ? formatTime(show.startTime) : "Time to be announced"}{show.venueName ? ` · ${show.venueName}` : ""}</p>
+                  {status ? <p className={styles.status}>{status}</p> : null}
+                </div>
+                <div className={styles.lineup}>
+                  <h3 className={styles.label}>Lineup</h3>
+                  {names.length ? <ul className={styles.names}>{names.map((name, index) => <li key={index}>{name}</li>)}</ul> : <p className={styles.pending}>Lineup to be announced</p>}
+                  {!show.generated ? <Link className={styles.details} href={`/shows/${show.slug}`}>Show details ↗</Link> : null}
+                </div>
+              </article>;
+            })}
           </div>
-        ) : (
-          <p className="max-w-xl text-[15px] leading-relaxed text-[var(--pnc-muted)]">
-            {showsPage.emptyText}
-          </p>
-        )}
+        ) : <p className="text-[var(--pnc-muted)]">{showsPage.emptyText}</p>}
       </section>
 
       {shownPast.length ? (

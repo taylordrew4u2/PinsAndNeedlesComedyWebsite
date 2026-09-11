@@ -21,16 +21,20 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
 
   return (
     <>
-      <StagePanel enabled={weekly.enabled} />
+      <a href="/admin/run-show" className="block rounded-lg bg-white px-5 py-4 text-center text-lg font-semibold text-black">Run Show</a>
+      <details className="mb-8 rounded-lg border border-neutral-800 p-4">
+        <summary className="cursor-pointer text-sm text-neutral-300">Submission inbox and random draw</summary>
+        <div className="mt-4"><StagePanel enabled={weekly.enabled} /></div>
+      </details>
 
       <Section
         title="Bad Decisions page"
-        hint="Lives at /bad-decisions — that address is what the QR code and the flyer point at. Everything here is the standing detail; each week's bill is a show in the Shows tab marked as part of this weekly."
+        hint="Private submission screen: accessible through the QR code, with no public menu link. Everything here is the standing detail; each week's bill is a show in the Shows tab marked as part of this weekly."
       >
         <QrCode />
         <Toggle
           label="Page is live"
-          hint="off = /bad-decisions is a 404 and the form stops taking submissions"
+          hint="off = the QR entry is a 404 and the form stops taking submissions"
           value={weekly.enabled}
           onChange={set("enabled")}
         />
@@ -58,7 +62,7 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
         </Row>
         <Text
           label="Room note"
-          hint="under the form — e.g. the room is small, come early"
+          hint="copied to date-specific show details — e.g. the room is small, come early"
           value={weekly.roomNote}
           onChange={set("roomNote")}
         />
@@ -140,44 +144,20 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
         />
       </Section>
 
-      <Section title="The rest of the page">
+      <Section title="Show description and visibility">
         <Area
           label="How it works"
-          hint="blank line = new paragraph · ## heading · **bold**"
-          rows={8}
+          hint="Show format description used by SEO suggestions."
+          rows={5}
           value={weekly.howItWorks}
           onChange={set("howItWorks")}
         />
-        <Row>
-          <Text label="This week heading" value={weekly.thisWeekHeading} onChange={set("thisWeekHeading")} />
-        </Row>
-        <Area
-          label="When no night is entered yet"
-          rows={2}
-          value={weekly.noLineupText}
-          onChange={set("noLineupText")}
-        />
-        <Area label="Last line on the page" rows={2} value={weekly.closingLine} onChange={set("closingLine")} />
-      </Section>
-
-      <Section title="Where else it shows up">
         <Toggle
-          label="Strip on the home page"
-          hint="one line under the logo, in the accent colour"
-          value={weekly.showOnHome}
-          onChange={set("showOnHome")}
-        />
-        <Area label="Home strip text" rows={2} value={weekly.homeStripText} onChange={set("homeStripText")} />
-        <Text label="Home strip button" value={weekly.homeStripCta} onChange={set("homeStripCta")} />
-        <Toggle
-          label="Block at the top of /shows"
-          hint={`under the heading "${content.showsPage.weeklyHeading}" — edit that in the Shows tab`}
+          label="Include recurring dates on Shows"
+          hint="Lists the next five upcoming nights on the public Shows page."
           value={weekly.showOnShowsPage}
           onChange={set("showOnShowsPage")}
         />
-        <p className="text-[12px] text-neutral-500">
-          The nav link is under Site &amp; SEO → Navigation, like every other page.
-        </p>
       </Section>
 
       <SeoEditor
@@ -211,7 +191,7 @@ function QrCode() {
         className="h-28 w-28 shrink-0 rounded bg-white p-2"
       />
       <div className="text-[12px] text-neutral-400">
-        <p>Points at /bad-decisions on the live site. Print it on the flyer or the table tent.</p>
+        <p>Private QR entry: countdown until submissions open, then the prompt. Download this new code for flyers and table tents; older codes pointing to the plain page will not work.</p>
         <a
           href={`/api/admin/decisions/qr?v=${key}`}
           target="_blank"

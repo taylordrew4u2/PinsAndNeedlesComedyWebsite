@@ -3,7 +3,7 @@
 import { addSuggestedFaqs } from "@/lib/seo";
 import type { Seo } from "@/lib/types";
 import type { Suggestion } from "./suggest";
-import { Area, Button, Label, Section, Tags, Text, Toggle } from "./ui";
+import { Area, Button, Label, Tags, Text, Toggle } from "./ui";
 import MediaField from "./MediaField";
 
 function Meter({ value, ideal, max }: { value: number; ideal: [number, number]; max: number }) {
@@ -44,13 +44,10 @@ export default function SeoEditor({
     });
 
   return (
-    <Section
-      title={title ?? "SEO & AI SEO"}
-      hint={
-        hint ??
-        "Every field is prefilled with a suggestion tuned for search and answer engines. Edit anything — it saves as you type."
-      }
-    >
+    <details className="mb-8 rounded-lg border border-neutral-800">
+      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-neutral-200">{title ?? "SEO & AI SEO"}</summary>
+      <div className="grid gap-4 border-t border-neutral-800 p-4">
+        <p className="text-xs text-neutral-500">{hint ?? "Edit search titles, descriptions and FAQs here. Changes save automatically."}</p>
       <div className="flex flex-wrap gap-2">
         <Button tone="primary" onClick={applyAll}>
           Regenerate all suggestions
@@ -201,6 +198,7 @@ export default function SeoEditor({
           {seo.description || suggestion.description}
         </p>
       </div>
-    </Section>
+      </div>
+    </details>
   );
 }

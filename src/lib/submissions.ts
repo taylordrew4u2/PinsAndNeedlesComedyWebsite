@@ -1,4 +1,5 @@
 import "server-only";
+import { clearLiveSelection } from "./live-store";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { driver, requireGithub } from "./store";
@@ -149,6 +150,11 @@ async function readOne(id: string): Promise<{ submission: Submission | null; sha
   }
 }
 
+/** Read one id without exposing the rest of the pile. */
+export async function getSubmission(id: string): Promise<Submission | null> {
+  return (await readOne(id)).submission;
+}
+
 export async function addSubmission(decision: string, name: string): Promise<Submission> {
   const now = new Date();
   const submission: Submission = {
@@ -244,7 +250,7 @@ export async function listPile(
   const submissions = await load(entries.slice(-LIST_LIMIT), Boolean(options.fresh));
 
   pruneTo(loaded, entries);
-  return { submissions: sortSubmissions(submissions), truncated };
+  return { submissions: sortSubmissions(submissions), truncated: truncated || entries.length > LIST_LIMIT };
 }
 
 /** Every stored submission, newest first, capped at LIST_LIMIT. */
@@ -288,6 +294,7 @@ async function writeStatus(
 
 export async function deleteSubmission(id: string): Promise<void> {
   const key = fileFor(id);
+  await clearLiveSelection(id);
   loaded.delete(id);
   if (driver === "github") {
     await githubDelete(requireGithub(), key, `Delete submission ${id}`);
@@ -316,6 +323,7 @@ export async function deleteSubmission(id: string): Promise<void> {
  * own time limit.
  */
 export async function archiveAll(limit = ARCHIVE_BATCH): Promise<{ archived: number; remaining: number }> {
+  await clearLiveSelection();
   const { entries } = await listEntries();
   const shas = new Map(entries.map((entry) => [entry.id, entry.version]));
   const live = (await load(entries, false)).filter(

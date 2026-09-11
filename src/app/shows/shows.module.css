@@ -1,0 +1,13 @@
+.list { display: grid; gap: 20px; }
+.show { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; padding: 32px; border: 1px solid #ffffff24; border-radius: 8px; background: #ffffff03; scroll-margin-top: 20px; }
+.title { font-size: clamp(22px, 3vw, 30px); line-height: 1.2; }
+.format { margin-top: 8px; color: var(--pnc-muted); font-size: 13px; }
+.date { margin-top: 24px; font-size: 19px; line-height: 1.5; }
+.time { margin-top: 4px; font-size: 15px; color: var(--pnc-muted); }
+.lineup { border-left: 1px solid #ffffff1c; padding-left: 32px; }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: .2em; color: var(--pnc-muted); }
+.names { margin-top: 12px; display: grid; gap: 6px; list-style: none; font-size: 17px; }
+.pending { margin-top: 14px; font-size: 16px; color: var(--pnc-muted); }
+.details { display: inline-block; margin-top: 22px; font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
+.status { margin-top: 12px; color: #f2c67e; font-size: 14px; }
+@media (max-width: 640px) { .show { grid-template-columns: 1fr; gap: 24px; padding: 24px; } .lineup { border-left: 0; border-top: 1px solid #ffffff1c; padding: 20px 0 0; } }

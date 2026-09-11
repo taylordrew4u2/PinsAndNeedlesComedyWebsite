@@ -1,4 +1,5 @@
 import "server-only";
+import { isPublicNavigation } from "./public-navigation";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defaultContent } from "./defaults";
@@ -71,7 +72,7 @@ function normalize(content: Content): Content {
   const healed = healAssetPaths(upgradeBrandCopy(content, defaultContent));
   return {
     ...healed,
-    site: { ...healed.site, nav: hallNavigation(healed.site.nav, healed.hallOfFame) },
+    site: { ...healed.site, nav: hallNavigation(healed.site.nav, healed.hallOfFame).filter((item) => isPublicNavigation(item.href)) },
     shows: healed.shows.map((show) => ({ ...show, series: show.series ?? "" })),
   };
 }
