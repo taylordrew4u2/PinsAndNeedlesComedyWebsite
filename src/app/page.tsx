@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import HallOfFameLink from "@/components/HallOfFameLink";
 import HeroPanel from "@/components/HeroPanel";
 import ReelGrid from "@/components/ReelGrid";
 import NewsMarquee from "@/components/NewsMarquee";
@@ -35,6 +36,8 @@ export default async function HomePage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <HeroPanel hero={home.hero} nav={site.nav} active="/" />
+
+      <HallOfFameLink />
 
       <ReelGrid reels={content.reels} settings={home.reelsTop} instagramUrl={instagramUrl} />
 
