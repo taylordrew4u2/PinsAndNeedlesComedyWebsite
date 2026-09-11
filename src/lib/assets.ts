@@ -1,16 +1,7 @@
 /**
- * Healing the asset paths saved before the artwork became vector.
- *
- * Stored content wins over the defaults — that is the whole point of merge() —
- * so changing a path in defaults.ts does nothing for a site that has already
- * been saved from /admin. When the shipped images moved from PNG and WebP to
- * SVG, every saved reference kept pointing at a file that no longer exists,
- * and the site quietly served 404s in place of its own logo.
- *
- * Rather than ask anyone to re-pick twenty-nine cover images by hand, content
- * is rewritten as it is read. Only the files this repository ships are
- * touched: /uploads/ is left alone, because an uploaded photograph is still a
- * photograph, and anything absolute belongs to somebody else.
+ * Resolve saved references to the shipped assets. Brand marks remain vector;
+ * news covers use their original photographs rather than flattened SVG traces.
+ * Uploaded and external assets are preserved.
  */
 
 /** The brand marks, which did not all keep their old names. */
@@ -24,24 +15,51 @@ const BRAND: Record<string, string> = {
   "/brand/bad-decisions-flyer.png": "/brand/bad-decisions-flyer.svg",
 };
 
-/** Post covers all kept their name and only changed extension. */
-const POST_COVER = /^\/posts\/[A-Za-z0-9._-]+\.webp$/;
+/** Only the known traced covers have restored originals. */
+const ORIGINAL_COVERS: Record<string, string> = {
+  "/posts/1-2-2025.svg": "/posts/1-2-2025.webp",
+  "/posts/about-us-pins-needles-comedy.svg": "/posts/about-us-pins-needles-comedy.webp",
+  "/posts/jul7-30th-recap-ink-laughs-and-brooklyns-wildest-night-at-pi.svg": "/posts/jul7-30th-recap-ink-laughs-and-brooklyns-wildest-night-at-pi.webp",
+  "/posts/l-train-productions-brings-comic-books-shirts-and-stickers-t.svg": "/posts/l-train-productions-brings-comic-books-shirts-and-stickers-t.webp",
+  "/posts/mark-vegas-featured-artist-pins-and-needles-comedy-march-26.svg": "/posts/mark-vegas-featured-artist-pins-and-needles-comedy-march-26.webp",
+  "/posts/may-28th-deven-pagliaro-brings-abstract-and-character-painti.svg": "/posts/may-28th-deven-pagliaro-brings-abstract-and-character-painti.webp",
+  "/posts/mr-stitch-makes-his-pins-needles-debut-july-30-at-secret-pou.svg": "/posts/mr-stitch-makes-his-pins-needles-debut-july-30-at-secret-pou.webp",
+  "/posts/pins-amp-needles-comedy-a-new-york-city-stand-up-show-where.svg": "/posts/pins-amp-needles-comedy-a-new-york-city-stand-up-show-where.webp",
+  "/posts/pins-amp-needles-comedy-adds-a-secret-screening-of-two-short.svg": "/posts/pins-amp-needles-comedy-adds-a-secret-screening-of-two-short.webp",
+  "/posts/pins-amp-needles-comedy-announces-may-28-lineup-at-secret-po.svg": "/posts/pins-amp-needles-comedy-announces-may-28-lineup-at-secret-po.webp",
+  "/posts/pins-amp-needles-comedy-brings-tattooed-stand-up-to-the-edin.svg": "/posts/pins-amp-needles-comedy-brings-tattooed-stand-up-to-the-edin.webp",
+  "/posts/pins-amp-needles-comedy-holiday-show-nyc-stand-up-live-tatto.svg": "/posts/pins-amp-needles-comedy-holiday-show-nyc-stand-up-live-tatto.webp",
+  "/posts/pins-amp-needles-comedy-nyc-live-stand-up-amp-tattoo-culture.svg": "/posts/pins-amp-needles-comedy-nyc-live-stand-up-amp-tattoo-culture.webp",
+  "/posts/pins-amp-needles-comedy-returns-july-30-with-flash-tattoos-a.svg": "/posts/pins-amp-needles-comedy-returns-july-30-with-flash-tattoos-a.webp",
+  "/posts/pins-and-needles-comedy-secret-pour-may-28-recap.svg": "/posts/pins-and-needles-comedy-secret-pour-may-28-recap.webp",
+  "/posts/pins-and-needles-edinburgh-fringe-2026.svg": "/posts/pins-and-needles-edinburgh-fringe-2026.webp",
+  "/posts/pins-needles-comedy-audition-open-mic-june-25th-at-9-pm.svg": "/posts/pins-needles-comedy-audition-open-mic-june-25th-at-9-pm.webp",
+  "/posts/pins-needles-comedy-in-bushwick-on-march-26-featured-mark-ve.svg": "/posts/pins-needles-comedy-in-bushwick-on-march-26-featured-mark-ve.webp",
+  "/posts/pins-needles-comedy-is-looking-for-scotland-comedians-for-ed.svg": "/posts/pins-needles-comedy-is-looking-for-scotland-comedians-for-ed.webp",
+  "/posts/pins-needles-comedy-recap-tattoo-comedy-night-at-secret-pour.svg": "/posts/pins-needles-comedy-recap-tattoo-comedy-night-at-secret-pour.webp",
+  "/posts/pins-needles-comedy-returns-to-secret-pour-on-may-28-with-st.svg": "/posts/pins-needles-comedy-returns-to-secret-pour-on-may-28-with-st.webp",
+  "/posts/pins-needles-comedy-x-taylor-drew-roast-recap-feb-26.svg": "/posts/pins-needles-comedy-x-taylor-drew-roast-recap-feb-26.webp",
+  "/posts/pins-needles-comedy-x-the-roast-of-taylor-drew-february-26-a.svg": "/posts/pins-needles-comedy-x-the-roast-of-taylor-drew-february-26-a.webp",
+  "/posts/rob-white-brings-comedy-custom-portraits-and-fresh-ink.svg": "/posts/rob-white-brings-comedy-custom-portraits-and-fresh-ink.webp",
+  "/posts/rob-white-dropped-the-flash-sheet-for-pins-needles-comedy-ta.svg": "/posts/rob-white-dropped-the-flash-sheet-for-pins-needles-comedy-ta.webp",
+  "/posts/rob-white-featured-artist-at-pins-needles-comedy-tattoo-arti.svg": "/posts/rob-white-featured-artist-at-pins-needles-comedy-tattoo-arti.webp",
+  "/posts/rob-white-turned-the-pins-needles-comedy-lineup-into-tattoo.svg": "/posts/rob-white-turned-the-pins-needles-comedy-lineup-into-tattoo.webp",
+  "/posts/submissions-are-now-open-for-pins-amp-needles-at-edinburgh-f.svg": "/posts/submissions-are-now-open-for-pins-amp-needles-at-edinburgh-f.webp",
+  "/posts/tonight-in-brooklyn-pins-needles-takes-over-secret-pour-and.svg": "/posts/tonight-in-brooklyn-pins-needles-takes-over-secret-pour-and.webp"
+};
 
-/** One path, rewritten if this repository now ships it as an SVG. */
-export function vectorPath(value: string): string {
-  const brand = BRAND[value];
-  if (brand) return brand;
-  if (POST_COVER.test(value)) return value.replace(/\.webp$/, ".svg");
-  return value;
+/** Repair known legacy paths without changing uploaded or external images. */
+export function restoredAssetPath(value: string): string {
+  return BRAND[value] || ORIGINAL_COVERS[value] || value;
 }
 
 /**
- * Every string in a content tree, run through vectorPath(). Objects and
+ * Every string in a content tree, resolved to its current shipped asset. Objects and
  * arrays are rebuilt; anything that is not a string is passed through
  * untouched, so numbers, booleans and nulls survive as themselves.
  */
 export function healAssetPaths<T>(value: T): T {
-  if (typeof value === "string") return vectorPath(value) as unknown as T;
+  if (typeof value === "string") return restoredAssetPath(value) as unknown as T;
   if (Array.isArray(value)) return value.map(healAssetPaths) as unknown as T;
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
