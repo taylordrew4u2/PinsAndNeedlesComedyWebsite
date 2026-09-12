@@ -1,10 +1,11 @@
 "use client";
 
 import type { Content, ReelGridSettings } from "@/lib/types";
-import { Num, Row, Section, Select, Text, Toggle } from "../ui";
+import { Num, Row, Section, Text, Toggle } from "../ui";
 import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
+import { homeDesignDefaults, type HomeDesign } from "@/lib/home-design";
 import type { Update } from "../types";
 
 export function GridSettings({
@@ -20,7 +21,11 @@ export function GridSettings({
 }) {
   return (
     <Section title={title} hint={hint}>
-      <Toggle label="Show this grid" value={settings.enabled} onChange={(v) => onChange({ enabled: v })} />
+      <Toggle
+        label="Show this grid"
+        value={settings.enabled}
+        onChange={(v) => onChange({ enabled: v })}
+      />
       <Row>
         <Num
           label="Columns — desktop"
@@ -91,7 +96,11 @@ export function GridSettings({
           value={settings.autoplay}
           onChange={(v) => onChange({ autoplay: v })}
         />
-        <Toggle label="Loop" value={settings.loop} onChange={(v) => onChange({ loop: v })} />
+        <Toggle
+          label="Loop"
+          value={settings.loop}
+          onChange={(v) => onChange({ loop: v })}
+        />
         <Toggle
           label="Show captions"
           value={settings.showCaption}
@@ -102,12 +111,84 @@ export function GridSettings({
   );
 }
 
-export default function HomeTab({ content, update }: { content: Content; update: Update }) {
+export default function HomeTab({
+  content,
+  update,
+}: {
+  content: Content;
+  update: Update;
+}) {
   const { hero } = content.home;
+  const editorial = { ...homeDesignDefaults, ...hero.editorial };
+  const setEditorial = (key: keyof HomeDesign, value: string) =>
+    update((d) => {
+      d.home.hero.editorial = { ...d.home.hero.editorial, [key]: value };
+    });
 
   return (
     <>
-      <Section title="Hero panel" hint="The logo panel at the top of the home page.">
+      <Section
+        title="Homepage introduction"
+        hint="Edit the headline, supporting text, and original photo. Layout and spacing adapt automatically to phones and desktops."
+      >
+        <Text
+          label="Small heading"
+          value={editorial.eyebrow}
+          onChange={(v) => setEditorial("eyebrow", v)}
+        />
+        <Row>
+          <Text
+            label="Headline"
+            value={editorial.headline}
+            onChange={(v) => setEditorial("headline", v)}
+          />
+          <Text
+            label="Headline — italic accent"
+            value={editorial.emphasis}
+            onChange={(v) => setEditorial("emphasis", v)}
+          />
+        </Row>
+        <Text
+          label="Description"
+          value={editorial.description}
+          onChange={(v) => setEditorial("description", v)}
+        />
+        <Text
+          label="Note below the show button"
+          value={editorial.note}
+          onChange={(v) => setEditorial("note", v)}
+        />
+        <MediaField
+          label="Featured photo"
+          value={editorial.imageUrl}
+          onChange={(v) => setEditorial("imageUrl", v)}
+          aspect={1}
+          previewHeight={240}
+        />
+        <Text
+          label="Photo description for screen readers"
+          value={editorial.imageAlt}
+          onChange={(v) => setEditorial("imageAlt", v)}
+        />
+        <Text
+          label="Photo caption"
+          value={editorial.caption}
+          onChange={(v) => setEditorial("caption", v)}
+        />
+        <MediaField
+          label="Featured video (optional)"
+          hint="Replaces the photo with a video visitors can play. Clear this field to show the photo."
+          accept="video/*"
+          value={hero.backgroundVideoUrl}
+          onChange={(v) =>
+            update((d) => void (d.home.hero.backgroundVideoUrl = v))
+          }
+        />
+      </Section>
+      <Section
+        title="Header branding"
+        hint="Shown across public pages. Edit navigation links under Site → Navigation."
+      >
         <MediaField
           label="Logo"
           value={hero.logoUrl}
@@ -117,121 +198,31 @@ export default function HomeTab({ content, update }: { content: Content; update:
         />
         <Text
           label="Logo alt text"
-          hint="describe the logo for screen readers and image search"
           value={hero.logoAlt}
           onChange={(v) => update((d) => void (d.home.hero.logoAlt = v))}
         />
-        <Row>
-          <Num
-            label="Panel height"
-            value={hero.heightVh}
-            min={30}
-            max={100}
-            suffix="vh"
-            onChange={(v) => update((d) => void (d.home.hero.heightVh = v))}
-          />
-          <Num
-            label="Logo size"
-            value={hero.logoScale}
-            min={10}
-            max={90}
-            suffix="% of screen height"
-            onChange={(v) => update((d) => void (d.home.hero.logoScale = v))}
-          />
-        </Row>
-        <Toggle
-          label="Show the name under the logo"
-          value={hero.showWordmark}
-          onChange={(v) => update((d) => void (d.home.hero.showWordmark = v))}
-        />
         <Text
-          label="Site name text"
+          label="Name shown when no logo is selected"
           value={hero.wordmark}
           onChange={(v) => update((d) => void (d.home.hero.wordmark = v))}
         />
-        <Row>
-          <Num
-            label="Name size"
-            value={hero.wordmarkSize}
-            min={12}
-            max={90}
-            suffix="px"
-            onChange={(v) => update((d) => void (d.home.hero.wordmarkSize = v))}
-          />
-          <Num
-            label="Name letter spacing"
-            value={hero.wordmarkLetterSpacing}
-            min={-5}
-            max={40}
-            onChange={(v) => update((d) => void (d.home.hero.wordmarkLetterSpacing = v))}
-          />
-        </Row>
-        <Text
-          label="Name font"
-          value={hero.wordmarkFont}
-          onChange={(v) => update((d) => void (d.home.hero.wordmarkFont = v))}
-        />
-        <Toggle
-          label="Show tagline"
-          value={hero.showTagline}
-          onChange={(v) => update((d) => void (d.home.hero.showTagline = v))}
-        />
-        <Text
-          label="Tagline"
-          value={hero.tagline}
-          onChange={(v) => update((d) => void (d.home.hero.tagline = v))}
-        />
-        <MediaField
-          label="Background video (optional)"
-          hint="mp4 or webm — plays muted behind the logo"
-          accept="video/*"
-          value={hero.backgroundVideoUrl}
-          onChange={(v) => update((d) => void (d.home.hero.backgroundVideoUrl = v))}
-        />
-      </Section>
-
-      <Section title="Nav words" hint="The row of links at the bottom of the hero panel. Edit the links themselves under Site → Navigation.">
-        <Row>
-          <Num
-            label="Text size"
-            value={hero.navSize}
-            min={9}
-            max={28}
-            suffix="px"
-            onChange={(v) => update((d) => void (d.home.hero.navSize = v))}
-          />
-          <Num
-            label="Letter spacing"
-            value={hero.navLetterSpacing}
-            min={0}
-            max={40}
-            onChange={(v) => update((d) => void (d.home.hero.navLetterSpacing = v))}
-          />
-          <Select
-            label="Separator"
-            value={hero.navSeparator}
-            options={[
-              { value: "—", label: "— em dash" },
-              { value: "-", label: "- hyphen" },
-              { value: "·", label: "· dot" },
-              { value: "/", label: "/ slash" },
-              { value: "", label: "none" },
-            ]}
-            onChange={(v) => update((d) => void (d.home.hero.navSeparator = v))}
-          />
-        </Row>
       </Section>
 
       <GridSettings
         title="Reels grid — above the news"
         hint="9:16 tiles that autoplay muted. Clicking one opens Instagram."
         settings={content.home.reelsTop}
-        onChange={(patch) => update((d) => void Object.assign(d.home.reelsTop, patch))}
+        onChange={(patch) =>
+          update((d) => void Object.assign(d.home.reelsTop, patch))
+        }
       />
 
-      <Section title="News strip" hint="The horizontal scroller of blog covers. Styling lives under News → Display.">
+      <Section
+        title="Latest stories"
+        hint="The three newest published posts appear on the homepage. All posts remain available on the News page."
+      >
         <Toggle
-          label="Show a heading above the strip"
+          label="Show the stories heading"
           value={content.home.showMarqueeHeading}
           onChange={(v) => update((d) => void (d.home.showMarqueeHeading = v))}
         />
@@ -246,7 +237,9 @@ export default function HomeTab({ content, update }: { content: Content; update:
         title="Reels grid — below the news"
         hint="Same tiles, set to infinite scroll so it keeps loading until you run out of reels."
         settings={content.home.reelsBottom}
-        onChange={(patch) => update((d) => void Object.assign(d.home.reelsBottom, patch))}
+        onChange={(patch) =>
+          update((d) => void Object.assign(d.home.reelsBottom, patch))
+        }
       />
 
       <SeoEditor

@@ -104,6 +104,7 @@ export type BlogSettings = {
 };
 
 export type Hero = {
+  editorial?: Partial<import("./home-design").HomeDesign>;
   logoUrl: string;
   logoAlt: string;
   /** Panel height as a % of the viewport. */

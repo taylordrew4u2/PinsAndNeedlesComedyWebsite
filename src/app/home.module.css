@@ -1,0 +1,294 @@
+.home {
+  --ink: #f4f0e8;
+  --quiet: #a8a49e;
+  max-width: 1280px;
+  padding: 0 40px;
+  margin: auto;
+  color: var(--ink);
+}
+.home :is(a):focus-visible {
+  outline: 2px solid #e9c56a;
+  outline-offset: 6px;
+}
+.hero {
+  display: grid;
+  grid-template-columns: 1.08fr 1fr;
+  gap: 64px;
+  padding: 64px 0 72px;
+  align-items: center;
+}
+.eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.17em;
+  font-weight: 600;
+  line-height: 1.7;
+  margin: 0 0 24px;
+  color: var(--quiet);
+}
+.eyebrow span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #ef635e;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.intro h1 {
+  font-family: var(--font-inter), sans-serif;
+  font-size: clamp(46px, 5.3vw, 72px);
+  letter-spacing: -0.065em;
+  font-weight: 600;
+  line-height: 1.06;
+  max-width: 620px;
+}
+.home em {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.045em;
+}
+.intro h1 em {
+  color: #ed7970;
+}
+.description {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #c0bbb4;
+  max-width: 350px;
+  margin: 26px 0;
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 35px;
+  padding: 17px 22px;
+  background: var(--ink);
+  color: #151310;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.button:hover {
+  background: #ed7970;
+}
+.button span {
+  font-size: 20px;
+  line-height: 1;
+}
+.aside {
+  font-size: 10px;
+  color: var(--quiet);
+  line-height: 1.6;
+  margin: 24px 0 0;
+}
+.photo {
+  margin: 0;
+}
+.photo img,
+.photo video {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+.photo figcaption {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--quiet);
+}
+.hall {
+  border-top: 1px solid #ffffff26;
+  border-bottom: 1px solid #ffffff26;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  align-items: center;
+  gap: 48px;
+  padding: 30px 48px;
+  background: #121110;
+}
+.home h2 {
+  font-family: var(--font-inter), sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  font-size: clamp(32px, 3.4vw, 44px);
+  line-height: 1.15;
+}
+.hall h2 em {
+  color: #e5c98e;
+}
+.hall p:not(.eyebrow) {
+  color: var(--quiet);
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 18px 0 24px;
+}
+.hall .eyebrow {
+  color: #c9ab70;
+  margin-bottom: 15px;
+}
+.textLink {
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  gap: 25px;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ffffff4d;
+}
+.textLink:hover {
+  color: #e9c56a;
+  border-color: currentColor;
+}
+.news {
+  padding: 80px 0;
+}
+.sectionHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 35px;
+}
+.sectionHeading .eyebrow {
+  margin-bottom: 12px;
+}
+.newsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+.storyImage {
+  aspect-ratio: 4/3;
+  background: #151515;
+  overflow: hidden;
+}
+.storyImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+.story:hover .storyImage img {
+  transform: scale(1.025);
+}
+.date {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--quiet);
+  margin: 22px 0 12px;
+}
+.story h3 {
+  font-family: var(--font-inter), sans-serif;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.4;
+}
+.read {
+  display: block;
+  font-size: 11px;
+  color: var(--quiet);
+  margin-top: 18px;
+}
+.closing {
+  border-top: 1px solid #ffffff26;
+  text-align: center;
+  padding: 64px 0 80px;
+}
+.closing .eyebrow {
+  margin-bottom: 18px;
+}
+.closing > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  margin-top: 30px;
+}
+.reels {
+  padding-bottom: 48px;
+}
+@media (max-width: 960px) {
+  .hero {
+    gap: 32px;
+  }
+  .intro h1 {
+    font-size: 52px;
+  }
+  .hall {
+    padding: 20px 28px;
+    grid-template-columns: 1fr 250px;
+    gap: 20px;
+  }
+}
+@media (max-width: 760px) {
+  .home {
+    padding: 0 20px;
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 36px 0 40px;
+    gap: 32px;
+  }
+  .intro h1 {
+    font-size: clamp(44px, 10vw, 64px);
+    max-width: 550px;
+  }
+  .eyebrow {
+    font-size: 9px;
+    margin-bottom: 20px;
+  }
+  .description {
+    font-size: 15px;
+  }
+  .photo img,
+  .photo video {
+    aspect-ratio: 5/4;
+    object-position: center 55%;
+  }
+  .hall {
+    grid-template-columns: 1fr;
+    text-align: center;
+    padding: 36px 20px 8px;
+    gap: 0;
+  }
+  .news {
+    padding: 48px 0;
+  }
+  .sectionHeading {
+    align-items: start;
+  }
+  .sectionHeading .textLink {
+    white-space: nowrap;
+    margin-top: 34px;
+    gap: 10px;
+  }
+  .newsGrid {
+    grid-template-columns: 1fr;
+    gap: 35px;
+  }
+  .story h3 {
+    font-size: 21px;
+  }
+  .date {
+    margin-top: 16px;
+  }
+  .closing {
+    padding: 42px 0 50px;
+  }
+  .closing > div {
+    flex-direction: column;
+    gap: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home * {
+    transition: none;
+  }
+}

@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import HallOfFameLink from "@/components/HallOfFameLink";
-import HeroPanel from "@/components/HeroPanel";
+import PageHeader from "@/components/PageHeader";
+import Image from "next/image";
+import Link from "next/link";
+import styles from "./home.module.css";
+import { homeDesignDefaults } from "@/lib/home-design";
+import { formatDate } from "@/lib/render";
 import ReelGrid from "@/components/ReelGrid";
-import NewsMarquee from "@/components/NewsMarquee";
 import JsonLd from "@/components/JsonLd";
 import { getContent } from "@/lib/store";
 import { toMetadata } from "@/lib/meta";
@@ -17,7 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const content = await getContent();
-  const { site, home, blogSettings } = content;
+  const { site, home } = content;
+  const editorial = { ...homeDesignDefaults, ...home.hero.editorial };
 
   const posts = [...content.posts]
     .filter((post) => post.published)
@@ -35,23 +40,139 @@ export default async function HomePage() {
       <JsonLd data={websiteSchema(content)} />
       {faq ? <JsonLd data={faq} /> : null}
 
-      <HeroPanel hero={home.hero} nav={site.nav} active="/" />
-
-      <HallOfFameLink />
-
-      <ReelGrid reels={content.reels} settings={home.reelsTop} instagramUrl={instagramUrl} />
-
-      {home.showMarqueeHeading ? (
-        <h2 className="px-4 pb-2 pt-6 text-[11px] uppercase tracking-[0.32em] text-[var(--pnc-muted)]">
-          {home.marqueeHeading}
-        </h2>
-      ) : null}
-      <NewsMarquee posts={posts} settings={blogSettings} fallbackImage={site.logoUrl} />
-
-      {content.reels.some((reel) => reel.published) || !home.reelsTop.enabled ? (
-        <ReelGrid reels={content.reels} settings={home.reelsBottom} instagramUrl={instagramUrl} />
-      ) : null}
-
+      <PageHeader hero={home.hero} nav={site.nav} active="/" />
+      <div className={styles.home}>
+        <section className={styles.hero} aria-labelledby="home-title">
+          <div className={styles.intro}>
+            <p className={styles.eyebrow}>
+              <span /> {editorial.eyebrow}
+            </p>
+            <h1 id="home-title">
+              {editorial.headline} <em>{editorial.emphasis}</em>
+            </h1>
+            <p className={styles.description}>{editorial.description}</p>
+            <Link className={styles.button} href="/shows">
+              Find your next show <span aria-hidden="true">↗</span>
+            </Link>
+            <p className={styles.aside}>{editorial.note}</p>
+          </div>
+          <figure className={styles.photo}>
+            {home.hero.backgroundVideoUrl ? (
+              <video
+                src={home.hero.backgroundVideoUrl}
+                controls
+                muted
+                playsInline
+                poster={editorial.imageUrl || homeDesignDefaults.imageUrl}
+                aria-label={editorial.imageAlt}
+              />
+            ) : (
+              <Image
+                src={editorial.imageUrl || homeDesignDefaults.imageUrl}
+                alt={editorial.imageAlt}
+                width={1398}
+                height={1400}
+                unoptimized
+                priority
+                sizes="(max-width: 760px) 100vw, 48vw"
+              />
+            )}
+            <figcaption>
+              <span>{editorial.caption}</span>
+              <span>NYC ↗</span>
+            </figcaption>
+          </figure>
+        </section>
+        <section className={styles.hall} aria-labelledby="hall-title">
+          <div>
+            <p className={styles.eyebrow}>The people who leave a mark</p>
+            <h2 id="hall-title">
+              Our stage. <em>Their legacy.</em>
+            </h2>
+            <p>Celebrating everyone who’s taken our stage.</p>
+            <Link className={styles.textLink} href="/hall-of-fame">
+              Meet our Hall of Fame <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+          <HallOfFameLink />
+        </section>
+        {content.reels.some((reel) => reel.published) &&
+        home.reelsTop.enabled ? (
+          <div className={styles.reels}>
+            <ReelGrid
+              reels={content.reels}
+              settings={home.reelsTop}
+              instagramUrl={instagramUrl}
+            />
+          </div>
+        ) : null}
+        {posts.length > 0 ? (
+          <section className={styles.news} aria-labelledby="news-title">
+            <div className={styles.sectionHeading}>
+              <div>
+                <p className={styles.eyebrow}>The latest from Pins & Needles</p>
+                <h2
+                  id="news-title"
+                  className={home.showMarqueeHeading ? undefined : "sr-only"}
+                >
+                  {home.marqueeHeading || "From the stage."}
+                </h2>
+              </div>
+              <Link className={styles.textLink} href="/news">
+                All stories <span aria-hidden="true">↗</span>
+              </Link>
+            </div>
+            <div className={styles.newsGrid}>
+              {posts.slice(0, 3).map((post) => (
+                <Link
+                  className={styles.story}
+                  key={post.id}
+                  href={`/news/${post.slug}`}
+                >
+                  <div className={styles.storyImage}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={post.coverUrl || site.logoUrl}
+                      alt={post.coverAlt || post.title}
+                      loading="lazy"
+                    />
+                  </div>
+                  <p className={styles.date}>{formatDate(post.date)}</p>
+                  <h3>{post.title}</h3>
+                  <span className={styles.read}>Read story ↗</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {content.reels.some((reel) => reel.published) &&
+        home.reelsBottom.enabled ? (
+          <div className={styles.reels}>
+            <ReelGrid
+              reels={content.reels}
+              settings={home.reelsBottom}
+              instagramUrl={instagramUrl}
+            />
+          </div>
+        ) : null}
+        <section className={styles.closing}>
+          <p className={styles.eyebrow}>There’s more where that came from.</p>
+          <h2>See you in the room.</h2>
+          <div>
+            <Link className={styles.button} href="/shows">
+              Explore the shows <span aria-hidden="true">↗</span>
+            </Link>
+            <a
+              className={styles.textLink}
+              href={instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Follow on Instagram ↗
+            </a>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
