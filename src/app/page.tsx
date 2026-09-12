@@ -60,7 +60,11 @@ export default async function HomePage() {
           </div>
           <div className={styles.artwork}>
             <Image
-              src={artwork.value}
+              src={
+                artwork.value === "/brand/logo-white.svg"
+                  ? artwork.value
+                  : artwork.value.replace(".svg", "-on-dark.svg")
+              }
               alt={artwork.label}
               width={512}
               height={512}
