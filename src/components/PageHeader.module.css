@@ -79,3 +79,20 @@
 .navigationOnly .nav {
   justify-content: center;
 }
+
+.navigationOnly .nav {
+  gap: 12px 28px;
+}
+.navigationOnly .nav a {
+  font-family: var(--font-archivo), Impact, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+}
+@media (max-width: 760px) {
+  .navigationOnly .nav {
+    gap: 8px 16px;
+  }
+  .navigationOnly .nav a {
+    font-size: 11px;
+  }
+}

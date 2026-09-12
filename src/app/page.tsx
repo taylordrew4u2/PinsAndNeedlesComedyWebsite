@@ -51,7 +51,7 @@ export default async function HomePage() {
           width={512}
           height={512}
           priority
-          sizes="(max-width: 600px) 70vw, 300px"
+          sizes="(max-width: 760px) 83vw, 480px"
         />
         <p className={styles.eyebrow}>{editorial.eyebrow}</p>
         <h1 id="home-title">

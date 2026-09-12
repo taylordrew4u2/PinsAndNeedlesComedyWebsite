@@ -1,18 +1,25 @@
 .landing {
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  grid-template-rows: auto auto auto;
+  align-content: center;
   align-items: center;
-  justify-content: center;
-  padding: 35px 24px 40px;
-  text-align: center;
+  column-gap: 64px;
+  max-width: 1240px;
+  margin: auto;
+  padding: 40px 40px 48px;
+  text-align: left;
   color: #f2eddc;
 }
 .artwork {
-  width: min(300px, 70vw);
-  height: 300px;
+  grid-column: 1;
+  grid-row: 1 / 4;
+  width: 100%;
+  height: auto;
+  max-height: 480px;
   object-fit: contain;
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 .eyebrow {
   font:
@@ -20,13 +27,14 @@
     monospace;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin: 0 0 12px;
+  align-self: end;
+  margin: 0 0 16px;
   color: #bcb7a9;
 }
 .landing h1 {
-  max-width: 630px;
+  max-width: 680px;
   font:
-    400 clamp(22px, 2.4vw, 30px)/1.2 var(--font-archivo),
+    400 clamp(32px, 3.7vw, 52px)/1.06 var(--font-archivo),
     Impact,
     sans-serif;
   text-transform: uppercase;
@@ -38,17 +46,18 @@
 .actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 28px;
-  margin-top: 22px;
+  justify-content: flex-start;
+  align-self: start;
+  gap: 32px;
+  margin-top: 20px;
 }
 .button {
   display: inline-flex;
   align-items: center;
   gap: 28px;
-  padding: 14px 20px;
+  padding: 18px 28px;
   font:
-    400 14px/1.2 var(--font-archivo),
+    400 17px/1.2 var(--font-archivo),
     Impact,
     sans-serif;
   text-transform: uppercase;
@@ -64,20 +73,33 @@
   outline: 3px dashed #f2eddc;
   outline-offset: 6px;
 }
-@media (max-width: 600px) {
+@media (max-width: 760px) {
   .landing {
-    min-height: 0;
-    padding: 28px 20px 30px;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    padding: 26px 22px 28px;
   }
   .artwork {
-    height: 240px;
-    width: 250px;
-    max-width: 72vw;
-    margin-bottom: 22px;
+    height: auto;
+    width: 310px;
+    max-width: 83vw;
+    margin-bottom: 24px;
+  }
+  .eyebrow {
+    align-self: center;
+  }
+  .landing h1 {
+    font-size: clamp(30px, 7.8vw, 44px);
+  }
+  .button {
+    padding: 16px 20px;
+    font-size: 15px;
   }
   .actions {
-    gap: 16px;
+    gap: 20px;
     margin-top: 16px;
+    align-self: center;
   }
 }
 
