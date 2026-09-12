@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Hero, NavItem } from "@/lib/types";
 import styles from "./PageHeader.module.css";
-
 export default function PageHeader({
   hero,
   nav,
@@ -14,6 +13,15 @@ export default function PageHeader({
   active: string;
   navigationOnly?: boolean;
 }) {
+  const links = nav.map((item) => (
+    <Link
+      key={item.id}
+      href={item.href}
+      aria-current={active === item.href ? "page" : undefined}
+    >
+      {item.label}
+    </Link>
+  ));
   return (
     <header
       className={styles.header}
@@ -22,36 +30,32 @@ export default function PageHeader({
       <div
         className={`${styles.inner} ${navigationOnly ? styles.navigationOnly : ""}`}
       >
-        {!navigationOnly && (
-          <Link
-            href="/"
-            aria-label="Pins & Needles Comedy — home"
-            className={styles.brand}
-          >
-            {hero.logoUrl ? (
-              <Image
-                src={hero.logoUrl}
-                alt={hero.logoAlt}
-                width={84}
-                height={84}
-                priority
-              />
-            ) : (
-              hero.wordmark
-            )}
-          </Link>
-        )}
-        <nav aria-label="Primary" className={styles.nav}>
-          {nav.map((item) => (
-            <Link
-              key={item.id}
-              href={item.href}
-              aria-current={active === item.href ? "page" : undefined}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <Link
+          href="/"
+          aria-label="Pins & Needles Comedy home"
+          className={`${styles.brand} ${navigationOnly ? styles.homeBrand : ""}`}
+        >
+          {hero.logoUrl ? (
+            <Image
+              src={hero.logoUrl}
+              alt={hero.logoAlt}
+              width={80}
+              height={80}
+              priority
+            />
+          ) : (
+            hero.wordmark
+          )}
+        </Link>
+        <nav className={styles.desktop} aria-label="Primary">
+          {links}
         </nav>
+        <details className={styles.mobile}>
+          <summary>
+            Menu <span className={styles.menuLines} aria-hidden="true" />
+          </summary>
+          <nav aria-label="Mobile navigation">{links}</nav>
+        </details>
       </div>
     </header>
   );

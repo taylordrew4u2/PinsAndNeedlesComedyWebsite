@@ -1,0 +1,65 @@
+.grid {
+  max-width: 1152px;
+  margin: auto;
+  padding: 12px 24px 36px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px 24px;
+}
+.card {
+  display: block;
+  min-width: 0;
+}
+.cover {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  background: #141414;
+  display: block;
+}
+.copy {
+  padding: 16px 0 20px;
+  border-bottom: 1px solid #f2eddc40;
+}
+.date {
+  display: block;
+  font:
+    700 11px/1.5 "Courier New",
+    monospace;
+  color: #bcb7a9;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.title {
+  font:
+    400 20px/1.25 var(--font-archivo),
+    Impact,
+    sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+  color: #f2eddc;
+}
+.card:hover .title {
+  text-decoration: underline;
+  text-decoration-color: #ff3434;
+  text-underline-offset: 4px;
+}
+.card:focus-visible {
+  outline: 3px dashed #ff3434;
+  outline-offset: 6px;
+}
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: 1fr;
+    padding: 8px 20px 24px;
+    gap: 24px;
+  }
+  .title {
+    font-size: 20px;
+  }
+}

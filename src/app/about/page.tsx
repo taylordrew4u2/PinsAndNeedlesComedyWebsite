@@ -1,3 +1,4 @@
+import PageIntro from "@/components/PageIntro";
 import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import PageHeader from "@/components/PageHeader";
@@ -31,16 +32,7 @@ export default async function AboutPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/about" />
-      <BrandAccents names={["pins-and-needles-heart"]} prominent />
-
-      <section className="mx-auto max-w-3xl px-5 pb-4 pt-8">
-        <h1 className="text-3xl sm:text-4xl">{about.heading}</h1>
-        {about.intro ? (
-          <p className="mt-3 text-[15px] uppercase tracking-[0.2em] text-[var(--pnc-muted)]">
-            {about.intro}
-          </p>
-        ) : null}
-      </section>
+      <PageIntro title={about.heading} description={about.intro} artwork="pins-and-needles-heart" />
 
       <section className="mx-auto max-w-3xl px-5 py-14">
         <div

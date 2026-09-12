@@ -36,13 +36,8 @@ export default function ShopEmbed({ shop }: { shop: ShopPage }) {
     return (
       <div className="mx-auto max-w-6xl px-5">
         <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 border border-dashed border-white/15 p-10 text-center">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--pnc-muted)]">
-            Shopify embed slot
-          </p>
-          <p className="max-w-md text-[14px] leading-relaxed text-[var(--pnc-muted)]">
-            Paste your Shopify Buy Button or storefront embed code in{" "}
-            <span className="text-[var(--pnc-fg)]">/admin → Shop</span> and it renders here.
-          </p>
+          <p className="text-xl text-[var(--pnc-fg)]">{shop.storefrontUrl ? "Visit our store" : "Merch is on its way."}</p>
+          <p className="max-w-md text-[15px] leading-relaxed text-[var(--pnc-muted)]">{shop.storefrontUrl ? "Browse the collection in our full store below." : "New releases will appear here."}</p>
         </div>
       </div>
     );

@@ -1,3 +1,4 @@
+import PageIntro from "@/components/PageIntro";
 import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import PageHeader from "@/components/PageHeader";
@@ -30,16 +31,7 @@ export default async function ShopPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/shop" />
-      <BrandAccents names={["flash-lipstick"]}  />
-
-      <section className="mx-auto max-w-6xl px-5 pb-6 pt-8">
-        <h1 className="text-3xl sm:text-4xl">{shop.heading}</h1>
-        {shop.intro ? (
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-[var(--pnc-muted)]">
-            {shop.intro}
-          </p>
-        ) : null}
-      </section>
+      <PageIntro title={shop.heading} description={shop.intro} artwork="flash-lipstick" />
 
       <ShopEmbed shop={shop} />
 

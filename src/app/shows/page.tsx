@@ -1,3 +1,4 @@
+import PageIntro from "@/components/PageIntro";
 import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -46,12 +47,7 @@ export default async function ShowsIndexPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/shows" />
-      <BrandAccents names={["bad-decisions-dice"]} prominent />
-
-      <section className="mx-auto max-w-6xl px-5 pb-2 pt-8">
-        <h1 className="text-3xl sm:text-4xl">{showsPage.heading}</h1>
-        <p className="mt-3 text-[15px] text-[var(--pnc-muted)]">The next five shows. Pick a night and see who’s on.</p>
-      </section>
+      <PageIntro title={showsPage.heading} description="The next five shows. Pick a night and see who’s on." artwork="bad-decisions-dice" />
 
       <section className="mx-auto max-w-6xl px-5 pb-14 pt-8" aria-label="Upcoming shows">
         {upcoming.length ? (

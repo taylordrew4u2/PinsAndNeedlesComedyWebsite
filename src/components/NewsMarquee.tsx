@@ -34,6 +34,8 @@ export default function NewsMarquee({
     strip.addEventListener("pointerenter", pause);
     strip.addEventListener("pointerleave", resume);
     strip.addEventListener("pointerdown", pause);
+    strip.addEventListener("focusin", pause);
+    strip.addEventListener("focusout", resume);
 
     const step = (now: number) => {
       const dt = (now - last) / 1000;
@@ -52,6 +54,8 @@ export default function NewsMarquee({
       strip.removeEventListener("pointerenter", pause);
       strip.removeEventListener("pointerleave", resume);
       strip.removeEventListener("pointerdown", pause);
+      strip.removeEventListener("focusin", pause);
+      strip.removeEventListener("focusout", resume);
     };
   }, [settings.autoScroll, settings.autoScrollSpeed]);
 

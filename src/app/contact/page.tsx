@@ -1,3 +1,4 @@
+import PageIntro from "@/components/PageIntro";
 import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import PageHeader from "@/components/PageHeader";
@@ -45,14 +46,8 @@ export default async function ContactPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/contact" />
-      <BrandAccents names={["flash-telephone"]}  />
-
-      <section className="mx-auto max-w-3xl px-5 pb-24 pt-8">
-        <h1 className="text-3xl sm:text-4xl">{contact.heading}</h1>
-        {contact.intro ? (
-          <p className="mt-3 text-[15px] leading-relaxed text-[var(--pnc-muted)]">{contact.intro}</p>
-        ) : null}
-
+      <PageIntro title={contact.heading} description={contact.intro} artwork="flash-telephone" />
+      <section className="mx-auto max-w-3xl px-5 pb-12">
         <ul className="mt-10 divide-y divide-white/10 border-y border-white/10">
           {rows.map((row) => (
             <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-3 py-5">
@@ -63,7 +58,7 @@ export default async function ContactPage() {
                 href={row.href}
                 target={row.href.startsWith("http") ? "_blank" : undefined}
                 rel={row.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                className="text-[16px] underline underline-offset-4 hover:text-[var(--pnc-accent)]"
+                className="break-all py-2 text-[16px] underline underline-offset-4 hover:text-[var(--pnc-accent)]"
               >
                 {row.value}
               </a>
