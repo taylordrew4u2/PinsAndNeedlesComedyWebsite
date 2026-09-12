@@ -63,7 +63,7 @@ export default async function AboutPage() {
             }
           `}</style>
           <div className="grid w-full" style={{ gap: about.logoGap }}>
-            {about.logos.map((logo) => (
+            {about.logos.filter((logo) => /\.svg(?:[?#]|$)/i.test(logo.url)).map((logo) => (
               <figure
                 key={logo.id}
                 className="relative m-0 flex aspect-square items-center justify-center bg-neutral-950"
@@ -100,28 +100,8 @@ export default async function AboutPage() {
             {about.producers.map((producer) => (
               <article
                 key={producer.id}
-                className="grid items-start gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
+                className="border-t border-white/20 pt-6"
               >
-                <div className="w-full overflow-hidden bg-neutral-950" style={{ aspectRatio: "1 / 1" }}>
-                  {producer.headshotUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={producer.headshotUrl}
-                      alt={producer.headshotAlt || producer.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full"
-                      style={{
-                        objectFit: "cover",
-                        transform: `scale(${about.producerImageSize / 100})`,
-                      }}
-                    />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-[0.28em] text-neutral-600">
-                      Headshot
-                    </span>
-                  )}
-                </div>
 
                 <div>
                   <h3 className="text-2xl">{producer.name}</h3>

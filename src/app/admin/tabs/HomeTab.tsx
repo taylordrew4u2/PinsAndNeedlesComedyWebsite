@@ -1,11 +1,15 @@
 "use client";
 
 import type { Content, ReelGridSettings } from "@/lib/types";
-import { Num, Row, Section, Text, Toggle } from "../ui";
+import { Num, Row, Section, Select, Text, Toggle } from "../ui";
 import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
-import { homeDesignDefaults, type HomeDesign } from "@/lib/home-design";
+import {
+  homeDesignDefaults,
+  homeArtworkOptions,
+  type HomeDesign,
+} from "@/lib/home-design";
 import type { Update } from "../types";
 
 export function GridSettings({
@@ -119,7 +123,11 @@ export default function HomeTab({
   update: Update;
 }) {
   const { hero } = content.home;
-  const editorial = { ...homeDesignDefaults, ...hero.editorial };
+  const editorial = {
+    ...homeDesignDefaults,
+    homeArtworkOptions,
+    ...hero.editorial,
+  };
   const setEditorial = (key: keyof HomeDesign, value: string) =>
     update((d) => {
       d.home.hero.editorial = { ...d.home.hero.editorial, [key]: value };
@@ -129,8 +137,14 @@ export default function HomeTab({
     <>
       <Section
         title="Homepage introduction"
-        hint="Edit the headline, supporting text, and original photo. Layout and spacing adapt automatically to phones and desktops."
+        hint="Edit the headline and supporting text. Choose from your supplied vector artwork; photographs belong in News."
       >
+        <Select
+          label="Featured vector artwork"
+          value={editorial.artwork}
+          options={homeArtworkOptions}
+          onChange={(v) => setEditorial("artwork", v)}
+        />
         <Text
           label="Small heading"
           value={editorial.eyebrow}
@@ -158,32 +172,6 @@ export default function HomeTab({
           value={editorial.note}
           onChange={(v) => setEditorial("note", v)}
         />
-        <MediaField
-          label="Featured photo"
-          value={editorial.imageUrl}
-          onChange={(v) => setEditorial("imageUrl", v)}
-          aspect={1}
-          previewHeight={240}
-        />
-        <Text
-          label="Photo description for screen readers"
-          value={editorial.imageAlt}
-          onChange={(v) => setEditorial("imageAlt", v)}
-        />
-        <Text
-          label="Photo caption"
-          value={editorial.caption}
-          onChange={(v) => setEditorial("caption", v)}
-        />
-        <MediaField
-          label="Featured video (optional)"
-          hint="Replaces the photo with a video visitors can play. Clear this field to show the photo."
-          accept="video/*"
-          value={hero.backgroundVideoUrl}
-          onChange={(v) =>
-            update((d) => void (d.home.hero.backgroundVideoUrl = v))
-          }
-        />
       </Section>
       <Section
         title="Header branding"
@@ -208,15 +196,6 @@ export default function HomeTab({
         />
       </Section>
 
-      <GridSettings
-        title="Reels grid — above the news"
-        hint="9:16 tiles that autoplay muted. Clicking one opens Instagram."
-        settings={content.home.reelsTop}
-        onChange={(patch) =>
-          update((d) => void Object.assign(d.home.reelsTop, patch))
-        }
-      />
-
       <Section
         title="Latest stories"
         hint="The three newest published posts appear on the homepage. All posts remain available on the News page."
@@ -232,15 +211,6 @@ export default function HomeTab({
           onChange={(v) => update((d) => void (d.home.marqueeHeading = v))}
         />
       </Section>
-
-      <GridSettings
-        title="Reels grid — below the news"
-        hint="Same tiles, set to infinite scroll so it keeps loading until you run out of reels."
-        settings={content.home.reelsBottom}
-        onChange={(patch) =>
-          update((d) => void Object.assign(d.home.reelsBottom, patch))
-        }
-      />
 
       <SeoEditor
         title="Home page SEO & AI SEO"

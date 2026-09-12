@@ -4,9 +4,8 @@ import PageHeader from "@/components/PageHeader";
 import Image from "next/image";
 import Link from "next/link";
 import styles from "./home.module.css";
-import { homeDesignDefaults } from "@/lib/home-design";
+import { homeDesignDefaults, homeArtworkOptions } from "@/lib/home-design";
 import { formatDate } from "@/lib/render";
-import ReelGrid from "@/components/ReelGrid";
 import JsonLd from "@/components/JsonLd";
 import { getContent } from "@/lib/store";
 import { toMetadata } from "@/lib/meta";
@@ -23,6 +22,9 @@ export default async function HomePage() {
   const content = await getContent();
   const { site, home } = content;
   const editorial = { ...homeDesignDefaults, ...home.hero.editorial };
+  const artwork =
+    homeArtworkOptions.find((option) => option.value === editorial.artwork) ||
+    homeArtworkOptions[0];
 
   const posts = [...content.posts]
     .filter((post) => post.published)
@@ -56,32 +58,16 @@ export default async function HomePage() {
             </Link>
             <p className={styles.aside}>{editorial.note}</p>
           </div>
-          <figure className={styles.photo}>
-            {home.hero.backgroundVideoUrl ? (
-              <video
-                src={home.hero.backgroundVideoUrl}
-                controls
-                muted
-                playsInline
-                poster={editorial.imageUrl || homeDesignDefaults.imageUrl}
-                aria-label={editorial.imageAlt}
-              />
-            ) : (
-              <Image
-                src={editorial.imageUrl || homeDesignDefaults.imageUrl}
-                alt={editorial.imageAlt}
-                width={1398}
-                height={1400}
-                unoptimized
-                priority
-                sizes="(max-width: 760px) 100vw, 48vw"
-              />
-            )}
-            <figcaption>
-              <span>{editorial.caption}</span>
-              <span>NYC ↗</span>
-            </figcaption>
-          </figure>
+          <div className={styles.artwork}>
+            <Image
+              src={artwork.value}
+              alt={artwork.label}
+              width={512}
+              height={512}
+              priority
+              sizes="(max-width: 760px) 85vw, 45vw"
+            />
+          </div>
         </section>
         <section className={styles.hall} aria-labelledby="hall-title">
           <div>
@@ -96,16 +82,6 @@ export default async function HomePage() {
           </div>
           <HallOfFameLink />
         </section>
-        {content.reels.some((reel) => reel.published) &&
-        home.reelsTop.enabled ? (
-          <div className={styles.reels}>
-            <ReelGrid
-              reels={content.reels}
-              settings={home.reelsTop}
-              instagramUrl={instagramUrl}
-            />
-          </div>
-        ) : null}
         {posts.length > 0 ? (
           <section className={styles.news} aria-labelledby="news-title">
             <div className={styles.sectionHeading}>
@@ -144,16 +120,6 @@ export default async function HomePage() {
               ))}
             </div>
           </section>
-        ) : null}
-        {content.reels.some((reel) => reel.published) &&
-        home.reelsBottom.enabled ? (
-          <div className={styles.reels}>
-            <ReelGrid
-              reels={content.reels}
-              settings={home.reelsBottom}
-              instagramUrl={instagramUrl}
-            />
-          </div>
         ) : null}
         <section className={styles.closing}>
           <p className={styles.eyebrow}>There’s more where that came from.</p>

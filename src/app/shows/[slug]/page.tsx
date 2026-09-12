@@ -104,7 +104,7 @@ export default async function ShowPage({ params }: Params) {
 
         <div className="mt-8 grid gap-8 md:grid-cols-[minmax(0,1fr)_320px]">
           <div>
-            {show.posterUrl ? (
+            {/\.svg(?:[?#]|$)/i.test(show.posterUrl) ? (
               <div
                 className="w-full overflow-hidden bg-neutral-950"
                 style={{ aspectRatio: `${ratio}`, borderRadius: showsPage.cornerRadius || undefined }}
@@ -138,15 +138,6 @@ export default async function ShowPage({ params }: Params) {
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {group.people.map((person) => (
                         <li key={person.id} className="flex items-center gap-3">
-                          {person.imageUrl ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
-                              src={person.imageUrl}
-                              alt={person.imageAlt || person.name}
-                              loading="lazy"
-                              className="h-12 w-12 shrink-0 rounded-full object-cover"
-                            />
-                          ) : null}
                           <span className="min-w-0">
                             <span className="block text-[15px] leading-snug">
                               {person.url ? (
@@ -176,31 +167,7 @@ export default async function ShowPage({ params }: Params) {
               </section>
             ) : null}
 
-            {show.photos.length ? (
-              <section className="mt-10">
-                <h2 className="mb-4 text-[11px] uppercase tracking-[0.32em] text-[var(--pnc-muted)]">
-                  From the night
-                </h2>
-                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {show.photos.map((photo) => (
-                    <li key={photo.id}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={photo.url}
-                        alt={photo.alt || show.title}
-                        loading="lazy"
-                        className="aspect-square w-full object-cover"
-                      />
-                      {photo.caption ? (
-                        <span className="mt-1 block text-[11px] text-[var(--pnc-muted)]">
-                          {photo.caption}
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
+
           </div>
 
           <aside>

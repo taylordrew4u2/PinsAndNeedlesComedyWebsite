@@ -20,6 +20,7 @@ export default function ShowCard({
   fallbackImage: string;
   dim?: boolean;
 }) {
+  const artwork = /\.svg(?:[?#]|$)/i.test(show.posterUrl) ? show.posterUrl : /\.svg(?:[?#]|$)/i.test(fallbackImage) ? fallbackImage : "/brand/logo-white.svg";
   const ratio = aspectValue(settings.posterAspect);
   const status = STATUS_LABEL[show.status];
   const times = timeLine(show);
@@ -37,15 +38,15 @@ export default function ShowCard({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={show.posterUrl || fallbackImage}
+          src={artwork}
           alt={show.posterAlt || show.title}
           loading="lazy"
           decoding="async"
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           style={{
-            opacity: show.posterUrl ? 1 : 0.3,
-            padding: show.posterUrl ? 0 : "20%",
-            objectFit: show.posterUrl ? "cover" : "contain",
+            opacity: 1,
+            padding: artwork === show.posterUrl ? 0 : "12%",
+            objectFit: "contain",
           }}
         />
         {status ? (

@@ -103,58 +103,14 @@
   max-width: 350px;
   margin: 25px 0 0;
 }
-.photo {
-  position: relative;
-  margin: 15px 8px 0;
-  background: var(--ink);
-  padding: 10px 10px 0;
+.artwork {
+  padding: 22px;
   transform: rotate(3deg);
-  box-shadow: 12px 12px 0 #ff3434;
 }
-.photo::before {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  width: 130px;
-  height: 35px;
-  left: 33%;
-  top: -18px;
-  background: #e2d4ab;
-  clip-path: polygon(
-    2% 0,
-    98% 4%,
-    96% 17%,
-    100% 28%,
-    97% 44%,
-    100% 65%,
-    97% 88%,
-    99% 100%,
-    0 95%,
-    3% 79%,
-    0 55%,
-    3% 35%,
-    0 14%
-  );
-  transform: rotate(-8deg);
-}
-.photo img,
-.photo video {
-  width: 100%;
-  aspect-ratio: 4/5;
-  object-fit: cover;
+.artwork img {
   display: block;
-  object-position: 40% center;
-}
-.photo figcaption {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 2px;
-  font-family: "Courier New", monospace;
-  font-size: 10px;
-  font-weight: bold;
-  text-transform: uppercase;
-  color: #111;
+  width: 100%;
+  height: auto;
 }
 .hall {
   border-top: 3px dashed #777367;
@@ -334,9 +290,7 @@
   .intro h1 {
     font-size: 54px;
   }
-  .photo {
-    margin-right: 10px;
-  }
+
   .hall {
     padding: 20px 10px;
     grid-template-columns: 1fr 250px;
@@ -364,13 +318,8 @@
   .description {
     font-size: 15px;
   }
-  .photo {
-    margin: 10px 12px 12px 7px;
-    transform: rotate(2deg);
-  }
-  .photo img,
-  .photo video {
-    aspect-ratio: 1;
+  .artwork {
+    padding: 0 16px;
   }
   .hall {
     grid-template-columns: 1fr;
