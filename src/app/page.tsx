@@ -68,6 +68,7 @@ export default async function HomePage() {
         <h2 className={styles.newsHeading}>{home.marqueeHeading}</h2>
       )}
       <NewsMarquee
+        compact
         posts={posts}
         settings={content.blogSettings}
         fallbackImage={site.logoUrl}

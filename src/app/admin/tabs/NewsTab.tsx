@@ -56,7 +56,7 @@ export default function NewsTab({ content, update }: { content: Content; update:
     <>
       <Section
         title="Display — applies to every post"
-        hint="Cover orientation, card size, and how the title sits on the image. Changing the orientation re-crops new uploads; re-upload an old cover to match."
+        hint="The homepage uses a thin, 112px-high horizontal strip with cards up to 200px wide. Cover orientation, card size, and title settings apply elsewhere. Changing the orientation re-crops new uploads; re-upload an old cover to match."
       >
         <Select
           label="Cover orientation (all posts)"

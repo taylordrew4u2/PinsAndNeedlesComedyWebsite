@@ -9,10 +9,12 @@ export default function NewsMarquee({
   posts,
   settings,
   fallbackImage,
+  compact = false,
 }: {
   posts: Post[];
   settings: BlogSettings;
   fallbackImage: string;
+  compact?: boolean;
 }) {
   const stripRef = useRef<HTMLDivElement | null>(null);
 
@@ -38,7 +40,8 @@ export default function NewsMarquee({
       last = now;
       if (!paused) {
         strip.scrollLeft += settings.autoScrollSpeed * dt;
-        if (strip.scrollLeft >= strip.scrollWidth - strip.clientWidth - 1) strip.scrollLeft = 0;
+        if (strip.scrollLeft >= strip.scrollWidth - strip.clientWidth - 1)
+          strip.scrollLeft = 0;
       }
       raf = requestAnimationFrame(step);
     };
@@ -55,7 +58,10 @@ export default function NewsMarquee({
   if (posts.length === 0) return null;
 
   const ratio = aspectValue(settings.coverAspect);
-  const cardHeight = Math.round(settings.cardWidth / ratio);
+  const cardWidth = compact
+    ? Math.min(settings.cardWidth, 200)
+    : settings.cardWidth;
+  const cardHeight = compact ? 112 : Math.round(settings.cardWidth / ratio);
 
   // Horizontal wheel scrolling on a trackpad-less mouse.
   const onWheel = (event: React.WheelEvent<HTMLDivElement>) => {
@@ -81,7 +87,7 @@ export default function NewsMarquee({
               href={`/news/${post.slug}`}
               className="group relative block shrink-0 overflow-hidden bg-neutral-950"
               style={{
-                width: settings.cardWidth,
+                width: cardWidth,
                 height: cardHeight,
                 borderRadius: settings.cornerRadius || undefined,
                 scrollSnapAlign: "start",
@@ -103,23 +109,33 @@ export default function NewsMarquee({
 
               <span
                 className="pointer-events-none absolute inset-x-0 bottom-0"
-                style={{ padding: settings.titlePadding }}
+                style={{
+                  padding: compact ? "5px 7px" : settings.titlePadding,
+                  background: compact ? "#0a0a0a" : undefined,
+                }}
               >
-                {settings.showDate ? (
+                {settings.showDate && !compact ? (
                   <span
                     className="mb-1 block uppercase opacity-70"
-                    style={{ fontSize: Math.max(9, settings.titleSize - 5), letterSpacing: "0.18em" }}
+                    style={{
+                      fontSize: Math.max(9, settings.titleSize - 5),
+                      letterSpacing: "0.18em",
+                    }}
                   >
                     {formatDate(post.date)}
                   </span>
                 ) : null}
                 <span
-                  className="block leading-tight"
+                  className={
+                    compact
+                      ? "line-clamp-2 leading-tight"
+                      : "block leading-tight"
+                  }
                   style={{
                     fontFamily: settings.titleFont,
-                    fontSize: settings.titleSize,
+                    fontSize: compact ? 11 : settings.titleSize,
                     fontWeight: settings.titleWeight,
-                    color: settings.titleColor,
+                    color: compact ? "#f2eddc" : settings.titleColor,
                     textAlign: settings.titleAlign,
                     textTransform: settings.titleTransform,
                   }}
