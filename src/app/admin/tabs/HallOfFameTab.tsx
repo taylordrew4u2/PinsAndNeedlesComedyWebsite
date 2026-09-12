@@ -13,7 +13,7 @@ export default function HallOfFameTab({ content, update }: { content: Content; u
   });
   return <>
     <Section title="Hall of Fame" hint="Celebrate everyone who has taken your stage. Changes save automatically.">
-      <a href="/hall-of-fame" target="_blank" rel="noreferrer" className="text-sm underline underline-offset-4">Preview Hall of Fame ↗</a>
+      <a href="/hall-of-fame" target="_blank" rel="noreferrer" className="text-sm underline underline-offset-4">Preview Hall of Fame </a>
       <Text label="Page heading" value={hall.heading} onChange={(v) => update((d) => void (d.hallOfFame.heading = v))} />
       <Area label="Introduction" rows={3} value={hall.intro} onChange={(v) => update((d) => void (d.hallOfFame.intro = v))} />
       <Text label="Empty page message" value={hall.emptyText} onChange={(v) => update((d) => void (d.hallOfFame.emptyText = v))} />
@@ -38,7 +38,7 @@ export default function HallOfFameTab({ content, update }: { content: Content; u
           </label>
           <Text label="Social handle" placeholder="@theirhandle" hint="Enter their username, with or without @." value={person.socialHandle || ""} onChange={(v) => setPerson(index, { socialHandle: v })} />
         </Row>
-        {social ? <a className="text-sm underline underline-offset-4" href={social.url} target="_blank" rel="noopener noreferrer">Check profile: {social.label} ↗</a> : person.socialHandle ? <p className="text-sm text-amber-400">Use a handle containing letters, numbers, dots, underscores or hyphens.</p> : null}
+        {social ? <a className="text-sm underline underline-offset-4" href={social.url} target="_blank" rel="noopener noreferrer">Check profile: {social.label} </a> : person.socialHandle ? <p className="text-sm text-amber-400">Use a handle containing letters, numbers, dots, underscores or hyphens.</p> : null}
         <Row>
           <Text label="Alternative profile URL" hint="Optional. Used when the social handle is empty." placeholder="https://www.instagram.com/..." value={person.linkUrl} onChange={(v) => setPerson(index, { linkUrl: v })} />
           <Text label="Link label" value={person.linkLabel} onChange={(v) => setPerson(index, { linkLabel: v })} />

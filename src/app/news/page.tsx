@@ -1,3 +1,4 @@
+import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
@@ -37,6 +38,7 @@ export default async function NewsIndexPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/news" />
+      <BrandAccents names={["flash-pizza"]}  />
 
       <section className="mx-auto max-w-6xl px-5 pb-4 pt-8">
         <h1 className="text-3xl sm:text-4xl">{news.heading}</h1>
@@ -104,6 +106,7 @@ export default async function NewsIndexPage() {
           No posts yet.
         </p>
       ) : null}
+      <BrandAccents names={["flash-trash-fire"]} />
     </main>
   );
 }

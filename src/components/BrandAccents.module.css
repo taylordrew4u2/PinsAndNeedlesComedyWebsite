@@ -1,0 +1,47 @@
+.row {
+  max-width: 1080px;
+  margin: 24px auto;
+  padding: 8px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 32px;
+  pointer-events: none;
+}
+.art {
+  width: 130px;
+  height: 145px;
+  object-fit: contain;
+  transform: rotate(-5deg);
+}
+.art:nth-child(even) {
+  transform: rotate(5deg);
+}
+.art:nth-child(3n) {
+  transform: rotate(-2deg);
+}
+.prominent {
+  margin: 12px auto;
+  padding: 8px 24px;
+}
+.prominent .art {
+  width: 220px;
+  height: 190px;
+}
+@media (max-width: 600px) {
+  .row {
+    gap: 16px;
+    padding: 4px 18px;
+    margin: 20px auto;
+  }
+  .art {
+    width: 88px;
+    height: 108px;
+    max-width: 28%;
+  }
+  .prominent .art {
+    width: 150px;
+    height: 140px;
+    max-width: 70%;
+  }
+}

@@ -1,3 +1,4 @@
+import BrandAccents from "@/components/BrandAccents";
 import FameStar from "./FameStar";
 import styles from "./hall.module.css";
 import type { Metadata } from "next";
@@ -39,7 +40,7 @@ export default async function HallOfFamePage() {
           </svg>
           <p className={styles.eyebrow}>Pins &amp; Needles Comedy</p>
           <h1 className={styles.title}>{hall.heading}</h1>
-          <div className={styles.rule} aria-hidden="true">✦</div>
+          <div className={styles.rule} aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 0 13 7 20 10 13 13 10 20 7 13 0 10 7 7Z" /></svg></div>
           <p className={styles.description}>{hall.intro}</p>
         </div>
         {performers.length ? (
@@ -51,7 +52,7 @@ export default async function HallOfFamePage() {
                   <FameStar name={person.name} />
                   {person.credit ? <p className={styles.credit}>{person.credit}</p> : null}
                     {person.bio ? <p className={styles.bio}>{person.bio}</p> : null}
-                    {link ? <a href={link.url} aria-label={`Visit ${person.name} on social media`} target="_blank" rel="noopener noreferrer" className={styles.link}>{link.label} <span aria-hidden="true">↗</span></a> : null}
+                    {link ? <a href={link.url} aria-label={`Visit ${person.name} on social media`} target="_blank" rel="noopener noreferrer" className={styles.link}>{link.label}</a> : null}
                 </article>
               );
             })}
@@ -63,6 +64,7 @@ export default async function HallOfFamePage() {
           </div>
         )}
       </section>
+      <BrandAccents names={["flash-handcuffs", "flash-dice-logo"]} />
     </main>
   );
 }

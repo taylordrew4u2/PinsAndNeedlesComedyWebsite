@@ -1,3 +1,4 @@
+import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import PageHeader from "@/components/PageHeader";
 import JsonLd from "@/components/JsonLd";
@@ -44,6 +45,7 @@ export default async function ContactPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/contact" />
+      <BrandAccents names={["flash-telephone"]}  />
 
       <section className="mx-auto max-w-3xl px-5 pb-24 pt-8">
         <h1 className="text-3xl sm:text-4xl">{contact.heading}</h1>
@@ -75,6 +77,7 @@ export default async function ContactPage() {
           </p>
         ) : null}
       </section>
+      <BrandAccents names={["flash-smoking-heart"]} />
     </main>
   );
 }

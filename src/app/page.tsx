@@ -1,3 +1,4 @@
+import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import HallOfFameLink from "@/components/HallOfFameLink";
 import PageHeader from "@/components/PageHeader";
@@ -59,7 +60,7 @@ export default async function HomePage() {
         </h1>
         <div className={styles.actions}>
           <Link className={styles.button} href="/shows">
-            Find a show <span aria-hidden="true">↗</span>
+            Find a show
           </Link>
           <HallOfFameLink compact />
         </div>
@@ -73,6 +74,7 @@ export default async function HomePage() {
         settings={content.blogSettings}
         fallbackImage={site.logoUrl}
       />
+      <BrandAccents names={["flash-signpost", "flash-smiley"]} />
     </main>
   );
 }

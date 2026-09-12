@@ -56,10 +56,10 @@ export default function HallOfFameLink({
           />
         </svg>
         <span className={styles.sparkleOne} aria-hidden="true">
-          ✦
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 0 13 7 20 10 13 13 10 20 7 13 0 10 7 7Z" /></svg>
         </span>
         <span className={styles.sparkleTwo} aria-hidden="true">
-          ✦
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 0 13 7 20 10 13 13 10 20 7 13 0 10 7 7Z" /></svg>
         </span>
         <span className={styles.name}>
           <span className={styles.small}>Hall of</span>

@@ -1,3 +1,4 @@
+import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
@@ -45,6 +46,7 @@ export default async function ShowsIndexPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/shows" />
+      <BrandAccents names={["bad-decisions-dice"]} prominent />
 
       <section className="mx-auto max-w-6xl px-5 pb-2 pt-8">
         <h1 className="text-3xl sm:text-4xl">{showsPage.heading}</h1>
@@ -69,7 +71,7 @@ export default async function ShowsIndexPage() {
                 <div className={styles.lineup}>
                   <h3 className={styles.label}>Lineup</h3>
                   {names.length ? <ul className={styles.names}>{names.map((name, index) => <li key={index}>{name}</li>)}</ul> : <p className={styles.pending}>Lineup to be announced</p>}
-                  {!show.generated ? <Link className={styles.details} href={`/shows/${show.slug}`}>Show details ↗</Link> : null}
+                  {!show.generated ? <Link className={styles.details} href={`/shows/${show.slug}`}>Show details </Link> : null}
                 </div>
               </article>;
             })}
@@ -104,6 +106,7 @@ export default async function ShowsIndexPage() {
           Book the show at your venue
         </Link>
       </section>
+      <BrandAccents names={["flash-martini", "flash-spilled-drink"]} />
     </main>
   );
 }

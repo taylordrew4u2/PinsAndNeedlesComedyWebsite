@@ -1,3 +1,4 @@
+import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import PageHeader from "@/components/PageHeader";
 import JsonLd from "@/components/JsonLd";
@@ -29,6 +30,7 @@ export default async function ShopPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/shop" />
+      <BrandAccents names={["flash-lipstick"]}  />
 
       <section className="mx-auto max-w-6xl px-5 pb-6 pt-8">
         <h1 className="text-3xl sm:text-4xl">{shop.heading}</h1>
@@ -53,6 +55,7 @@ export default async function ShopPage() {
           </a>
         </div>
       ) : null}
+      <BrandAccents names={["flash-lighter", "flash-disco-ball"]} />
     </main>
   );
 }

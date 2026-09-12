@@ -1,3 +1,4 @@
+import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import PageHeader from "@/components/PageHeader";
 import JsonLd from "@/components/JsonLd";
@@ -30,6 +31,7 @@ export default async function AboutPage() {
       {faq ? <JsonLd data={faq} /> : null}
 
       <PageHeader hero={content.home.hero} nav={site.nav} active="/about" />
+      <BrandAccents names={["pins-and-needles-heart"]} prominent />
 
       <section className="mx-auto max-w-3xl px-5 pb-4 pt-8">
         <h1 className="text-3xl sm:text-4xl">{about.heading}</h1>
@@ -136,6 +138,7 @@ export default async function AboutPage() {
           </div>
         </section>
       ) : null}
+      <BrandAccents names={["flash-heart-arrow", "flash-no-regrets-mouth", "flash-good-people"]} />
     </main>
   );
 }
