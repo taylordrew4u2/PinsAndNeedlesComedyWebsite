@@ -7,34 +7,40 @@ export default function PageHeader({
   hero,
   nav,
   active,
+  navigationOnly = false,
 }: {
   hero: Hero;
   nav: NavItem[];
   active: string;
+  navigationOnly?: boolean;
 }) {
   return (
     <header
       className={styles.header}
       style={{ background: hero.background, color: hero.foreground }}
     >
-      <div className={styles.inner}>
-        <Link
-          href="/"
-          aria-label="Pins & Needles Comedy — home"
-          className={styles.brand}
-        >
-          {hero.logoUrl ? (
-            <Image
-              src={hero.logoUrl}
-              alt={hero.logoAlt}
-              width={84}
-              height={84}
-              priority
-            />
-          ) : (
-            hero.wordmark
-          )}
-        </Link>
+      <div
+        className={`${styles.inner} ${navigationOnly ? styles.navigationOnly : ""}`}
+      >
+        {!navigationOnly && (
+          <Link
+            href="/"
+            aria-label="Pins & Needles Comedy — home"
+            className={styles.brand}
+          >
+            {hero.logoUrl ? (
+              <Image
+                src={hero.logoUrl}
+                alt={hero.logoAlt}
+                width={84}
+                height={84}
+                priority
+              />
+            ) : (
+              hero.wordmark
+            )}
+          </Link>
+        )}
         <nav aria-label="Primary" className={styles.nav}>
           {nav.map((item) => (
             <Link

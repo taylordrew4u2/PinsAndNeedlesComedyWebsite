@@ -125,7 +125,6 @@ export default function HomeTab({
   const { hero } = content.home;
   const editorial = {
     ...homeDesignDefaults,
-    homeArtworkOptions,
     ...hero.editorial,
   };
   const setEditorial = (key: keyof HomeDesign, value: string) =>
@@ -157,21 +156,11 @@ export default function HomeTab({
             onChange={(v) => setEditorial("headline", v)}
           />
           <Text
-            label="Headline — italic accent"
+            label="Headline — red accent"
             value={editorial.emphasis}
             onChange={(v) => setEditorial("emphasis", v)}
           />
         </Row>
-        <Text
-          label="Description"
-          value={editorial.description}
-          onChange={(v) => setEditorial("description", v)}
-        />
-        <Text
-          label="Note below the show button"
-          value={editorial.note}
-          onChange={(v) => setEditorial("note", v)}
-        />
       </Section>
       <Section
         title="Header branding"
@@ -197,16 +186,16 @@ export default function HomeTab({
       </Section>
 
       <Section
-        title="Latest stories"
-        hint="The three newest published posts appear on the homepage. All posts remain available on the News page."
+        title="News strip"
+        hint="Horizontal news covers on the homepage. Adjust the strip under News → Display."
       >
         <Toggle
-          label="Show the stories heading"
+          label="Show the news heading"
           value={content.home.showMarqueeHeading}
           onChange={(v) => update((d) => void (d.home.showMarqueeHeading = v))}
         />
         <Text
-          label="Heading"
+          label="News heading"
           value={content.home.marqueeHeading}
           onChange={(v) => update((d) => void (d.home.marqueeHeading = v))}
         />

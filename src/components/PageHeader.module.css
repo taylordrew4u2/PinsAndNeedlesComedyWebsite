@@ -70,3 +70,12 @@
     font-size: 11px;
   }
 }
+
+.navigationOnly {
+  justify-content: center;
+  padding-top: 22px;
+  padding-bottom: 22px;
+}
+.navigationOnly .nav {
+  justify-content: center;
+}

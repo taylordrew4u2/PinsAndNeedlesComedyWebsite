@@ -1,366 +1,91 @@
-.home {
-  --ink: #f2eddc;
-  --quiet: #bcb7a9;
-  --red: #ff3434;
-  max-width: 1360px;
-  padding: 0 48px;
-  margin: auto;
-  color: var(--ink);
-}
-.home a:focus-visible {
-  outline: 3px dashed var(--red);
-  outline-offset: 6px;
-}
-.hero {
-  display: grid;
-  grid-template-columns: 1.18fr 1fr;
-  gap: 28px;
-  padding: 54px 0 70px;
+.landing {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 35px 24px 40px;
+  text-align: center;
+  color: #f2eddc;
+}
+.artwork {
+  width: min(300px, 70vw);
+  height: 300px;
+  object-fit: contain;
+  margin-bottom: 24px;
 }
 .eyebrow {
-  font-family: "Courier New", monospace;
-  font-size: 12px;
+  font:
+    700 11px/1.5 "Courier New",
+    monospace;
   text-transform: uppercase;
-  letter-spacing: 0.055em;
-  font-weight: 700;
-  line-height: 1.5;
-  margin: 0 0 24px;
+  letter-spacing: 0.08em;
+  margin: 0 0 12px;
+  color: #bcb7a9;
 }
-.intro .eyebrow {
-  display: table;
-  background: var(--ink);
-  color: #101010;
-  padding: 5px 10px;
-  transform: rotate(-2deg);
-}
-.eyebrow span {
-  display: none;
-}
-.intro {
-  position: relative;
-  z-index: 1;
-}
-.intro h1 {
-  font-family: var(--font-archivo), Impact, sans-serif;
-  font-size: clamp(48px, 5.5vw, 79px);
+.landing h1 {
+  max-width: 630px;
+  font:
+    400 clamp(22px, 2.4vw, 30px)/1.2 var(--font-archivo),
+    Impact,
+    sans-serif;
   text-transform: uppercase;
-  letter-spacing: -0.065em;
-  font-weight: 400;
-  line-height: 0.98;
+  letter-spacing: -0.04em;
 }
-.home em {
-  font-family: inherit;
-  font-style: normal;
-  font-weight: inherit;
+.landing h1 span {
+  color: #ff3434;
 }
-.intro h1 em {
-  display: table;
-  background: var(--red);
-  color: #090909;
-  padding: 4px 12px 10px 8px;
-  margin: 10px 0 0 -7px;
-  transform: rotate(-2deg);
-  box-decoration-break: clone;
-}
-.description {
-  font-family: "Courier New", monospace;
-  font-size: 16px;
-  line-height: 1.5;
-  max-width: 430px;
-  margin: 26px 0;
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  margin-top: 22px;
 }
 .button {
   display: inline-flex;
   align-items: center;
-  gap: 32px;
-  padding: 16px 21px;
-  background: var(--red);
-  color: #090909;
-  font-family: var(--font-archivo), Impact, sans-serif;
-  font-size: 15px;
+  gap: 28px;
+  padding: 14px 20px;
+  font:
+    400 14px/1.2 var(--font-archivo),
+    Impact,
+    sans-serif;
   text-transform: uppercase;
-  border: 2px solid #090909;
-  outline: 1px solid var(--red);
-  box-shadow: 5px 5px 0 var(--ink);
-  transition:
-    transform 0.15s,
-    box-shadow 0.15s;
+  background: #ff3434;
+  color: #090909;
+  box-shadow: 3px 3px 0 #f2eddc;
 }
 .button:hover {
-  transform: translate(3px, 3px);
-  box-shadow: 2px 2px 0 var(--ink);
+  background: #f2eddc;
+  box-shadow: 3px 3px 0 #ff3434;
 }
-.button span {
-  font-size: 25px;
-  line-height: 1;
+.button:focus-visible {
+  outline: 3px dashed #f2eddc;
+  outline-offset: 6px;
 }
-.aside {
-  font-family: "Courier New", monospace;
-  font-size: 12px;
-  color: var(--quiet);
-  line-height: 1.5;
-  max-width: 350px;
-  margin: 25px 0 0;
-}
-.artwork {
-  padding: 22px;
-  transform: rotate(3deg);
-}
-.artwork img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-.hall {
-  border-top: 3px dashed #777367;
-  border-bottom: 3px dashed #777367;
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  align-items: center;
-  gap: 30px;
-  padding: 22px 30px;
-  position: relative;
-}
-.home h2 {
-  font-family: var(--font-archivo), Impact, sans-serif;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: -0.055em;
-  font-size: clamp(35px, 4.5vw, 64px);
-  line-height: 1;
-}
-.hall h2 em {
-  display: block;
-  color: #e8c76e;
-}
-.hall p:not(.eyebrow) {
-  font-family: "Courier New", monospace;
-  color: var(--quiet);
-  font-size: 14px;
-  line-height: 1.5;
-  margin: 18px 0 22px;
-}
-.hall .eyebrow {
-  color: #e8c76e;
-  margin-bottom: 15px;
-}
-.textLink {
-  font-family: "Courier New", monospace;
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  display: inline-flex;
-  gap: 20px;
-  align-items: center;
-  padding-bottom: 6px;
-  border-bottom: 2px solid currentColor;
-}
-.textLink:hover {
-  color: var(--red);
-}
-.news {
-  margin: 64px -20px;
-  padding: 48px 28px;
-  background: var(--ink);
-  color: #111;
-  position: relative;
-}
-.news::before,
-.news::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 12px;
-  background: var(--ink);
-  clip-path: polygon(
-    0 70%,
-    3% 25%,
-    8% 60%,
-    12% 0,
-    18% 65%,
-    24% 15%,
-    30% 80%,
-    36% 20%,
-    43% 55%,
-    49% 0,
-    56% 65%,
-    62% 20%,
-    69% 70%,
-    75% 5%,
-    82% 60%,
-    89% 15%,
-    95% 65%,
-    100% 20%,
-    100% 100%,
-    0 100%
-  );
-  top: -11px;
-}
-.news::after {
-  top: auto;
-  bottom: -11px;
-  transform: rotate(180deg);
-}
-.sectionHeading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 30px;
-}
-.sectionHeading .eyebrow {
-  margin-bottom: 12px;
-}
-.newsGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
-}
-.story {
-  border-top: 4px solid #111;
-  padding-top: 10px;
-}
-.storyImage {
-  aspect-ratio: 4/3;
-  background: #111;
-  overflow: hidden;
-}
-.storyImage img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.date {
-  font-family: "Courier New", monospace;
-  font-size: 11px;
-  font-weight: bold;
-  text-transform: uppercase;
-  margin: 16px 0 10px;
-}
-.story h3 {
-  font-family: var(--font-archivo), Impact, sans-serif;
-  font-size: 21px;
-  text-transform: uppercase;
-  font-weight: 400;
-  letter-spacing: -0.04em;
-  line-height: 1.17;
-}
-.story:hover h3 {
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-}
-.read {
-  display: block;
-  font-family: "Courier New", monospace;
-  text-transform: uppercase;
-  font-size: 12px;
-  font-weight: bold;
-  margin-top: 20px;
-}
-.closing {
-  text-align: center;
-  padding: 20px 0 70px;
-}
-.closing .eyebrow {
-  color: var(--red);
-  margin-bottom: 18px;
-}
-.closing h2 {
-  font-size: clamp(44px, 7vw, 92px);
-}
-.closing > div {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 36px;
-  margin-top: 30px;
-}
-.reels {
-  padding: 40px 0;
-}
-@media (max-width: 960px) {
-  .home {
-    padding: 0 28px;
-  }
-  .hero {
-    gap: 20px;
-  }
-  .intro h1 {
-    font-size: 54px;
-  }
-
-  .hall {
-    padding: 20px 10px;
-    grid-template-columns: 1fr 250px;
-  }
-}
-@media (max-width: 760px) {
-  .home {
-    padding: 0 22px;
-  }
-  .hero {
-    grid-template-columns: 1fr;
-    padding: 35px 0 45px;
-    gap: 36px;
-  }
-  .intro h1 {
-    font-size: clamp(43px, 11.5vw, 70px);
-    max-width: 580px;
-  }
-  .intro h1 em {
-    margin-left: -4px;
-  }
-  .eyebrow {
-    font-size: 10px;
-  }
-  .description {
-    font-size: 15px;
+@media (max-width: 600px) {
+  .landing {
+    min-height: 0;
+    padding: 28px 20px 30px;
   }
   .artwork {
-    padding: 0 16px;
+    height: 240px;
+    width: 250px;
+    max-width: 72vw;
+    margin-bottom: 22px;
   }
-  .hall {
-    grid-template-columns: 1fr;
-    text-align: center;
-    padding: 32px 0 0;
-    gap: 0;
-  }
-  .home h2 {
-    font-size: 38px;
-  }
-  .news {
-    margin: 48px -7px;
-    padding: 32px 15px;
-  }
-  .sectionHeading {
-    flex-wrap: wrap;
+  .actions {
     gap: 16px;
-  }
-  .sectionHeading .textLink {
-    font-size: 11px;
-  }
-  .newsGrid {
-    grid-template-columns: 1fr;
-    gap: 30px;
-  }
-  .story h3 {
-    font-size: 24px;
-  }
-  .closing {
-    padding: 6px 0 45px;
-  }
-  .closing h2 {
-    font-size: 49px;
-  }
-  .closing > div {
-    flex-direction: column;
-    gap: 30px;
+    margin-top: 16px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .home * {
-    transition: none;
-  }
+
+.newsHeading {
+  padding: 20px 24px 12px;
+  font:
+    700 12px/1.5 "Courier New",
+    monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
