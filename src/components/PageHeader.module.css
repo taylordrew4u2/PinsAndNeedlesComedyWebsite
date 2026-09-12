@@ -1,10 +1,10 @@
 .header {
-  border-bottom: 1px solid #ffffff20;
+  border-bottom: 3px solid #f2eddc;
 }
 .inner {
-  max-width: 1280px;
+  max-width: 1360px;
   margin: auto;
-  padding: 18px 40px;
+  padding: 16px 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -12,54 +12,61 @@
 }
 .brand {
   flex-shrink: 0;
+  transform: rotate(-4deg);
 }
 .brand img {
-  width: 84px;
-  height: 84px;
+  width: 112px;
+  height: 112px;
   object-fit: contain;
 }
 .nav {
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: 10px 20px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .nav a {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  font-weight: 700;
   text-transform: uppercase;
-  padding: 12px 0;
-  color: #b6b3af;
-  transition: color 0.2s;
+  padding: 7px 3px;
+  color: #f2eddc;
 }
-.nav a:hover,
-.nav a[aria-current] {
-  color: #fff;
+.nav a:hover {
+  color: #ff3434;
 }
 .nav a[aria-current] {
-  box-shadow: 0 1px #e95a57;
+  background: #f2eddc;
+  color: #111;
+  padding: 7px 10px;
+  transform: rotate(-3deg);
+}
+.nav a[href="/shows"] {
+  background: #ff3434;
+  color: #080808;
+  padding: 9px 13px;
 }
 .header a:focus-visible {
-  outline: 2px solid #e9c56a;
-  outline-offset: 6px;
+  outline: 3px dashed #ff3434;
+  outline-offset: 5px;
 }
 @media (max-width: 760px) {
   .inner {
-    padding: 18px 20px;
+    padding: 15px 20px;
     flex-direction: column;
     gap: 14px;
   }
   .brand img {
-    width: 64px;
-    height: 64px;
+    width: 92px;
+    height: 92px;
   }
   .nav {
     justify-content: center;
-    gap: 6px 20px;
+    gap: 5px 15px;
   }
   .nav a {
-    font-size: 10px;
-    padding: 8px 0;
+    font-size: 11px;
   }
 }
