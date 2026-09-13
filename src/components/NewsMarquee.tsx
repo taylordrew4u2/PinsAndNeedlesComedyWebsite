@@ -136,9 +136,9 @@ export default function NewsMarquee({
                       : "block leading-tight"
                   }
                   style={{
-                    fontFamily: settings.titleFont,
-                    fontSize: compact ? 11 : settings.titleSize,
-                    fontWeight: settings.titleWeight,
+                    fontFamily: compact ? "var(--font-inter), sans-serif" : settings.titleFont,
+                    fontSize: compact ? 12 : settings.titleSize,
+                    fontWeight: compact ? 600 : settings.titleWeight,
                     color: compact ? "#f2eddc" : settings.titleColor,
                     textAlign: settings.titleAlign,
                     textTransform: settings.titleTransform,

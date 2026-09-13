@@ -1,5 +1,5 @@
 .header {
-  border-bottom: 2px solid #f2eddc;
+  border-bottom: 1px solid #f2eddc30;
   position: relative;
   z-index: 10;
 }
@@ -36,7 +36,7 @@
   padding: 8px 10px;
   color: #f2eddc;
   font:
-    400 12px/1.2 var(--font-archivo),
+    600 11px/1.2 var(--font-inter),
     Impact,
     sans-serif;
   text-transform: uppercase;
@@ -45,13 +45,14 @@
   color: #ff5151;
 }
 .header nav a[aria-current="page"] {
-  background: #f2eddc;
-  color: #111;
-  transform: rotate(-2deg);
+  color: #f2eddc;
+  text-decoration: underline;
+  text-decoration-color: #ff3434;
+  text-underline-offset: 9px;
+  text-decoration-thickness: 2px;
 }
 .header nav a[href="/shows"] {
-  background: #ff3434;
-  color: #080808;
+  color: #ff5151;
 }
 .header :is(a, summary):focus-visible {
   outline: 3px dashed #ff5151;

@@ -54,6 +54,7 @@ export default async function HomePage() {
           priority
           sizes="(max-width: 760px) 83vw, 480px"
         />
+        <div className={styles.copy}>
         <p className={styles.eyebrow}>{editorial.eyebrow}</p>
         <h1 id="home-title">
           {editorial.headline} <span>{editorial.emphasis}</span>
@@ -64,17 +65,21 @@ export default async function HomePage() {
           </Link>
           <HallOfFameLink compact />
         </div>
+        </div>
       </section>
-      {home.showMarqueeHeading && (
-        <h2 className={styles.newsHeading}>{home.marqueeHeading}</h2>
-      )}
+      <div className={styles.news}>
+      <div className={styles.newsBar}><h2>{home.showMarqueeHeading ? home.marqueeHeading : "News"}</h2><Link href="/news">All stories <span aria-hidden="true">/</span></Link></div>
       <NewsMarquee
         compact
         posts={posts}
         settings={content.blogSettings}
         fallbackImage={site.logoUrl}
       />
-      <BrandAccents names={["flash-signpost", "flash-smiley"]} />
+      </div>
+      <div className={styles.signoff}>
+        <BrandAccents names={["flash-signpost", "flash-smiley"]} />
+        <p>You don’t need tattoos.<br /><span>Questionable judgment will do.</span></p>
+      </div>
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo_Black, Inter } from "next/font/google";
+import { Archivo_Black, Barlow_Condensed, Inter } from "next/font/google";
 import { getContent } from "@/lib/store";
 import { absoluteUrl } from "@/lib/seo";
 import { socialImage } from "@/lib/assets";
@@ -11,6 +11,13 @@ const archivo = Archivo_Black({
   weight: "400",
   subsets: ["latin"],
   variable: "--font-archivo",
+  display: "swap",
+});
+
+const poster = Barlow_Condensed({
+  weight: "700",
+  subsets: ["latin"],
+  variable: "--font-poster",
   display: "swap",
 });
 
@@ -80,7 +87,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   ].join(";");
 
   return (
-    <html lang="en" className={`${archivo.variable} ${inter.variable}`}>
+    <html lang="en" className={`${archivo.variable} ${inter.variable} ${poster.variable}`}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: `:root{${themeVars}}` }} />
       </head>
