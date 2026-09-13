@@ -5,8 +5,8 @@ export const homeDesignDefaults = {
   headline: "Comedy about the things that",
   emphasis: "leave a mark.",
   description:
-    "Honest stories. Questionable judgment. A room full of people who get it.",
-  note: "You don’t need tattoos. Questionable judgment will do.",
+    "Honest stories. Questionable choices. A room full of people who get it.",
+  note: "You don’t need tattoos. Questionable choices will do.",
 };
 export type HomeDesign = typeof homeDesignDefaults;
 

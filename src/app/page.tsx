@@ -78,7 +78,7 @@ export default async function HomePage() {
       </div>
       <div className={styles.signoff}>
         <BrandAccents names={["flash-signpost", "flash-smiley"]} />
-        <p>You don’t need tattoos.<br /><span>Questionable judgment will do.</span></p>
+        <p>You don’t need tattoos.<br /><span>Questionable choices will do.</span></p>
       </div>
     </main>
   );

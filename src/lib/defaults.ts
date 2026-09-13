@@ -118,7 +118,7 @@ export const defaultContent: Content = {
         },
         {
           q: "Do I need tattoos to enjoy Pins & Needles Comedy?",
-          a: "No. Tattoos are part of our roots, but they aren’t the whole story. You don’t need tattoos. Questionable judgment will do.",
+          a: "No. Tattoos are part of our roots, but they aren’t the whole story. You don’t need tattoos. Questionable choices will do.",
         },
         taylorFaq(PRODUCERS, "Pins & Needles Comedy"),
         {
@@ -303,7 +303,7 @@ export const defaultContent: Content = {
     intro: "Comedy about the things that leave a mark.",
     story: `Pins & Needles Comedy creates original stand-up comedy shows in New York City about the choices we make, the things we reveal, and what stays with us afterward.
 
-We’re interested in the version of the story you usually clean up before telling people. The questionable judgment. The confidence you had before you knew better. The part you normally leave out so everyone stays on your side.
+We’re interested in the version of the story you usually clean up before telling people. The questionable choices. The confidence you had before you knew better. The part you normally leave out so everyone stays on your side.
 
 Our shows bring together stand-up and audience participation to make room for those stories without requiring a moral at the end. Not every mistake makes you a better person. Sometimes it just gives you something funny to talk about. And not every choice that other people question is one you regret.
 
@@ -313,7 +313,7 @@ Tattoos are part of our roots, but they aren’t the whole story. They’re one 
 
 From our original tattoo-focused show to **Bad Decisions**, our formats approach that idea differently. What connects them is a willingness to be seen without editing out every unflattering part—and to find the comedy there.
 
-**You don’t need tattoos. Questionable judgment will do.**`,
+**You don’t need tattoos. Questionable choices will do.**`,
     logosHeading: "The marks",
     logos: [
       { id: "logo-primary", url: "/brand/logo-white.svg", alt: "Pins & Needles Comedy primary logo", caption: "Primary" },
