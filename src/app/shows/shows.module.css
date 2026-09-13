@@ -78,3 +78,7 @@
     padding: 20px 0 0;
   }
 }
+
+.rsvp { display: inline-flex; align-items: center; min-height: 44px; margin-top: 20px; padding: 12px 24px; background: #ff3434; color: #090909; font-size: 13px; font-weight: 700; text-transform: uppercase; }
+.rsvp:hover { background: #f2eddc; }
+.rsvp:focus-visible { outline: 2px solid #f2eddc; outline-offset: 4px; }

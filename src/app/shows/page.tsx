@@ -63,6 +63,7 @@ export default async function ShowsIndexPage() {
                   <p className={styles.date}><time dateTime={show.date}>{weekday}, {formatDate(show.date)}</time></p>
                   <p className={styles.time}>{show.startTime ? formatTime(show.startTime) : "Time to be announced"}{show.venueName ? ` · ${show.venueName}` : ""}</p>
                   {status ? <p className={styles.status}>{status}</p> : null}
+                  {show.ticketUrl && show.status === "scheduled" ? <a className={styles.rsvp} href={show.ticketUrl}>{show.ticketLabel || "RSVP"}</a> : null}
                 </div>
                 <div className={styles.lineup}>
                   <h3 className={styles.label}>Lineup</h3>

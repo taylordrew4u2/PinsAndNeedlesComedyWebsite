@@ -31,6 +31,8 @@ export default function UpcomingLineups({ content, update }: { content: Content;
           <Button tone="danger" onClick={() => change(occurrence, (entry) => { entry.lineup.splice(index, 1); })}>Remove</Button>
         </div>) : <p className="text-sm text-neutral-400">Lineup to be announced</p>}
         <Button onClick={() => change(occurrence, (entry) => { entry.lineup.push({ id: crypto.randomUUID(), name: "", role: "Comedian", note: "", imageUrl: "", imageAlt: "", url: "" }); })}>Add performer</Button>
+        <Text label="RSVP / ticket URL" value={show.ticketUrl} onChange={(ticketUrl) => change(occurrence, (entry) => { entry.ticketUrl = ticketUrl; })} />
+        <Text label="RSVP button label" value={show.ticketLabel} onChange={(ticketLabel) => change(occurrence, (entry) => { entry.ticketLabel = ticketLabel; })} />
         {saved ? <Toggle label="Publish this date’s details and lineup" value={saved.published} onChange={(published) => change(occurrence, (entry) => { entry.published = published; })} /> : null}
       </Card>;
     })}
