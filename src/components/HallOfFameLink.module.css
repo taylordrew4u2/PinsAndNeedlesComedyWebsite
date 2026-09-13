@@ -115,3 +115,16 @@
 .compact .sparkleTwo {
   font-size: 10px;
 }
+
+.compact .name {
+  width: 76px;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+.compact .small { font-size: 8px; letter-spacing: 0.1em; }
+@media (max-width: 380px) {
+  .compact .link { width: 112px; height: 112px; }
+  .compact .name { width: 64px; font-size: 13px; }
+  .compact .small { font-size: 7px; }
+}

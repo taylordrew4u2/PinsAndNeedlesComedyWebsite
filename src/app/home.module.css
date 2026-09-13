@@ -94,3 +94,27 @@
   .signoff img { width: 60px; height: 80px; }
   .signoff p { margin: 0 65px; font-size: 17px; }
 }
+
+/* Keep intrinsic text and the star inside the available content column. */
+.copy { min-width: 0; width: 100%; }
+.landing { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+.actions { flex-wrap: wrap; gap: 20px 28px; margin-top: 28px; }
+.actions > * { flex-shrink: 0; }
+.button { white-space: nowrap; }
+.signoff { grid-template-columns: 100px minmax(0, 1fr) 100px; gap: 24px; padding: 24px 20px; }
+.signoff > div { display: contents; }
+.signoff img { grid-row: 1; max-width: 100%; }
+.signoff img:first-child { grid-column: 1; }
+.signoff img:last-child { grid-column: 3; }
+.signoff p { grid-row: 1; grid-column: 2; margin: 0; }
+@media (max-width: 900px) and (min-width: 761px) {
+  .landing { gap: 32px; }
+  .landing h1 { font-size: 48px; }
+}
+@media (max-width: 760px) {
+  .landing h1 { font-size: clamp(36px, 10.5vw, 65px); margin-inline: auto; }
+  .actions { margin-top: 28px; }
+  .signoff { grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 12px; }
+  .signoff img { width: 52px; height: 76px; }
+  .signoff p { margin: 0; font-size: 16px; }
+}
