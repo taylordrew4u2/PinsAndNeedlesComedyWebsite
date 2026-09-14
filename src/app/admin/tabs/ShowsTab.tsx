@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Content, Show, ShowPerformer, ShowPhoto } from "@/lib/types";
 import { aspectValue } from "@/lib/render";
 import { emptySeo, slugify } from "@/lib/seo";
@@ -92,90 +93,21 @@ const newPhoto = (): ShowPhoto => ({
 });
 
 export default function ShowsTab({ content, update }: { content: Content; update: Update }) {
+  const [openedShow, setOpenedShow] = useState<string | null>(null);
   const settings = content.showsPage;
   const posterAspect = aspectValue(settings.posterAspect);
 
   return (
     <>
-      <UpcomingLineups content={content} update={update} />
-      <Section
-        title="Shows page"
-        hint="Page heading, empty state and past-show archive settings. Upcoming dates and lineups are managed above."
-      >
-        <Text
-          label="Heading"
-          value={settings.heading}
-          onChange={(v) => update((d) => void (d.showsPage.heading = v))}
-        />
-        <Row>
-          <Text
-            label="Past shows heading"
-            value={settings.pastHeading}
-            onChange={(v) => update((d) => void (d.showsPage.pastHeading = v))}
-          />
-        </Row>
-        <Area
-          label="Text shown when nothing is announced"
-          rows={2}
-          value={settings.emptyText}
-          onChange={(v) => update((d) => void (d.showsPage.emptyText = v))}
-        />
-        <Select
-          label="Poster orientation (all shows)"
-          hint="new uploads are cropped to this"
-          value={settings.posterAspect}
-          options={ASPECTS}
-          onChange={(v) => update((d) => void (d.showsPage.posterAspect = v))}
-        />
-        <Row>
-          <Num
-            label="Past-show card spacing"
-            value={settings.gap}
-            min={0}
-            max={64}
-            suffix="px"
-            onChange={(v) => update((d) => void (d.showsPage.gap = v))}
-          />
-          <Num
-            label="Corner radius"
-            value={settings.cornerRadius}
-            min={0}
-            max={32}
-            suffix="px"
-            onChange={(v) => update((d) => void (d.showsPage.cornerRadius = v))}
-          />
-          <Num
-            label="How many past shows to list"
-            value={settings.pastLimit}
-            min={0}
-            max={200}
-            onChange={(v) => update((d) => void (d.showsPage.pastLimit = v))}
-          />
-        </Row>
-        <Toggle
-          label="Show the past-shows archive"
-          hint="Past shows keep their own pages either way — this only hides the list."
-          value={settings.showPastShows}
-          onChange={(v) => update((d) => void (d.showsPage.showPastShows = v))}
-        />
-      </Section>
-
-      <SeoEditor
-        title="Shows page SEO & AI SEO"
-        seo={settings.seo}
-        suggestion={suggestFor(content, "shows")}
-        onChange={(seo) => update((d) => void (d.showsPage.seo = seo))}
-      />
-
       <Section
         title={`Shows (${content.shows.length})`}
-        hint="A show moves from Upcoming to Past on its own, the day after it happens. Nothing to switch."
+        hint="One place for each night’s lineup, tickets and details. Changes save automatically; past shows stay here for the archive."
       >
         <div className="flex flex-wrap gap-2">
           <Button tone="primary" onClick={() => update((d) => void d.shows.unshift(newShow()))}>
             New show
           </Button>
-          {content.weekly.enabled ? (
+          {content.weekly.enabled && !content.weekly.showOnShowsPage ? (
             <Button
               onClick={() =>
                 update((d) => void d.shows.unshift(newWeeklyShow(d.weekly, nyToday())))
@@ -185,7 +117,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
             </Button>
           ) : null}
         </div>
-        {content.weekly.enabled ? (
+        {content.weekly.enabled && !content.weekly.showOnShowsPage ? (
           <p className="-mt-2 text-[12px] text-neutral-500">
             The second button fills in next {content.weekly.weekday}&apos;s date, the venue and the
             times from the Bad Decisions tab — you add the bill and publish. That night then shows
@@ -193,9 +125,12 @@ export default function ShowsTab({ content, update }: { content: Content; update
           </p>
         ) : null}
 
+        <UpcomingLineups content={content} update={update} onCreated={setOpenedShow} />
+
         {content.shows.map((show, index) => (
           <Card
             key={show.id}
+            defaultOpen={openedShow === show.id}
             title={show.title}
             subtitle={`${show.date}${show.venueName ? ` · ${show.venueName}` : ""}${
               show.published ? "" : " · draft"
@@ -633,6 +568,76 @@ export default function ShowsTab({ content, update }: { content: Content; update
           </Card>
         ))}
       </Section>
+
+      <Section
+        title="Shows page"
+        hint="Page heading, empty state and past-show archive settings. Manage dates and lineups in the show list above."
+      >
+        <Text
+          label="Heading"
+          value={settings.heading}
+          onChange={(v) => update((d) => void (d.showsPage.heading = v))}
+        />
+        <Row>
+          <Text
+            label="Past shows heading"
+            value={settings.pastHeading}
+            onChange={(v) => update((d) => void (d.showsPage.pastHeading = v))}
+          />
+        </Row>
+        <Area
+          label="Text shown when nothing is announced"
+          rows={2}
+          value={settings.emptyText}
+          onChange={(v) => update((d) => void (d.showsPage.emptyText = v))}
+        />
+        <Select
+          label="Poster orientation (all shows)"
+          hint="new uploads are cropped to this"
+          value={settings.posterAspect}
+          options={ASPECTS}
+          onChange={(v) => update((d) => void (d.showsPage.posterAspect = v))}
+        />
+        <Row>
+          <Num
+            label="Past-show card spacing"
+            value={settings.gap}
+            min={0}
+            max={64}
+            suffix="px"
+            onChange={(v) => update((d) => void (d.showsPage.gap = v))}
+          />
+          <Num
+            label="Corner radius"
+            value={settings.cornerRadius}
+            min={0}
+            max={32}
+            suffix="px"
+            onChange={(v) => update((d) => void (d.showsPage.cornerRadius = v))}
+          />
+          <Num
+            label="How many past shows to list"
+            value={settings.pastLimit}
+            min={0}
+            max={200}
+            onChange={(v) => update((d) => void (d.showsPage.pastLimit = v))}
+          />
+        </Row>
+        <Toggle
+          label="Show the past-shows archive"
+          hint="Past shows keep their own pages either way — this only hides the list."
+          value={settings.showPastShows}
+          onChange={(v) => update((d) => void (d.showsPage.showPastShows = v))}
+        />
+      </Section>
+
+      <SeoEditor
+        title="Shows page SEO & AI SEO"
+        seo={settings.seo}
+        suggestion={suggestFor(content, "shows")}
+        onChange={(seo) => update((d) => void (d.showsPage.seo = seo))}
+      />
+
     </>
   );
 }
