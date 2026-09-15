@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import Cropper from "./Cropper";
 import { Button, Label } from "./ui";
 
-async function upload(blob: Blob, filename: string): Promise<string> {
+/** Send a file to the content store and get back the URL it lives at. */
+export async function upload(blob: Blob, filename: string): Promise<string> {
   const form = new FormData();
   form.append("file", new File([blob], filename, { type: blob.type }));
   const response = await fetch("/api/admin/upload", { method: "POST", body: form });
