@@ -49,23 +49,6 @@ export type InstagramSync = {
   lastError: string;
 };
 
-export type ReelGridSettings = {
-  enabled: boolean;
-  columnsDesktop: number;
-  columnsTablet: number;
-  columnsMobile: number;
-  /** px gap between tiles. 0 = edge-to-edge, which is the design default. */
-  gap: number;
-  /** How many tiles the first (non-infinite) grid shows. */
-  limit: number;
-  infinite: boolean;
-  /** Tiles added per infinite-scroll page. */
-  pageSize: number;
-  autoplay: boolean;
-  loop: boolean;
-  showCaption: boolean;
-  cornerRadius: number;
-};
 
 export type Post = {
   id: string;
@@ -355,8 +338,6 @@ export type NewsPage = {
 
 export type HomePage = {
   hero: Hero;
-  reelsTop: ReelGridSettings;
-  reelsBottom: ReelGridSettings;
   marqueeHeading: string;
   showMarqueeHeading: boolean;
   seo: Seo;

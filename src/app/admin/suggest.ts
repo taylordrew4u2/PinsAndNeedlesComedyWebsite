@@ -1,5 +1,5 @@
 import type { Content, Post, Seo, Show } from "@/lib/types";
-import { admissionSentence, clamp, sentenceSummary, stripMarkdown, suggestKeywords } from "@/lib/seo";
+import { admissionSentence, clamp, sentenceSummary, siteBase, stripMarkdown, suggestKeywords } from "@/lib/seo";
 import { creditLine, taylorFaq, taylorKeyword } from "@/lib/brand";
 import { formatDate } from "@/lib/render";
 import { formatTime, venueLine } from "@/lib/shows";
@@ -23,7 +23,7 @@ const BRAND_TERMS = [
 ];
 
 function base(content: Content) {
-  return (content.site.url || "https://pinsandneedlescomedy.com").replace(/\/+$/, "");
+  return siteBase(content.site.url || "https://pinsandneedlescomedy.com");
 }
 
 /** Build an SEO suggestion for one page or post. All of it is editable afterwards. */
