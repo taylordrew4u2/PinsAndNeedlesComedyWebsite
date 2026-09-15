@@ -2,8 +2,8 @@
 
 import type { Content, Post } from "@/lib/types";
 import { aspectValue } from "@/lib/render";
-import { slugify } from "@/lib/seo";
-import { emptySeo } from "@/lib/seo";
+import { emptySeo, slugify } from "@/lib/seo";
+import { nyToday } from "@/lib/shows";
 import { Area, Button, Card, Color, Num, Row, Section, Select, Tags, Text, Toggle } from "../ui";
 import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
@@ -26,10 +26,6 @@ const FONTS = [
   { value: "Impact, 'Haettenschweiler', sans-serif", label: "Impact" },
 ];
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 const newPost = (): Post => {
   const stamp = Date.now().toString(36);
   return {
@@ -40,7 +36,7 @@ const newPost = (): Post => {
     body: "",
     coverUrl: "",
     coverAlt: "",
-    date: today(),
+    date: nyToday(),
     tags: [],
     published: false,
     featured: false,

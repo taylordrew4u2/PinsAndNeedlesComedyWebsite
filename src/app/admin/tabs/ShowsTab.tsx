@@ -31,10 +31,6 @@ const STATUSES = [
 /** Roles that get their own heading on the public page. Free text is fine too. */
 const ROLE_SUGGESTIONS = ["Host", "Comedian", "Tattoo artist", "Vendor", "Musician", "Special guest"];
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 const newShow = (): Show => {
   const stamp = Date.now().toString(36);
   return {
@@ -42,7 +38,7 @@ const newShow = (): Show => {
     slug: `new-show-${stamp}`,
     title: "New show",
     tagline: "",
-    date: today(),
+    date: nyToday(),
     doorsTime: "",
     startTime: "",
     endTime: "",

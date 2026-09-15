@@ -1,5 +1,5 @@
 import { getContent } from "@/lib/store";
-import { clamp, stripMarkdown } from "@/lib/seo";
+import { clamp, siteBase, stripMarkdown } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ const escape = (value: string) =>
 
 export async function GET() {
   const content = await getContent();
-  const base = content.site.url.replace(/\/+$/, "");
+  const base = siteBase(content.site.url);
 
   const items = content.posts
     .filter((post) => post.published)

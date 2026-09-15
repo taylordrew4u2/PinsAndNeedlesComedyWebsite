@@ -73,11 +73,15 @@ export function slugify(value: string, max = 80): string {
   return (lastDash > max * 0.5 ? cut.slice(0, lastDash) : cut).replace(/-+$/, "");
 }
 
+/** The site URL without its trailing slash, so `${siteBase(url)}/shows` never doubles up. */
+export function siteBase(url: string): string {
+  return (url || "").replace(/\/+$/, "");
+}
+
 export function absoluteUrl(base: string, path: string): string {
   if (!path) return base;
   if (/^https?:\/\//i.test(path)) return path;
-  const root = base.replace(/\/+$/, "");
-  return `${root}/${path.replace(/^\/+/, "")}`;
+  return `${siteBase(base)}/${path.replace(/^\/+/, "")}`;
 }
 
 /** SEO lengths are targets: preserve a complete sentence instead of cutting prose mid-thought. */

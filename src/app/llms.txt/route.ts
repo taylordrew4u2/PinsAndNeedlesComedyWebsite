@@ -1,5 +1,5 @@
 import { getContent } from "@/lib/store";
-import { clamp, stripMarkdown } from "@/lib/seo";
+import { clamp, siteBase, stripMarkdown } from "@/lib/seo";
 import { nyToday, splitShows, timeLine, venueLine } from "@/lib/shows";
 import { weeklySummary } from "@/lib/decisions";
 
@@ -13,7 +13,7 @@ export async function GET() {
   const content = await getContent();
   const { site, about, shop, contact, weekly } = content;
   const { upcoming, past } = splitShows(content.shows, nyToday());
-  const base = site.url.replace(/\/+$/, "");
+  const base = siteBase(site.url);
 
   const posts = content.posts
     .filter((post) => post.published)

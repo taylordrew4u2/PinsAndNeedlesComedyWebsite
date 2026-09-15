@@ -1,7 +1,7 @@
 "use client";
 
-import type { Content, ReelGridSettings } from "@/lib/types";
-import { Num, Row, Section, Select, Text, Toggle } from "../ui";
+import type { Content } from "@/lib/types";
+import { Row, Section, Select, Text, Toggle } from "../ui";
 import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
@@ -11,109 +11,6 @@ import {
   type HomeDesign,
 } from "@/lib/home-design";
 import type { Update } from "../types";
-
-export function GridSettings({
-  title,
-  hint,
-  settings,
-  onChange,
-}: {
-  title: string;
-  hint: string;
-  settings: ReelGridSettings;
-  onChange: (patch: Partial<ReelGridSettings>) => void;
-}) {
-  return (
-    <Section title={title} hint={hint}>
-      <Toggle
-        label="Show this grid"
-        value={settings.enabled}
-        onChange={(v) => onChange({ enabled: v })}
-      />
-      <Row>
-        <Num
-          label="Columns — desktop"
-          value={settings.columnsDesktop}
-          min={1}
-          max={10}
-          onChange={(v) => onChange({ columnsDesktop: v })}
-        />
-        <Num
-          label="Columns — tablet"
-          value={settings.columnsTablet}
-          min={1}
-          max={8}
-          onChange={(v) => onChange({ columnsTablet: v })}
-        />
-        <Num
-          label="Columns — mobile"
-          value={settings.columnsMobile}
-          min={1}
-          max={4}
-          onChange={(v) => onChange({ columnsMobile: v })}
-        />
-      </Row>
-      <Row>
-        <Num
-          label="Gap between tiles"
-          value={settings.gap}
-          min={0}
-          max={40}
-          suffix="px"
-          onChange={(v) => onChange({ gap: v })}
-        />
-        <Num
-          label="Corner radius"
-          value={settings.cornerRadius}
-          min={0}
-          max={32}
-          suffix="px"
-          onChange={(v) => onChange({ cornerRadius: v })}
-        />
-      </Row>
-      <Toggle
-        label="Infinite scroll"
-        hint="Keeps loading more reels as you scroll until they run out."
-        value={settings.infinite}
-        onChange={(v) => onChange({ infinite: v })}
-      />
-      {settings.infinite ? (
-        <Num
-          label="Reels loaded per scroll"
-          value={settings.pageSize}
-          min={2}
-          max={40}
-          onChange={(v) => onChange({ pageSize: v })}
-        />
-      ) : (
-        <Num
-          label="How many reels to show"
-          value={settings.limit}
-          min={1}
-          max={60}
-          onChange={(v) => onChange({ limit: v })}
-        />
-      )}
-      <Row>
-        <Toggle
-          label="Autoplay (always muted)"
-          value={settings.autoplay}
-          onChange={(v) => onChange({ autoplay: v })}
-        />
-        <Toggle
-          label="Loop"
-          value={settings.loop}
-          onChange={(v) => onChange({ loop: v })}
-        />
-        <Toggle
-          label="Show captions"
-          value={settings.showCaption}
-          onChange={(v) => onChange({ showCaption: v })}
-        />
-      </Row>
-    </Section>
-  );
-}
 
 export default function HomeTab({
   content,

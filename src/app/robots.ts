@@ -1,12 +1,13 @@
 import type { MetadataRoute } from "next";
 import { getContent } from "@/lib/store";
 import { onCanonicalHost } from "@/lib/host";
+import { siteBase } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const { site } = await getContent();
-  const base = site.url.replace(/\/+$/, "");
+  const base = siteBase(site.url);
 
   // Served on anything other than the real domain — a *.vercel.app address
   // before the DNS moves, say — this copy stays out of every index.

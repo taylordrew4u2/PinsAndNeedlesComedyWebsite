@@ -1,12 +1,13 @@
 import type { MetadataRoute } from "next";
 import { getContent } from "@/lib/store";
 import { nyToday, splitShows } from "@/lib/shows";
+import { siteBase } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const content = await getContent();
-  const base = content.site.url.replace(/\/+$/, "");
+  const base = siteBase(content.site.url);
   const now = new Date(content.updatedAt || Date.now());
 
   const staticPages: MetadataRoute.Sitemap = [

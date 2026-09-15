@@ -1,7 +1,6 @@
 import type { Content, Post, Seo, Show } from "./types";
-import { absoluteUrl, stripMarkdown, clamp } from "./seo";
-import { eventStatusUrl, isoDateTime, showSummary, splitShows } from "./shows";
-import { weeklySummary } from "./decisions";
+import { absoluteUrl, siteBase, stripMarkdown, clamp } from "./seo";
+import { eventStatusUrl, isoDateTime, showSummary } from "./shows";
 
 export function organizationSchema(content: Content) {
   const { site, about } = content;
@@ -119,7 +118,7 @@ export function blogSchema(content: Content) {
  */
 export function eventSchema(content: Content, show: Show) {
   const { site } = content;
-  const base = site.url.replace(/\/+$/, "");
+  const base = siteBase(site.url);
   const url = `${base}/shows/${show.slug}`;
 
   const performers = show.lineup
@@ -184,79 +183,5 @@ export function eventSchema(content: Content, show: Show) {
       : {}),
     ...(show.ageRestriction ? { typicalAgeRange: show.ageRestriction } : {}),
     isAccessibleForFree: /free|\$0\b/i.test(show.price),
-  };
-}
-
-/**
- * Event JSON-LD for the weekly. A standing show is one EventSeries with a
- * Schedule, not a fresh Event every week, so "comedy in Ridgewood on
- * Thursday" resolves to the page itself rather than whichever night was last
- * entered. The next entered night, if any, rides along as a subEvent.
- */
-export function weeklySchema(content: Content, nextShow: Show | null) {
-  const { site, weekly } = content;
-  const base = site.url.replace(/\/+$/, "");
-  const url = `${base}/${weekly.slug}`;
-
-  const address = {
-    "@type": "PostalAddress",
-    ...(weekly.address ? { streetAddress: weekly.address } : {}),
-    ...(weekly.city ? { addressLocality: weekly.city } : {}),
-    ...(weekly.region ? { addressRegion: weekly.region } : {}),
-    ...(weekly.postalCode ? { postalCode: weekly.postalCode } : {}),
-    addressCountry: "US",
-  };
-
-  const time = (value: string) => (/^\d{1,2}:\d{2}$/.test(value) ? `${value.padStart(5, "0")}:00` : undefined);
-
-  return {
-    "@context": "https://schema.org",
-    "@type": ["EventSeries", "ComedyEvent"],
-    "@id": `${url}#series`,
-    name: weekly.title,
-    url,
-    description: clamp(weekly.seo.aiSummary || weekly.seo.description || weeklySummary(weekly), 600),
-    image: [absoluteUrl(base, weekly.posterUrl || site.logoUrl)],
-    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-    eventStatus: "https://schema.org/EventScheduled",
-    eventSchedule: {
-      "@type": "Schedule",
-      byDay: `https://schema.org/${weekly.weekday}`,
-      repeatFrequency: "P1W",
-      ...(time(weekly.startTime) ? { startTime: time(weekly.startTime) } : {}),
-      scheduleTimezone: "America/New_York",
-    },
-    location: {
-      "@type": "Place",
-      name: weekly.venueName || weekly.city,
-      address,
-      ...(weekly.venueUrl ? { url: weekly.venueUrl } : {}),
-      ...(weekly.mapUrl ? { hasMap: weekly.mapUrl } : {}),
-    },
-    organizer: { "@id": `${base}#organization` },
-    isAccessibleForFree: /free|\$0\b/i.test(weekly.price),
-    ...(weekly.ageRestriction ? { typicalAgeRange: weekly.ageRestriction } : {}),
-    ...(nextShow ? { subEvent: eventSchema(content, nextShow) } : {}),
-  };
-}
-
-/** The /shows index as an ordered list of events, upcoming first. */
-export function showsListSchema(content: Content, today: string) {
-  const base = content.site.url.replace(/\/+$/, "");
-  const { upcoming, past } = splitShows(content.shows, today);
-  const listed = [...upcoming, ...past].slice(0, 30);
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "@id": `${base}/shows#shows`,
-    name: `${content.site.name} shows`,
-    numberOfItems: listed.length,
-    itemListElement: listed.map((show, index) => ({
-      "@type": "ListItem",
-      position: index + 1,
-      url: `${base}/shows/${show.slug}`,
-      name: show.title,
-    })),
   };
 }
