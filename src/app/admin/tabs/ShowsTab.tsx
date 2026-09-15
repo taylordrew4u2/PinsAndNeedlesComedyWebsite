@@ -14,6 +14,7 @@ import type { Update } from "../types";
 import { newWeeklyShow } from "@/lib/decisions";
 import { nyToday } from "@/lib/shows";
 import { applyFlyer } from "@/lib/flyer";
+import { aboutShow } from "@/lib/writer";
 
 const ASPECTS = [
   { value: "9:16" as const, label: "9:16 — tall (story / reel shape)" },
@@ -146,6 +147,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
               hint="e.g. Pins & Needles Comedy at Secret Pour"
               value={show.title}
               onChange={(v) => update((d) => void (d.shows[index].title = v))}
+              ai={{ what: "show title", about: aboutShow(show) }}
             />
             <Area
               label="Tagline"
@@ -153,6 +155,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
               rows={2}
               value={show.tagline}
               onChange={(v) => update((d) => void (d.shows[index].tagline = v))}
+              ai={{ what: "show tagline", about: aboutShow(show) }}
             />
             <Row>
               <Text
@@ -309,6 +312,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
               hint="describe the poster — image SEO and accessibility"
               value={show.posterAlt}
               onChange={(v) => update((d) => void (d.shows[index].posterAlt = v))}
+              ai={{ what: "poster alt text", about: aboutShow(show), image: show.posterUrl }}
             />
 
             <Area
@@ -317,6 +321,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
               rows={8}
               value={show.description}
               onChange={(v) => update((d) => void (d.shows[index].description = v))}
+              ai={{ what: "about this show (page body)", about: aboutShow(show) }}
             />
 
             <div className="rounded-lg border border-neutral-800 p-3">
@@ -376,6 +381,10 @@ export default function ShowsTab({ content, update }: { content: Content; update
                       onChange={(v) =>
                         update((d) => void (d.shows[index].lineup[personIndex].note = v))
                       }
+                      ai={{
+                        what: "one-line note under a performer on the bill",
+                        about: { person: person.name, role: person.role, link: person.url, show: aboutShow(show) },
+                      }}
                     />
                   </Row>
                   <MediaField
@@ -393,6 +402,11 @@ export default function ShowsTab({ content, update }: { content: Content; update
                     onChange={(v) =>
                       update((d) => void (d.shows[index].lineup[personIndex].imageAlt = v))
                     }
+                    ai={{
+                      what: "performer photo alt text",
+                      about: { person: person.name, role: person.role, show: show.title },
+                      image: person.imageUrl,
+                    }}
                   />
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -464,6 +478,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
                       onChange={(v) =>
                         update((d) => void (d.shows[index].photos[photoIndex].alt = v))
                       }
+                      ai={{ what: "show photo alt text", about: aboutShow(show), image: photo.url }}
                     />
                     <Text
                       label="Caption"
@@ -471,6 +486,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
                       onChange={(v) =>
                         update((d) => void (d.shows[index].photos[photoIndex].caption = v))
                       }
+                      ai={{ what: "show photo caption", about: aboutShow(show), image: photo.url }}
                     />
                   </Row>
                   <div>
@@ -533,6 +549,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
               title="Show SEO & AI SEO"
               seo={show.seo}
               suggestion={suggestFor(content, "show", undefined, show)}
+              about={aboutShow(show)}
               onChange={(seo) => update((d) => void (d.shows[index].seo = seo))}
             />
 
@@ -588,12 +605,14 @@ export default function ShowsTab({ content, update }: { content: Content; update
           label="Heading"
           value={settings.heading}
           onChange={(v) => update((d) => void (d.showsPage.heading = v))}
+          ai={{ what: "shows page heading", about: { page: "the list of upcoming and past shows" } }}
         />
         <Row>
           <Text
             label="Past shows heading"
             value={settings.pastHeading}
             onChange={(v) => update((d) => void (d.showsPage.pastHeading = v))}
+            ai={{ what: "past shows archive heading", about: { page: "the list of upcoming and past shows" } }}
           />
         </Row>
         <Area
@@ -601,6 +620,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
           rows={2}
           value={settings.emptyText}
           onChange={(v) => update((d) => void (d.showsPage.emptyText = v))}
+          ai={{ what: "empty state message when no shows are announced", about: { page: "the list of upcoming and past shows" } }}
         />
         <Select
           label="Poster orientation (all shows)"
@@ -646,6 +666,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
         title="Shows page SEO & AI SEO"
         seo={settings.seo}
         suggestion={suggestFor(content, "shows")}
+        about={{ page: "the list of upcoming and past shows", url: "/shows" }}
         onChange={(seo) => update((d) => void (d.showsPage.seo = seo))}
       />
 

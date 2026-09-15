@@ -28,6 +28,13 @@ export default function HomeTab({
     update((d) => {
       d.home.hero.editorial = { ...d.home.hero.editorial, [key]: value };
     });
+  const page = {
+    page: "home page hero",
+    url: "/",
+    eyebrow: editorial.eyebrow,
+    headline: editorial.headline,
+    accent: editorial.emphasis,
+  };
 
   return (
     <>
@@ -45,17 +52,20 @@ export default function HomeTab({
           label="Small heading"
           value={editorial.eyebrow}
           onChange={(v) => setEditorial("eyebrow", v)}
+          ai={{ what: "small heading above the home page headline", about: page }}
         />
         <Row>
           <Text
             label="Headline"
             value={editorial.headline}
             onChange={(v) => setEditorial("headline", v)}
+            ai={{ what: "home page headline (the red accent line follows it)", about: page }}
           />
           <Text
             label="Headline — red accent"
             value={editorial.emphasis}
             onChange={(v) => setEditorial("emphasis", v)}
+            ai={{ what: "red accent line that completes the home page headline", about: page }}
           />
         </Row>
       </Section>
@@ -74,6 +84,7 @@ export default function HomeTab({
           label="Logo alt text"
           value={hero.logoAlt}
           onChange={(v) => update((d) => void (d.home.hero.logoAlt = v))}
+          ai={{ what: "site logo alt text", about: { item: "the brand logo in the site header" }, image: hero.logoUrl }}
         />
         <Text
           label="Name shown when no logo is selected"
@@ -95,6 +106,7 @@ export default function HomeTab({
           label="News heading"
           value={content.home.marqueeHeading}
           onChange={(v) => update((d) => void (d.home.marqueeHeading = v))}
+          ai={{ what: "heading over the news strip on the home page", about: page }}
         />
       </Section>
 
@@ -102,6 +114,7 @@ export default function HomeTab({
         title="Home page SEO & AI SEO"
         seo={content.home.seo}
         suggestion={suggestFor(content, "home")}
+        about={page}
         onChange={(seo) => update((d) => void (d.home.seo = seo))}
       />
     </>

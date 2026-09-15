@@ -9,6 +9,7 @@ import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
 import type { Update } from "../types";
+import { aboutPost } from "@/lib/writer";
 
 const ASPECTS = [
   { value: "9:16" as const, label: "9:16 — tall (reel shape)" },
@@ -187,12 +188,14 @@ export default function NewsTab({ content, update }: { content: Content; update:
           label="Heading"
           value={content.news.heading}
           onChange={(v) => update((d) => void (d.news.heading = v))}
+          ai={{ what: "news page heading", about: { page: "news: show recaps and announcements", url: "/news" } }}
         />
         <Area
           label="Intro"
           rows={2}
           value={content.news.intro}
           onChange={(v) => update((d) => void (d.news.intro = v))}
+          ai={{ what: "news page intro", about: { page: "news: show recaps and announcements", url: "/news" } }}
         />
       </Section>
 
@@ -200,6 +203,7 @@ export default function NewsTab({ content, update }: { content: Content; update:
         title="News page SEO & AI SEO"
         seo={content.news.seo}
         suggestion={suggestFor(content, "news")}
+        about={{ page: "news: show recaps and announcements", url: "/news" }}
         onChange={(seo) => update((d) => void (d.news.seo = seo))}
       />
 
@@ -221,6 +225,7 @@ export default function NewsTab({ content, update }: { content: Content; update:
               label="Title"
               value={post.title}
               onChange={(v) => update((d) => void (d.posts[index].title = v))}
+              ai={{ what: "article title", about: aboutPost(post) }}
             />
             <Row>
               <Text
@@ -255,6 +260,7 @@ export default function NewsTab({ content, update }: { content: Content; update:
               hint="describe the image — image SEO and accessibility"
               value={post.coverAlt}
               onChange={(v) => update((d) => void (d.posts[index].coverAlt = v))}
+              ai={{ what: "cover image alt text", about: aboutPost(post), image: post.coverUrl }}
             />
 
             <Area
@@ -263,6 +269,7 @@ export default function NewsTab({ content, update }: { content: Content; update:
               rows={2}
               value={post.excerpt}
               onChange={(v) => update((d) => void (d.posts[index].excerpt = v))}
+              ai={{ what: "article excerpt", about: aboutPost(post) }}
             />
             <Area
               label="Body"
@@ -270,11 +277,13 @@ export default function NewsTab({ content, update }: { content: Content; update:
               rows={12}
               value={post.body}
               onChange={(v) => update((d) => void (d.posts[index].body = v))}
+              ai={{ what: "article body", about: aboutPost(post) }}
             />
             <Tags
               label="Tags"
               value={post.tags}
               onChange={(v) => update((d) => void (d.posts[index].tags = v))}
+              ai={{ what: "article tags", about: aboutPost(post) }}
             />
             <Row>
               <Toggle
@@ -293,6 +302,7 @@ export default function NewsTab({ content, update }: { content: Content; update:
               title="Post SEO & AI SEO"
               seo={post.seo}
               suggestion={suggestFor(content, "post", post)}
+              about={aboutPost(post)}
               onChange={(seo) => update((d) => void (d.posts[index].seo = seo))}
             />
 

@@ -122,12 +122,14 @@ export default function ReelsTab({
                   label="Caption"
                   value={reel.caption}
                   onChange={(v) => update((d) => void (d.reels[index].caption = v))}
+                  ai={{ what: "reel caption", about: { item: "an Instagram reel from the show", link: reel.instagramUrl }, image: reel.posterUrl }}
                 />
                 <Text
                   label="Alt text"
                   hint="helps image search and screen readers"
                   value={reel.alt}
                   onChange={(v) => update((d) => void (d.reels[index].alt = v))}
+                  ai={{ what: "reel poster alt text", about: { item: "an Instagram reel from the show", caption: reel.caption }, image: reel.posterUrl }}
                 />
               </Row>
               <Toggle

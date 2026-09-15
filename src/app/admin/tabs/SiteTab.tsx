@@ -55,7 +55,12 @@ export default function SiteTab({ content, update }: { content: Content; update:
           <Text label="Site name" value={site.name} onChange={(v) => update((d) => void (d.site.name = v))} />
           <Text label="Short name" value={site.shortName} onChange={(v) => update((d) => void (d.site.shortName = v))} />
         </Row>
-        <Text label="Tagline" value={site.tagline} onChange={(v) => update((d) => void (d.site.tagline = v))} />
+        <Text
+          label="Tagline"
+          value={site.tagline}
+          onChange={(v) => update((d) => void (d.site.tagline = v))}
+          ai={{ what: "site-wide tagline", about: { page: "the whole site" } }}
+        />
         <Text
           label="Public URL"
           value={site.url}
@@ -205,6 +210,7 @@ export default function SiteTab({ content, update }: { content: Content; update:
           rows={2}
           value={site.footerText}
           onChange={(v) => update((d) => void (d.site.footerText = v))}
+          ai={{ what: "footer text (one line, may include a copyright)", about: { page: "the whole site", founded: site.foundingYear } }}
         />
       </Section>
 
@@ -213,6 +219,7 @@ export default function SiteTab({ content, update }: { content: Content; update:
         hint="Used anywhere a page has not set its own. Also feeds the organization structured data and llms.txt."
         seo={site.seo}
         suggestion={suggestFor(content, "site")}
+        about={{ page: "site-wide defaults for every page", url: "/" }}
         onChange={(seo) => update((d) => void (d.site.seo = seo))}
       />
     </>
