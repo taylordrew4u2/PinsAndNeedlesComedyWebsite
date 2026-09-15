@@ -7,11 +7,13 @@ import { emptySeo, slugify } from "@/lib/seo";
 import { Area, Button, Card, Num, Row, Section, Select, Text, Toggle } from "../ui";
 import UpcomingLineups from "../UpcomingLineups";
 import MediaField from "../MediaField";
+import FlyerIntake, { ReadFlyerButton } from "../FlyerIntake";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
 import type { Update } from "../types";
 import { newWeeklyShow } from "@/lib/decisions";
 import { nyToday } from "@/lib/shows";
+import { applyFlyer } from "@/lib/flyer";
 
 const ASPECTS = [
   { value: "9:16" as const, label: "9:16 — tall (story / reel shape)" },
@@ -120,6 +122,13 @@ export default function ShowsTab({ content, update }: { content: Content; update
             up as &quot;this week&quot; on /bad-decisions.
           </p>
         ) : null}
+
+        <FlyerIntake
+          aspect={posterAspect}
+          create={newShow}
+          update={update}
+          onCreated={setOpenedShow}
+        />
 
         <UpcomingLineups content={content} update={update} onCreated={setOpenedShow} />
 
@@ -288,6 +297,12 @@ export default function ShowsTab({ content, update }: { content: Content; update
               onChange={(v) => update((d) => void (d.shows[index].posterUrl = v))}
               aspect={posterAspect}
               previewHeight={180}
+            />
+            <ReadFlyerButton
+              posterUrl={show.posterUrl}
+              onRead={(flyer) =>
+                update((d) => void (d.shows[index] = applyFlyer(d.shows[index], flyer)))
+              }
             />
             <Text
               label="Poster alt text"
