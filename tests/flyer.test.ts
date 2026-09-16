@@ -149,3 +149,23 @@ test("the summary line says what was found", () => {
   assert.match(describeFlyer(flyer), /1 on the bill, date, venue/);
   assert.match(describeFlyer(normalizeFlyer({}, TODAY)), /Couldn’t read/);
 });
+
+test("poster autofill sets the draft URL and adds each performer only once", () => {
+  const flyer = normalizeFlyer({ title: "Bad Decisions", date: "Sep 24", performers: [
+    { name: "Alex River", role: "Host" }, { name: "Sam Ash", role: "Comedian" },
+  ] }, TODAY);
+  const first = applyFlyer(show(), flyer);
+  const repeated = applyFlyer(first, flyer);
+  assert.equal(first.slug, "bad-decisions-2026-09-24");
+  assert.deepEqual(repeated.lineup.map(({name, role}) => ({name, role})), flyer.performers);
+  assert.deepEqual(repeated.lineup.map(p => p.id), first.lineup.map(p => p.id));
+  assert.equal(first.published, false);
+  assert.match(describeFlyer(flyer), /Alex River \(Host\)/);
+});
+
+test("poster reading keeps published URLs and reports unreadable lineups", () => {
+  const flyer = normalizeFlyer({ title: "New title", date: "Sep 24" }, TODAY);
+  const existing = show({ published: true, slug: "shared-event-link" });
+  assert.equal(applyFlyer(existing, flyer).slug, "shared-event-link");
+  assert.match(describeFlyer(flyer), /No performer names could be read/);
+});

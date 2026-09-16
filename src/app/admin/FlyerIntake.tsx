@@ -88,7 +88,7 @@ export default function FlyerIntake({
           {busy ? "Reading flyer…" : "New show from flyer"}
         </Button>
         <span className="text-[12px] text-neutral-500">
-          Pick the poster — the bill, date, time and venue get filled in for you.
+          Pick a poster to fill in the show details, URL and performer lineup.
         </span>
       </div>
       {note ? <p className="text-[12px] text-neutral-400">{note}</p> : null}
@@ -139,7 +139,7 @@ export function ReadFlyerButton({
         {busy ? "Reading flyer…" : "Fill in from poster"}
       </Button>
       <span className="text-[12px] text-neutral-500">
-        {note || "reads the bill, date, time and venue off the poster above"}
+        {note || "Fills in the show details and adds the performers to the lineup."}
       </span>
     </div>
   );

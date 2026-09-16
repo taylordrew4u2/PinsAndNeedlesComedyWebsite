@@ -1,4 +1,5 @@
 import type { Show, ShowPerformer } from "./types";
+import { slugify } from "./seo.ts";
 
 /**
  * What a flyer can tell us about a show. Every field is optional: a poster
@@ -79,6 +80,8 @@ export const FLYER_SCHEMA = {
 export const FLYER_PROMPT =
   "This is a flyer for a live comedy show. Read the printed text and report the show details. " +
   "Use empty strings for anything that is not on the flyer — never guess a venue, price or name. " +
+  "Read every clearly printed performer name, including names beside portraits, under Featuring or With, and Hosted by credits. " +
+  "Return each performer separately with their role. Never identify someone from their face or invent unreadable names. " +
   "Ignore social handles, sponsor logos, and the producer credit unless a producer is also on the bill.";
 
 const MONTHS = [
@@ -248,10 +251,15 @@ export function applyFlyer(show: Show, flyer: FlyerRead): Show {
   ] as const;
   for (const field of fields) if (flyer[field]) next[field] = flyer[field];
 
-  const existing = new Set(show.lineup.map((person) => person.name.trim().toLowerCase()));
+  if (!show.published && (flyer.title || flyer.date)) next.slug = slugify(`${next.title} ${next.date}`);
+
+  const existing = new Set(show.lineup.map((person) => person.name.trim().replace(/\s+/g, " ").toLowerCase()));
   for (const person of flyer.performers) {
-    if (existing.has(person.name.toLowerCase())) continue;
-    next.lineup.push(newPerformer(person.name, person.role));
+    const name = person.name.trim().replace(/\s+/g, " ");
+    const key = name.toLowerCase();
+    if (!name || existing.has(key)) continue;
+    existing.add(key);
+    next.lineup.push(newPerformer(name, person.role));
   }
   return next;
 }
@@ -266,6 +274,9 @@ export function describeFlyer(flyer: FlyerRead): string {
   if (flyer.startTime || flyer.doorsTime) parts.push("time");
   if (flyer.venueName || flyer.address) parts.push("venue");
   if (flyer.price) parts.push("price");
-  if (!parts.length) return "Couldn’t read anything useful off that flyer.";
-  return `Read ${parts.join(", ")} from the flyer. Check it over before publishing.`;
+  if (!parts.length) return "Couldn’t read the show details or any performer names. Try a clearer poster or enter the lineup manually.";
+  const lineup = flyer.performers.length
+    ? ` Performers: ${flyer.performers.map((person) => `${person.name} (${person.role})`).join(", ")}.`
+    : " No performer names could be read. Try a clearer poster or add the lineup manually.";
+  return `Read ${parts.join(", ")} from the flyer.${lineup} Check it over before publishing.`;
 }

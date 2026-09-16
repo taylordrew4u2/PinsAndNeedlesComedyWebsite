@@ -93,6 +93,7 @@ const newPhoto = (): ShowPhoto => ({
 
 export default function ShowsTab({ content, update }: { content: Content; update: Update }) {
   const [openedShow, setOpenedShow] = useState<string | null>(null);
+  const [posterLineup, setPosterLineup] = useState<string | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const settings = content.showsPage;
   const posterAspect = aspectValue(settings.posterAspect);
@@ -130,7 +131,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
           aspect={posterAspect}
           create={newShow}
           update={update}
-          onCreated={setOpenedShow}
+          onCreated={(id) => { setOpenedShow(id); setPosterLineup(id); }}
         />
 
         </Card>
@@ -159,7 +160,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
             <Text label="Venue" value={show.venueName} onChange={(v) => update((d) => void (d.shows[index].venueName = v))} />
             <Text label="RSVP or ticket link" placeholder="Paste your Partiful or ticket link" value={show.ticketUrl} onChange={(v) => update((d) => void (d.shows[index].ticketUrl = v))} />
             <Toggle label="Publish on the website" hint="Off keeps this show as a draft." value={show.published} onChange={(v) => update((d) => void (d.shows[index].published = v))} />
-            <Card title={`Lineup (${show.lineup.length})`} subtitle="Add performers and hosts">
+            <Card defaultOpen={posterLineup === show.id} title={`Lineup (${show.lineup.length})`} subtitle="Add performers and hosts">
             <div className="rounded-lg border border-neutral-800 p-3">
               <p className="mb-3 text-[11px] uppercase tracking-[0.14em] text-neutral-400">
                 The bill ({show.lineup.length})
@@ -298,9 +299,10 @@ export default function ShowsTab({ content, update }: { content: Content; update
             />
             <ReadFlyerButton
               posterUrl={show.posterUrl}
-              onRead={(flyer) =>
-                update((d) => void (d.shows[index] = applyFlyer(d.shows[index], flyer)))
-              }
+              onRead={(flyer) => {
+                update((d) => void (d.shows[index] = applyFlyer(d.shows[index], flyer)));
+                setPosterLineup(show.id);
+              }}
             />
             <Text
               label="Poster alt text"
