@@ -1,4 +1,3 @@
-import Image from "next/image";
 import BrandAccents from "@/components/BrandAccents";
 import FameStar from "./FameStar";
 import styles from "./hall.module.css";
@@ -27,13 +26,13 @@ export default async function HallOfFamePage() {
       <PageHeader hero={home.hero} nav={site.nav} active="/hall-of-fame" />
       <section className={styles.gallery}>
         <div className={styles.intro}>
-          <Image className={styles.crest} src="/brand/pins-and-needles-heart-on-dark.svg" alt="" aria-hidden="true" width={140} height={140} />
           <p className={styles.eyebrow}>Pins &amp; Needles Comedy</p>
           <h1 className={styles.title}>{hall.heading}</h1>
-          <div className={styles.rule} aria-hidden="true" />
           <p className={styles.description}>{hall.intro}</p>
         </div>
         {performers.length ? (
+          <>
+          <div className={styles.rosterHeading}><span>The performers</span><span>Alphabetical · A–Z</span></div>
           <div className={styles.grid}>
             {performers.map((person) => {
               const link = performerSocial(person);
@@ -47,6 +46,7 @@ export default async function HallOfFamePage() {
               );
             })}
           </div>
+          </>
         ) : (
           <div className={styles.empty}>
             <div className={styles.emptyStar} aria-hidden="true"><FameStar name="Pins & Needles" /></div>
@@ -54,7 +54,7 @@ export default async function HallOfFamePage() {
           </div>
         )}
       </section>
-      <BrandAccents names={["flash-handcuffs", "flash-dice-logo"]} />
+      <div className={styles.accents}><BrandAccents names={["flash-handcuffs", "flash-dice-logo"]} /></div>
     </main>
   );
 }
