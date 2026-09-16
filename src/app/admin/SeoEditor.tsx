@@ -4,20 +4,24 @@ import { useState } from "react";
 import { addSuggestedFaqs } from "@/lib/seo";
 import type { Seo } from "@/lib/types";
 import type { Suggestion } from "./suggest";
-import { Area, Button, Label, Tags, Text, Toggle } from "./ui";
+import { Area, Button, Label, More, Tags, Text, Toggle } from "./ui";
 import MediaField from "./MediaField";
 import { writeSeo } from "./write-client";
 
 function Meter({ value, ideal, max }: { value: number; ideal: [number, number]; max: number }) {
   const ok = value >= ideal[0] && value <= ideal[1];
   return (
-    <span className={`text-[11px] ${value === 0 ? "text-neutral-600" : ok ? "text-emerald-400" : "text-amber-400"}`}>
-      {value}/{max} chars
-      {value === 0 ? "" : ok ? " · good length" : value > ideal[1] ? " · may be truncated" : " · could be longer"}
+    <span className={`text-[12px] ${value === 0 ? "text-neutral-600" : ok ? "text-emerald-400" : "text-amber-400"}`}>
+      {value}/{max} letters
+      {value === 0 ? "" : ok ? " · good length" : value > ideal[1] ? " · a bit long, may get cut off" : " · could be longer"}
     </span>
   );
 }
 
+/**
+ * Search and AI-answer settings for one page or item. Always tucked inside a
+ * <More>: every field arrives prefilled, so most people never need to open it.
+ */
 export default function SeoEditor({
   seo,
   suggestion,
@@ -73,23 +77,23 @@ export default function SeoEditor({
     });
 
   return (
-    <details className="mb-8 rounded-lg border border-neutral-800">
-      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-neutral-200">{title ?? "SEO & AI SEO"}</summary>
-      <div className="grid gap-4 border-t border-neutral-800 p-4">
-        <p className="text-xs text-neutral-500">{hint ?? "Edit search titles, descriptions and FAQs here. Changes save automatically."}</p>
+    <More
+      title={title ?? "Search & AI settings (Google, ChatGPT)"}
+      hint={hint ?? "Already filled in for you. Only change these if you want to."}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <Button tone="primary" onClick={() => void writeAll()} disabled={writing}>
-          {writing ? "Writing…" : "✦ Write all with AI"}
+          {writing ? "Writing…" : "✦ Write all of this for me"}
         </Button>
-        <Button onClick={applyAll}>Use the built-in suggestions</Button>
-        <span className="text-[11px] text-neutral-500">
-          {writeError || "AI writes title, description, keywords, summary and FAQ for search and answer engines."}
-        </span>
+        <Button onClick={applyAll}>Reset to the built-in suggestions</Button>
       </div>
+      <p className="-mt-2 text-[13px] text-neutral-500">
+        {writeError || "Writes the title, description, keywords, summary and questions below, tuned for search and AI answers."}
+      </p>
 
       <div>
         <Text
-          label="Meta title"
+          label="Title in search results"
           value={seo.title}
           onChange={(value) => set("title", value)}
           ai={{ what: "meta title", about }}
@@ -104,7 +108,7 @@ export default function SeoEditor({
 
       <div>
         <Area
-          label="Meta description"
+          label="Description in search results"
           rows={3}
           value={seo.description}
           onChange={(value) => set("description", value)}
@@ -121,6 +125,7 @@ export default function SeoEditor({
       <div>
         <Tags
           label="Keywords"
+          hint="Words people might search for. Separate with commas."
           value={seo.keywords}
           onChange={(value) => set("keywords", value)}
           ai={{ what: "keywords", about }}
@@ -134,8 +139,8 @@ export default function SeoEditor({
 
       <div>
         <Area
-          label="AI summary"
-          hint="read by ChatGPT, Claude, Perplexity & Google AI Overviews"
+          label="Summary for AI assistants"
+          hint="What ChatGPT, Claude, Perplexity and Google's AI read about this page"
           rows={4}
           value={seo.aiSummary}
           onChange={(value) => set("aiSummary", value)}
@@ -150,7 +155,7 @@ export default function SeoEditor({
       </div>
 
       <MediaField
-        label="Share image (Open Graph)"
+        label="Picture when shared (Instagram, texts, Facebook)"
         hint="1200×630 works best"
         value={seo.ogImage}
         onChange={(value) => set("ogImage", value)}
@@ -161,6 +166,7 @@ export default function SeoEditor({
       <div>
         <Text
           label="Canonical URL"
+          hint="The one true address of this page. Leave it unless you know why."
           value={seo.canonical}
           onChange={(value) => set("canonical", value)}
           placeholder={suggestion.canonical}
@@ -173,15 +179,14 @@ export default function SeoEditor({
       </div>
 
       <div>
-        <Label hint="Generate questions and answers for this page, then edit them as needed.">
-          FAQ
+        <Label hint="Questions and answers about this page. Google and AI assistants can show these directly.">
+          Questions people ask
         </Label>
-        <p className="mb-3 text-xs text-neutral-500">Generated FAQs are added without replacing your existing answers or duplicating questions.</p>
         <div className="grid gap-3">
           {seo.faq.map((entry, index) => (
-            <div key={index} className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
+            <div key={index} className="rounded-lg border border-neutral-800 bg-neutral-900 p-3">
               <input
-                className="mb-2 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[13px] text-neutral-100 outline-none focus:border-neutral-400"
+                className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-[15px] text-neutral-50 outline-none focus:border-white"
                 placeholder="Question"
                 value={entry.q}
                 onChange={(event) => {
@@ -191,7 +196,7 @@ export default function SeoEditor({
                 }}
               />
               <textarea
-                className="w-full resize-y rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[13px] text-neutral-100 outline-none focus:border-neutral-400"
+                className="w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-[15px] text-neutral-50 outline-none focus:border-white"
                 placeholder="Answer"
                 rows={2}
                 value={entry.a}
@@ -213,37 +218,33 @@ export default function SeoEditor({
           ))}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button onClick={() => set("faq", [...seo.faq, { q: "", a: "" }])}>Add question</Button>
+          <Button onClick={() => set("faq", [...seo.faq, { q: "", a: "" }])}>Add a question</Button>
           {suggestion.faq.length ? (
             <Button tone="ghost" onClick={() => set("faq", addSuggestedFaqs(seo.faq, suggestion.faq))}>
-              Generate FAQs
+              Add suggested questions
             </Button>
           ) : null}
         </div>
+        <p className="mt-2 text-[13px] text-neutral-500">
+          Suggested questions are added alongside yours — nothing you wrote gets replaced.
+        </p>
       </div>
 
       <Toggle
-        label="Hide from search engines"
-        hint="Adds noindex. Leave off unless you are staging this page."
+        label="Hide this page from Google"
+        hint="Leave off. Only for a page you are not ready to show anyone."
         value={seo.noindex}
         onChange={(value) => set("noindex", value)}
       />
 
-      <div className="rounded-md border border-neutral-800 bg-black p-4">
-        <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-neutral-600">
-          Google preview
-        </p>
-        <p className="truncate text-[13px] text-[#8ab4f8]">
-          {seo.title || suggestion.title}
-        </p>
-        <p className="truncate text-[12px] text-emerald-500">
-          {seo.canonical || suggestion.canonical}
-        </p>
-        <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-neutral-400">
+      <div className="rounded-lg border border-neutral-800 bg-black p-4">
+        <p className="mb-2 text-[12px] font-medium text-neutral-500">How it looks on Google</p>
+        <p className="truncate text-[15px] text-[#8ab4f8]">{seo.title || suggestion.title}</p>
+        <p className="truncate text-[13px] text-emerald-500">{seo.canonical || suggestion.canonical}</p>
+        <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-neutral-400">
           {seo.description || suggestion.description}
         </p>
       </div>
-      </div>
-    </details>
+    </More>
   );
 }

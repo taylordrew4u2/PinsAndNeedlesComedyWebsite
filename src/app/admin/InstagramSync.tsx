@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { InstagramSync as InstagramSyncState } from "@/lib/types";
-import { Button, Section, Text } from "./ui";
+import { Button, More, Note, Section, Steps, Text } from "./ui";
 
 /** Safety valve only — forward progress each call means this almost never gets close. */
 const MAX_ROUNDS = 60;
@@ -11,7 +11,7 @@ const DELAY_MS = 350;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function formatWhen(iso: string): string {
-  if (!iso) return "Never";
+  if (!iso) return "never";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
@@ -53,7 +53,6 @@ export default function InstagramSync({
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [roundError, setRoundError] = useState("");
-  const [showManual, setShowManual] = useState(false);
   const oauthResult = useOAuthResult();
 
   // Instagram just redirected back — the token is already saved server-side,
@@ -89,103 +88,109 @@ export default function InstagramSync({
     }
   };
 
+  const connected = Boolean(instagram.accessToken);
+
   return (
     <Section
-      title="Instagram sync"
-      hint="Pull every reel from @pinsandneedlescomedy automatically instead of adding them one at a time."
+      icon="📲"
+      title="Pull reels in from Instagram"
+      hint="Connect once, then one tap grabs every reel from @pinsandneedlescomedy."
     >
       {oauthResult?.status === "connected" ? (
-        <p className="rounded-md border border-emerald-800/60 bg-emerald-950/40 px-4 py-3 text-[13px] text-emerald-300">
-          Instagram connected. Click <strong>Sync all reels</strong> below to pull them in.
-        </p>
+        <Note tone="good">
+          Instagram is connected. Now tap <strong>Get my reels from Instagram</strong>.
+        </Note>
       ) : null}
       {oauthResult?.status === "error" ? (
-        <p className="rounded-md border border-red-800/60 bg-red-950/40 px-4 py-3 text-[13px] text-red-300">
-          {oauthResult.message || "Connecting to Instagram failed."}
-        </p>
+        <Note tone="bad">{oauthResult.message || "Connecting to Instagram failed."}</Note>
       ) : null}
 
-      <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4 text-[13px] leading-relaxed text-neutral-400">
-        <p className="mb-2 text-neutral-200">One-time setup, on Instagram&apos;s side</p>
-        <p className="mb-2">
-          Meta requires this — there is no way around it for anyone, it is how Instagram confirms
-          the account owner actually approved the connection:
+      <div className="flex flex-wrap gap-3">
+        <Button
+          size="big"
+          tone={connected ? "default" : "primary"}
+          onClick={() => {
+            // Resolved against the current origin: assigning a bare relative
+            // path is ambiguous, and this one starts an OAuth redirect.
+            window.location.assign(new URL("/api/admin/instagram/authorize", window.location.origin));
+          }}
+        >
+          {connected ? "🔗 Reconnect Instagram" : "🔗 Connect Instagram"}
+        </Button>
+        <Button
+          size="big"
+          tone={connected ? "primary" : "default"}
+          onClick={() => void runFullSync()}
+          disabled={running || !connected}
+        >
+          {running ? `Getting reels… ${progress ? `(${progress} so far)` : ""}` : "⬇️ Get my reels from Instagram"}
+        </Button>
+      </div>
+      {roundError ? <Note tone="bad">{roundError}</Note> : null}
+
+      <Note>
+        <span className="font-medium text-neutral-100">{connected ? "Connected ✓" : "Not connected yet"}</span>
+        {" · "}
+        {totalReels} reel{totalReels === 1 ? "" : "s"} on the site
+        {" · "}last pulled {formatWhen(instagram.lastSyncedAt)}
+        {instagram.lastError ? (
+          <span className="mt-1 block text-red-300">Last problem: {instagram.lastError}</span>
+        ) : null}
+        <span className="mt-1 block text-neutral-500">
+          Safe to tap any time — it only adds reels it hasn&apos;t seen, and never touches ones
+          you&apos;ve reordered or hidden.
+        </span>
+      </Note>
+
+      <More
+        title="One-time setup on Instagram's side"
+        hint="Only needed the very first time, or if connecting fails"
+      >
+        <p className="text-[14px] leading-relaxed text-neutral-300">
+          Meta requires this — there is no way around it for anyone. It is how Instagram confirms
+          the account owner approved the connection:
         </p>
-        <ol className="ml-4 list-decimal space-y-1">
-          <li>Switch the Instagram account to Professional (Business or Creator) — free, in the Instagram app under Settings → Account type.</li>
+        <Steps>
+          <li>
+            Switch the Instagram account to Professional (Business or Creator) — free, in the
+            Instagram app under Settings → Account type.
+          </li>
           <li>
             Create a free app at{" "}
             <a
               href="https://developers.facebook.com/docs/instagram-platform"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-neutral-200"
+              className="underline underline-offset-2 hover:text-white"
             >
               developers.facebook.com
             </a>
             , add the Instagram product to it, and add an OAuth redirect URI of{" "}
-            <code className="text-neutral-200">{"<your site>"}/api/admin/instagram/callback</code>.
+            <code className="text-neutral-100">{"<your site>"}/api/admin/instagram/callback</code>.
           </li>
-          <li>Add the Instagram account as a tester on that app — the app can stay in Development mode, no review needed for one account.</li>
+          <li>
+            Add the Instagram account as a tester on that app — the app can stay in Development
+            mode, no review needed for one account.
+          </li>
           <li>
             Copy the app&apos;s <strong>App ID</strong> and <strong>App Secret</strong> into this
-            deployment&apos;s environment variables as <code className="text-neutral-200">INSTAGRAM_APP_ID</code> and{" "}
-            <code className="text-neutral-200">INSTAGRAM_APP_SECRET</code>, then redeploy.
+            deployment&apos;s environment variables as{" "}
+            <code className="text-neutral-100">INSTAGRAM_APP_ID</code> and{" "}
+            <code className="text-neutral-100">INSTAGRAM_APP_SECRET</code>, then redeploy.
           </li>
-        </ol>
-        <p className="mt-2">
-          After that, connecting is one click below — a real Instagram login and approval screen,
-          not a token to copy anywhere. It refreshes itself automatically before its ~60-day expiry.
+        </Steps>
+        <p className="text-[14px] leading-relaxed text-neutral-300">
+          After that, connecting is one tap above — a real Instagram login and approval screen,
+          not a token to copy anywhere. It refreshes itself before its ~60-day expiry.
         </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button tone="primary" onClick={() => {
-            // Resolved against the current origin: assigning a bare relative
-            // path is ambiguous, and this one starts an OAuth redirect.
-            window.location.assign(new URL("/api/admin/instagram/authorize", window.location.origin));
-          }}>
-          {instagram.accessToken ? "Reconnect Instagram" : "Log in with Instagram"}
-        </Button>
-        <button
-          type="button"
-          onClick={() => setShowManual((v) => !v)}
-          className="text-[12px] text-neutral-500 underline underline-offset-2 hover:text-neutral-300"
-        >
-          {showManual ? "Hide" : "I already have an access token"}
-        </button>
-      </div>
-
-      {showManual ? (
         <Text
-          label="Access token"
+          label="Access token (advanced)"
           type="password"
           value={instagram.accessToken}
           onChange={onTokenChange}
-          hint="only if you generated one directly in Meta's console instead of using the button above"
+          hint="Only if you generated one directly in Meta's console instead of using the Connect button."
         />
-      ) : null}
-
-      <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4 text-[13px] text-neutral-400">
-        <p>Reels on the site now: <span className="text-neutral-200">{totalReels}</span></p>
-        <p>Connected: <span className="text-neutral-200">{instagram.accessToken ? "Yes" : "Not yet"}</span></p>
-        <p>Last synced: <span className="text-neutral-200">{formatWhen(instagram.lastSyncedAt)}</span></p>
-        {instagram.lastError ? (
-          <p className="mt-2 text-red-400">Last error: {instagram.lastError}</p>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button tone="primary" onClick={() => void runFullSync()} disabled={running || !instagram.accessToken}>
-          {running ? `Syncing… ${progress ? `(${progress} so far)` : ""}` : "Sync all reels from Instagram"}
-        </Button>
-        {roundError ? <span className="text-[12px] text-red-400">{roundError}</span> : null}
-      </div>
-
-      <p className="text-[12px] text-neutral-500">
-        Safe to click any time — it only ever adds reels it hasn&apos;t seen yet, so it never
-        touches an order you&apos;ve rearranged or a reel you&apos;ve hidden.
-      </p>
+      </More>
     </Section>
   );
 }

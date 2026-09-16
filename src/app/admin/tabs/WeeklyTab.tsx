@@ -3,7 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Content, Submission, WeeklyPage } from "@/lib/types";
 import { aspectValue } from "@/lib/render";
-import { Area, Button, Card, Row, Section, Select, Text, Toggle } from "../ui";
+import {
+  Actions,
+  Area,
+  Button,
+  Card,
+  LinkButton,
+  More,
+  Note,
+  Row,
+  Section,
+  Select,
+  Text,
+  Toggle,
+} from "../ui";
 import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
@@ -24,160 +37,183 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
 
   return (
     <>
-      <a href="/admin/run-show" className="block rounded-lg bg-white px-5 py-4 text-center text-lg font-semibold text-black">Run Show</a>
-      <details className="mb-8 rounded-lg border border-neutral-800 p-4">
-        <summary className="cursor-pointer text-sm text-neutral-300">Submission inbox and random draw</summary>
-        <div className="mt-4"><StagePanel enabled={weekly.enabled} /></div>
-      </details>
-
       <Section
-        title="Bad Decisions page"
-        hint="Private submission screen: accessible through the QR code, with no public menu link. Everything here is the standing detail; each week's bill is a show in the Shows tab marked as part of this weekly."
+        icon="🎲"
+        title={weekly.title || "Bad Decisions"}
+        hint="The weekly show. Each week's lineup is a show in the Shows tab marked as part of this weekly."
       >
-        <QrCode />
+        <Actions>
+          <LinkButton size="big" tone="primary" href="/admin/run-show">
+            🎲 Run tonight&apos;s show
+          </LinkButton>
+        </Actions>
         <Toggle
-          label="Page is live"
-          hint="off = the QR entry is a 404 and the form stops taking submissions"
+          label="The page is live"
+          hint="Off = the QR code goes nowhere and the form stops taking decisions"
           value={weekly.enabled}
           onChange={set("enabled")}
         />
-        <Text label="Title" value={weekly.title} onChange={set("title")} ai={ai("weekly show title")} />
-        <Area label="Tagline" rows={2} value={weekly.tagline} onChange={set("tagline")} ai={ai("weekly show tagline")} />
-        <Row>
-          <Select label="Night" value={weekly.weekday} options={WEEKDAYS} onChange={set("weekday")} />
-          <Text label="Doors" type="time" value={weekly.doorsTime} onChange={set("doorsTime")} />
-          <Text label="Show starts" type="time" value={weekly.startTime} onChange={set("startTime")} />
-        </Row>
-        <Row>
-          <Text label="Venue name" value={weekly.venueName} onChange={set("venueName")} />
-          <Text label="Venue website" value={weekly.venueUrl} placeholder="https://" onChange={set("venueUrl")} />
-        </Row>
-        <Text label="Street address" value={weekly.address} onChange={set("address")} />
-        <Row>
-          <Text label="City" value={weekly.city} onChange={set("city")} />
-          <Text label="State" value={weekly.region} onChange={set("region")} />
-          <Text label="ZIP" value={weekly.postalCode} onChange={set("postalCode")} />
-        </Row>
-        <Row>
-          <Text label="Map link" value={weekly.mapUrl} placeholder="https://maps.google.com/..." onChange={set("mapUrl")} />
-          <Text label="Price" hint="e.g. Free" value={weekly.price} onChange={set("price")} />
-          <Text label="Age" hint="e.g. 21+" value={weekly.ageRestriction} onChange={set("ageRestriction")} />
-        </Row>
-        <Text
-          label="Room note"
-          hint="copied to date-specific show details — e.g. the room is small, come early"
-          value={weekly.roomNote}
-          onChange={set("roomNote")}
-        />
-        <MediaField
-          label="Poster"
-          hint={`cropped to ${content.showsPage.posterAspect}, same as show posters`}
-          value={weekly.posterUrl}
-          onChange={set("posterUrl")}
-          aspect={posterAspect}
-          previewHeight={180}
-        />
-        <Text
-          label="Poster alt text"
-          value={weekly.posterAlt}
-          onChange={set("posterAlt")}
-          ai={{ what: "poster alt text", about, image: weekly.posterUrl }}
-        />
-      </Section>
-
-      <Section title="The form" hint="What people see on their phone. Keep every line short.">
-        <Text label="The question" value={weekly.question} onChange={set("question")} ai={ai("the question the submission form asks the audience")} />
-        <Text label="Placeholder inside the box" value={weekly.placeholder} onChange={set("placeholder")} ai={ai("placeholder inside the decision box")} />
-        <Text label="Name toggle label" value={weekly.namePrompt} onChange={set("namePrompt")} ai={ai("label on the toggle to put your name on your decision")} />
-        <Area label="Small print under the form" rows={2} value={weekly.formNote} onChange={set("formNote")} ai={ai("small print under the submission form")} />
-        <Row>
-          <Text label="Button text" value={weekly.submitLabel} onChange={set("submitLabel")} ai={ai("submit button text")} />
-        </Row>
-        <Area label="After they send" rows={2} value={weekly.thanksText} onChange={set("thanksText")} ai={ai("thank-you message after a decision is sent")} />
-        <Text
-          label="Text-in number"
-          hint="optional — leave blank to hide it. A free Google Voice number works; texts land in your Google Voice inbox."
-          placeholder="(929) 555-0143"
-          value={weekly.smsNumber}
-          onChange={set("smsNumber")}
-        />
-        {weekly.smsNumber ? (
-          <Text
-            label="How the number is offered"
-            hint="{number} is replaced with the number above"
-            value={weekly.smsNote}
-            onChange={set("smsNote")}
-            ai={ai("one line offering the text-in number, containing the literal token {number}")}
-          />
-        ) : null}
-        <Toggle
-          label="Show how many decisions are in"
-          hint="the count climbs on the page during the bar hour"
-          value={weekly.showCount}
-          onChange={set("showCount")}
-        />
+        <Card title="🎟️ Tonight's pile — draw a decision" subtitle="Open this on your phone during the show">
+          <StagePanel enabled={weekly.enabled} />
+        </Card>
+        <Card title="📱 QR code for the tables" subtitle="Download it for flyers and table tents">
+          <QrCode />
+        </Card>
       </Section>
 
       <Section
-        title="When the form opens"
-        hint="Counted from the show's start time, in New York. Keeping the window tight is the point: whoever sends a decision is in the room to hear it read out. A published night in the Shows tab uses its own start time; otherwise it's the standing one above."
+        icon="📍"
+        title="When and where"
+        hint="The standing details. A night you've published in Shows uses its own time instead."
       >
+        <Text label="Name of the show" value={weekly.title} onChange={set("title")} ai={ai("weekly show title")} />
         <Row>
-          <Text
-            label="Opens this many minutes before"
-            type="number"
-            hint="60 = an hour before the show"
-            value={String(weekly.openMinutesBefore)}
-            onChange={(value) => set("openMinutesBefore")(Math.max(0, Number(value) || 0))}
-          />
-          <Text
-            label="Closes this many minutes after"
-            type="number"
-            hint="240 = four hours after it starts, so the pile stays open through the show"
-            value={String(weekly.closeMinutesAfter)}
-            onChange={(value) => set("closeMinutesAfter")(Math.max(0, Number(value) || 0))}
-          />
+          <Select label="Which night" value={weekly.weekday} options={WEEKDAYS} onChange={set("weekday")} />
+          <Text label="Doors open" type="time" value={weekly.doorsTime} onChange={set("doorsTime")} />
+          <Text label="Show starts" type="time" value={weekly.startTime} onChange={set("startTime")} />
         </Row>
-        <Area
-          label="What the page says while it's shut"
-          rows={2}
-          hint="{when} becomes the night and time it opens — e.g. Thursday at 8:00 PM"
-          value={weekly.closedText}
-          onChange={set("closedText")}
-          ai={ai("message shown while the form is shut, containing the literal token {when}")}
-        />
-        <Toggle
-          label="Keep the form open all the time"
-          hint="ignores the window above — for testing, or a night that runs to its own clock"
-          value={weekly.alwaysOpen}
-          onChange={set("alwaysOpen")}
-        />
+        <Row>
+          <Text label="Venue" value={weekly.venueName} onChange={set("venueName")} />
+          <Text label="Price" hint="For example: Free" value={weekly.price} onChange={set("price")} />
+          <Text label="Age" hint="For example: 21+" value={weekly.ageRestriction} onChange={set("ageRestriction")} />
+        </Row>
+
+        <More title="Address, map and venue website">
+          <Text label="Venue website" value={weekly.venueUrl} placeholder="https://" onChange={set("venueUrl")} />
+          <Text label="Street address" value={weekly.address} onChange={set("address")} />
+          <Row>
+            <Text label="City" value={weekly.city} onChange={set("city")} />
+            <Text label="State" value={weekly.region} onChange={set("region")} />
+            <Text label="ZIP" value={weekly.postalCode} onChange={set("postalCode")} />
+          </Row>
+          <Text label="Map link" hint="A Google Maps link" value={weekly.mapUrl} placeholder="https://maps.google.com/..." onChange={set("mapUrl")} />
+          <Text
+            label="Room note"
+            hint="Copied onto each night's page — for example: the room is small, come early"
+            value={weekly.roomNote}
+            onChange={set("roomNote")}
+          />
+        </More>
+
+        <More title="Tagline and poster">
+          <Area label="Tagline" rows={2} value={weekly.tagline} onChange={set("tagline")} ai={ai("weekly show tagline")} />
+          <MediaField
+            label="Poster"
+            hint={`Cropped to ${content.showsPage.posterAspect}, same as show posters`}
+            value={weekly.posterUrl}
+            onChange={set("posterUrl")}
+            aspect={posterAspect}
+            previewHeight={180}
+          />
+          <Text
+            label="What the poster shows"
+            hint="For Google image search and screen readers"
+            value={weekly.posterAlt}
+            onChange={set("posterAlt")}
+            ai={{ what: "poster alt text", about, image: weekly.posterUrl }}
+          />
+        </More>
       </Section>
 
-      <Section title="Show description and visibility">
-        <Area
-          label="How it works"
-          hint="Show format description used by SEO suggestions."
-          rows={5}
-          value={weekly.howItWorks}
-          onChange={set("howItWorks")}
-          ai={ai("how the show works (page body)")}
-        />
-        <Toggle
-          label="Include recurring dates on Shows"
-          hint="Lists the next five upcoming nights on the public Shows page."
-          value={weekly.showOnShowsPage}
-          onChange={set("showOnShowsPage")}
-        />
-      </Section>
+      <div className="mb-6">
+        <More title="Words on the submission form" hint="What people see on their phone. Keep every line short.">
+          <Text label="The question" value={weekly.question} onChange={set("question")} ai={ai("the question the submission form asks the audience")} />
+          <Text label="Grey text inside the box" value={weekly.placeholder} onChange={set("placeholder")} ai={ai("placeholder inside the decision box")} />
+          <Text label="The “put my name on it” switch" value={weekly.namePrompt} onChange={set("namePrompt")} ai={ai("label on the toggle to put your name on your decision")} />
+          <Area label="Small print under the form" rows={2} value={weekly.formNote} onChange={set("formNote")} ai={ai("small print under the submission form")} />
+          <Text label="The send button" value={weekly.submitLabel} onChange={set("submitLabel")} ai={ai("submit button text")} />
+          <Area label="What it says after they send" rows={2} value={weekly.thanksText} onChange={set("thanksText")} ai={ai("thank-you message after a decision is sent")} />
+          <Text
+            label="A number people can text instead"
+            hint="Optional — leave blank to hide it. A free Google Voice number works; texts land in your Google Voice inbox."
+            placeholder="(929) 555-0143"
+            value={weekly.smsNumber}
+            onChange={set("smsNumber")}
+          />
+          {weekly.smsNumber ? (
+            <Text
+              label="How the number is offered"
+              hint="{number} is replaced with the number above"
+              value={weekly.smsNote}
+              onChange={set("smsNote")}
+              ai={ai("one line offering the text-in number, containing the literal token {number}")}
+            />
+          ) : null}
+          <Toggle
+            label="Show how many decisions are in"
+            hint="The count climbs on the page during the bar hour"
+            value={weekly.showCount}
+            onChange={set("showCount")}
+          />
+        </More>
+      </div>
 
-      <SeoEditor
-        title="Bad Decisions SEO & AI SEO"
-        seo={weekly.seo}
-        suggestion={suggestFor(content, "weekly")}
-        about={about}
-        onChange={set("seo")}
-      />
+      <div className="mb-6">
+        <More
+          title="When the form opens and closes"
+          hint="Counted from the show's start time, New York time. A tight window means whoever sends one is in the room to hear it."
+        >
+          <Row>
+            <Text
+              label="Opens this many minutes before"
+              type="number"
+              hint="60 = an hour before the show"
+              value={String(weekly.openMinutesBefore)}
+              onChange={(value) => set("openMinutesBefore")(Math.max(0, Number(value) || 0))}
+            />
+            <Text
+              label="Closes this many minutes after"
+              type="number"
+              hint="240 = four hours after it starts, so the pile stays open through the show"
+              value={String(weekly.closeMinutesAfter)}
+              onChange={(value) => set("closeMinutesAfter")(Math.max(0, Number(value) || 0))}
+            />
+          </Row>
+          <Area
+            label="What the page says while it's shut"
+            rows={2}
+            hint="{when} becomes the night and time it opens — for example: Thursday at 8:00 PM"
+            value={weekly.closedText}
+            onChange={set("closedText")}
+            ai={ai("message shown while the form is shut, containing the literal token {when}")}
+          />
+          <Toggle
+            label="Keep the form open all the time"
+            hint="Ignores the window above — for testing, or a night that runs to its own clock"
+            value={weekly.alwaysOpen}
+            onChange={set("alwaysOpen")}
+          />
+        </More>
+      </div>
+
+      <div className="mb-6">
+        <More title="How it works, and the Shows page" hint="The description of the show, and whether weekly dates appear on /shows">
+          <Area
+            label="How it works"
+            hint="The show format, in a paragraph or two. Also feeds the search suggestions."
+            rows={5}
+            value={weekly.howItWorks}
+            onChange={set("howItWorks")}
+            ai={ai("how the show works (page body)")}
+          />
+          <Toggle
+            label="List upcoming nights on the Shows page"
+            hint="Shows the next five nights on the public Shows page"
+            value={weekly.showOnShowsPage}
+            onChange={set("showOnShowsPage")}
+          />
+        </More>
+      </div>
+
+      <div className="mb-6">
+        <SeoEditor
+          title="Search & AI settings for Bad Decisions"
+          seo={weekly.seo}
+          suggestion={suggestFor(content, "weekly")}
+          about={about}
+          onChange={set("seo")}
+        />
+      </div>
     </>
   );
 }
@@ -193,25 +229,26 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
 function QrCode() {
   const [key] = useState(() => Date.now());
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="flex flex-wrap items-center gap-4">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/api/admin/decisions/qr?v=${key}`}
         alt="QR code linking to /bad-decisions"
-        width={112}
-        height={112}
-        className="h-28 w-28 shrink-0 rounded bg-white p-2"
+        width={128}
+        height={128}
+        className="h-32 w-32 shrink-0 rounded-lg bg-white p-2"
       />
-      <div className="text-[12px] text-neutral-400">
-        <p>Private QR entry: countdown until submissions open, then the prompt. Download this new code for flyers and table tents; older codes pointing to the plain page will not work.</p>
-        <a
-          href={`/api/admin/decisions/qr?v=${key}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block underline underline-offset-4 hover:text-white"
-        >
-          Open full size to save
-        </a>
+      <div className="min-w-[200px] flex-1 text-[14px] leading-relaxed text-neutral-300">
+        <p>
+          People scan this to send a decision in. It shows a countdown until the form opens, then
+          the question. Print this exact code — older codes pointing to the plain page no longer
+          work.
+        </p>
+        <div className="mt-3">
+          <LinkButton href={`/api/admin/decisions/qr?v=${key}`} external>
+            ⬇️ Open full size to save
+          </LinkButton>
+        </div>
       </div>
     </div>
   );
@@ -319,34 +356,28 @@ function StagePanel({ enabled }: { enabled: boolean }) {
 
   const open = (list ?? []).filter((entry) => entry.status === "open");
   const drawnStored = (list ?? []).filter((entry) => entry.status === "drawn");
+  const archived = (list ?? []).filter((entry) => entry.status === "archived");
   const onStage = drawn.length ? drawn : drawnStored;
 
   return (
-    <Section
-      title="Tonight"
-      hint={
-        enabled
-          ? "Open this on your phone during the show. Draw one pulls at random and reads it back big enough to read out loud."
-          : "The page is switched off, so nothing new comes in — but anything already sent is still here."
-      }
-    >
-      {error ? (
-        <p className="rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-[12px] text-red-300">{error}</p>
-      ) : null}
+    <>
+      <p className="text-[14px] leading-relaxed text-neutral-400">
+        {enabled
+          ? "“Draw one” pulls at random and shows it big enough to read out loud."
+          : "The page is switched off, so nothing new comes in — but anything already sent is still here."}
+      </p>
+      {error ? <Note tone="bad">{error}</Note> : null}
       {truncated ? (
-        <p className="rounded-md border border-amber-900/60 bg-amber-950/40 px-3 py-2 text-[12px] text-amber-300">
-          There are more stored submissions than can be listed at once, so this
-          is only the most recent of them. Delete some archived ones to bring
-          the rest back into view.
-        </p>
+        <Note tone="warn">
+          There are more stored submissions than can be listed at once, so this is only the most
+          recent of them. Delete some archived ones to bring the rest back into view.
+        </Note>
       ) : null}
       {texting.on ? (
         texting.error ? (
-          <p className="rounded-md border border-amber-900/60 bg-amber-950/40 px-3 py-2 text-[12px] text-amber-300">
-            Texts aren&apos;t coming through: {texting.error}. The form still works.
-          </p>
+          <Note tone="warn">Texts aren&apos;t coming through: {texting.error}. The form still works.</Note>
         ) : (
-          <p className="text-[12px] text-neutral-500">
+          <p className="text-[13px] text-neutral-500">
             Collecting texts from the forwarding mailbox as well as the form.
           </p>
         )
@@ -354,18 +385,15 @@ function StagePanel({ enabled }: { enabled: boolean }) {
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Decisions in</p>
-          <p className="text-5xl font-semibold text-white">{list ? open.length : "…"}</p>
+          <p className="text-[13px] font-medium text-neutral-400">Decisions in</p>
+          <p className="text-6xl font-semibold text-white">{list ? open.length : "…"}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button tone="primary" onClick={draw} disabled={busy || !open.length}>
-            Draw one
+          <Button size="big" tone="primary" onClick={draw} disabled={busy || !open.length}>
+            🎲 Draw one
           </Button>
-          <Button onClick={() => void load()} disabled={busy}>
+          <Button size="big" onClick={() => void load()} disabled={busy}>
             Refresh
-          </Button>
-          <Button tone="danger" onClick={archive} disabled={busy || !(list ?? []).some((e) => e.status !== "archived")}>
-            Archive everything
           </Button>
         </div>
       </div>
@@ -375,11 +403,11 @@ function StagePanel({ enabled }: { enabled: boolean }) {
           {onStage.map((entry, index) => (
             <div
               key={entry.id}
-              className={`rounded-lg border p-4 ${
+              className={`rounded-xl border p-4 ${
                 index === 0 ? "border-white bg-white text-black" : "border-neutral-800 bg-neutral-900/40"
               }`}
             >
-              <p className={`text-[11px] uppercase tracking-[0.18em] ${index === 0 ? "text-neutral-600" : "text-neutral-500"}`}>
+              <p className={`text-[12px] font-medium uppercase tracking-[0.14em] ${index === 0 ? "text-neutral-600" : "text-neutral-500"}`}>
                 {entry.name ? `Called out: ${entry.name}` : "Anonymous"}
               </p>
               <p className={`mt-2 whitespace-pre-line leading-snug ${index === 0 ? "text-2xl sm:text-3xl" : "text-[16px]"}`}>{entry.decision}</p>
@@ -392,17 +420,17 @@ function StagePanel({ enabled }: { enabled: boolean }) {
           ))}
         </div>
       ) : (
-        <p className="text-[13px] text-neutral-500">Nothing drawn yet.</p>
+        <p className="text-[14px] text-neutral-500">Nothing drawn yet.</p>
       )}
 
-      <Card title={`The pile (${open.length} open)`} subtitle="everything waiting to be drawn, newest first">
+      <Card title={`The pile (${open.length} waiting)`} subtitle="Everything waiting to be drawn, newest first">
         {open.length ? (
           <ul className="grid gap-2">
             {open.map((entry) => (
-              <li key={entry.id} className="flex items-start justify-between gap-3 rounded-md border border-neutral-800 px-3 py-2">
+              <li key={entry.id} className="flex items-start justify-between gap-3 rounded-lg border border-neutral-800 px-3 py-2">
                 <span className="min-w-0">
-                  <span className="block whitespace-pre-line text-[14px] leading-snug text-neutral-100">{entry.decision}</span>
-                  <span className="block text-[11px] text-neutral-500">
+                  <span className="block whitespace-pre-line text-[15px] leading-snug text-neutral-50">{entry.decision}</span>
+                  <span className="block text-[12px] text-neutral-500">
                     {entry.name ? entry.name : "anonymous"}
                     {entry.createdAt ? ` · ${new Date(entry.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : ""}
                   </span>
@@ -414,21 +442,25 @@ function StagePanel({ enabled }: { enabled: boolean }) {
             ))}
           </ul>
         ) : (
-          <p className="text-[13px] text-neutral-500">Empty.</p>
+          <p className="text-[14px] text-neutral-500">Empty.</p>
         )}
       </Card>
 
-      {(list ?? []).some((entry) => entry.status === "archived") ? (
-        <div>
-          <Button tone="ghost" onClick={() => setShowPile((value) => !value)}>
-            {showPile ? "Hide" : "Show"} archived ({(list ?? []).filter((e) => e.status === "archived").length})
+      <More title="End of the night" hint="Archive everything so next week starts at zero, and look back at old ones">
+        <Actions>
+          <Button tone="danger" onClick={archive} disabled={busy || !(list ?? []).some((e) => e.status !== "archived")}>
+            🧹 Archive everything from tonight
           </Button>
-          {showPile ? (
-            <ul className="mt-2 grid gap-1">
-              {(list ?? [])
-                .filter((entry) => entry.status === "archived")
-                .map((entry) => (
-                  <li key={entry.id} className="flex items-start justify-between gap-3 text-[13px] text-neutral-400">
+        </Actions>
+        {archived.length ? (
+          <div>
+            <Button tone="ghost" onClick={() => setShowPile((value) => !value)}>
+              {showPile ? "Hide" : "Show"} archived ({archived.length})
+            </Button>
+            {showPile ? (
+              <ul className="mt-2 grid gap-1">
+                {archived.map((entry) => (
+                  <li key={entry.id} className="flex items-start justify-between gap-3 text-[14px] text-neutral-400">
                     <span className="whitespace-pre-line">
                       {entry.decision}
                       {entry.name ? <span className="text-neutral-600"> — {entry.name}</span> : null}
@@ -438,10 +470,13 @@ function StagePanel({ enabled }: { enabled: boolean }) {
                     </Button>
                   </li>
                 ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-    </Section>
+              </ul>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-[13px] text-neutral-500">Nothing archived yet.</p>
+        )}
+      </More>
+    </>
   );
 }
