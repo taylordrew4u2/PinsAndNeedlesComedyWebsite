@@ -9,7 +9,7 @@ export default function SiteFooter({ site }: { site: SiteSettings }) {
   if (pathname === "/bad-decisions" || pathname.startsWith("/bad-decisions/") || pathname === "/admin/run-show" || pathname === "/admin/run-show/") return null;
 
   return (
-    <footer className="border-t border-white/10 px-5 py-8 text-[11px] tracking-[0.18em] uppercase text-[var(--pnc-muted)]">
+    <footer style={pathname === "/hall-of-fame" ? { color: "#d5ba7b", borderColor: "#c6a76b55", background: "#0a0a0a" } : undefined} className="border-t border-white/10 px-5 py-8 text-[11px] tracking-[0.18em] uppercase text-[var(--pnc-muted)]">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <nav className="flex flex-wrap gap-x-5 gap-y-2">
           {site.nav.map((item) => (
