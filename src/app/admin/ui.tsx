@@ -22,7 +22,7 @@ export function Section({
         </h2>
         {hint ? <p className="mt-1 text-[12px] text-neutral-500">{hint}</p> : null}
       </header>
-      <div className="grid gap-4 p-4">{children}</div>
+      <div className="grid min-w-0 grid-cols-1 gap-4 p-4">{children}</div>
     </section>
   );
 }
@@ -389,7 +389,7 @@ export function Card({
   return (
     <details
       open={defaultOpen}
-      className="group rounded-lg border border-neutral-800 bg-neutral-950 open:bg-neutral-900/40"
+      className="group min-w-0 rounded-lg border border-neutral-800 bg-neutral-950 open:bg-neutral-900/40"
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
         <span className="min-w-0">
@@ -400,11 +400,10 @@ export function Card({
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {actions}
-          <span className="text-[11px] text-neutral-500 group-open:hidden">Open</span>
-          <span className="hidden text-[11px] text-neutral-500 group-open:inline">Close</span>
+          <span className="text-[11px] text-neutral-500">Details</span>
         </span>
       </summary>
-      <div className="grid gap-4 border-t border-neutral-800 p-4">{children}</div>
+      <div className="grid min-w-0 grid-cols-1 gap-4 border-t border-neutral-800 p-4">{children}</div>
     </details>
   );
 }

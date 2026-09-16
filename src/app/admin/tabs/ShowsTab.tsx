@@ -93,6 +93,7 @@ const newPhoto = (): ShowPhoto => ({
 
 export default function ShowsTab({ content, update }: { content: Content; update: Update }) {
   const [openedShow, setOpenedShow] = useState<string | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
   const settings = content.showsPage;
   const posterAspect = aspectValue(settings.posterAspect);
 
@@ -103,8 +104,8 @@ export default function ShowsTab({ content, update }: { content: Content; update
         hint="One place for each night’s lineup, tickets and details. Changes save automatically; past shows stay here for the archive."
       >
         <div className="flex flex-wrap gap-2">
-          <Button tone="primary" onClick={() => update((d) => void d.shows.unshift(newShow()))}>
-            New show
+          <Button tone="primary" onClick={() => { const show = newShow(); update((d) => void d.shows.unshift(show)); setOpenedShow(show.id); }}>
+            Add a show
           </Button>
           {content.weekly.enabled && !content.weekly.showOnShowsPage ? (
             <Button
@@ -124,6 +125,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
           </p>
         ) : null}
 
+        <Card title="Start from a flyer" subtitle="Optional: fill in details from an existing poster">
         <FlyerIntake
           aspect={posterAspect}
           create={newShow}
@@ -131,9 +133,12 @@ export default function ShowsTab({ content, update }: { content: Content; update
           onCreated={setOpenedShow}
         />
 
+        </Card>
+
         <UpcomingLineups content={content} update={update} onCreated={setOpenedShow} />
 
-        {content.shows.map((show, index) => (
+        <Toggle label="Include past shows" value={showArchive} onChange={setShowArchive} />
+        {content.shows.map((show, index) => (showArchive || show.date >= nyToday() || !show.published) ? (
           <Card
             key={show.id}
             defaultOpen={openedShow === show.id}
@@ -142,188 +147,19 @@ export default function ShowsTab({ content, update }: { content: Content; update
               show.published ? "" : " · draft"
             }`}
           >
-            <Text
-              label="Show title"
-              hint="e.g. Pins & Needles Comedy at Secret Pour"
-              value={show.title}
-              onChange={(v) => update((d) => void (d.shows[index].title = v))}
-              ai={{ what: "show title", about: aboutShow(show) }}
-            />
-            <Area
-              label="Tagline"
-              hint="one line under the title"
-              rows={2}
-              value={show.tagline}
-              onChange={(v) => update((d) => void (d.shows[index].tagline = v))}
-              ai={{ what: "show tagline", about: aboutShow(show) }}
-            />
+            <p className="text-sm text-neutral-400">Changes save automatically. Keep this as a draft until you’re ready to publish.</p>
+            <Text label="Show name" ai={{ what: "show title", about: aboutShow(show) }} value={show.title} onChange={(v) => update((d) => {
+              d.shows[index].title = v;
+              if (!show.published) d.shows[index].slug = slugify(`${v} ${show.date}`);
+            })} />
             <Row>
-              <Text
-                label="URL slug"
-                hint={`/shows/${show.slug}`}
-                value={show.slug}
-                onChange={(v) => update((d) => void (d.shows[index].slug = slugify(v)))}
-              />
-              <Text
-                label="Date"
-                type="date"
-                value={show.date}
-                onChange={(v) => update((d) => void (d.shows[index].date = v))}
-              />
+              <Text label="Date" type="date" value={show.date} onChange={(v) => update((d) => { d.shows[index].date = v; if (!show.published) d.shows[index].slug = slugify(`${show.title} ${v}`); })} />
+              <Text label="Start time" type="time" value={show.startTime} onChange={(v) => update((d) => void (d.shows[index].startTime = v))} />
             </Row>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() =>
-                  update(
-                    (d) =>
-                      void (d.shows[index].slug = slugify(
-                        `${show.title} ${show.date}`.trim()
-                      ))
-                  )
-                }
-              >
-                Slug from title + date
-              </Button>
-            </div>
-
-            <Row>
-              <Text
-                label="Doors"
-                type="time"
-                value={show.doorsTime}
-                onChange={(v) => update((d) => void (d.shows[index].doorsTime = v))}
-              />
-              <Text
-                label="Show starts"
-                type="time"
-                value={show.startTime}
-                onChange={(v) => update((d) => void (d.shows[index].startTime = v))}
-              />
-              <Text
-                label="Ends"
-                hint="optional"
-                type="time"
-                value={show.endTime}
-                onChange={(v) => update((d) => void (d.shows[index].endTime = v))}
-              />
-            </Row>
-
-            <Row>
-              <Text
-                label="Venue name"
-                value={show.venueName}
-                onChange={(v) => update((d) => void (d.shows[index].venueName = v))}
-              />
-              <Text
-                label="Venue website"
-                value={show.venueUrl}
-                placeholder="https://"
-                onChange={(v) => update((d) => void (d.shows[index].venueUrl = v))}
-              />
-            </Row>
-            <Text
-              label="Street address"
-              value={show.address}
-              onChange={(v) => update((d) => void (d.shows[index].address = v))}
-            />
-            <Row>
-              <Text
-                label="City"
-                value={show.city}
-                onChange={(v) => update((d) => void (d.shows[index].city = v))}
-              />
-              <Text
-                label="State"
-                value={show.region}
-                onChange={(v) => update((d) => void (d.shows[index].region = v))}
-              />
-              <Text
-                label="ZIP"
-                value={show.postalCode}
-                onChange={(v) => update((d) => void (d.shows[index].postalCode = v))}
-              />
-            </Row>
-            <Row>
-              <Text
-                label="Map link"
-                hint="Google Maps URL"
-                value={show.mapUrl}
-                placeholder="https://maps.google.com/..."
-                onChange={(v) => update((d) => void (d.shows[index].mapUrl = v))}
-              />
-              <Text
-                label="Room note"
-                hint="e.g. downstairs, back room"
-                value={show.roomNote}
-                onChange={(v) => update((d) => void (d.shows[index].roomNote = v))}
-              />
-            </Row>
-
-            <Row>
-              <Text
-                label="Ticket link"
-                value={show.ticketUrl}
-                placeholder="https://"
-                onChange={(v) => update((d) => void (d.shows[index].ticketUrl = v))}
-              />
-              <Text
-                label="Ticket button text"
-                value={show.ticketLabel}
-                onChange={(v) => update((d) => void (d.shows[index].ticketLabel = v))}
-              />
-            </Row>
-            <Row>
-              <Text
-                label="Price"
-                hint="e.g. $15, Free, $10 adv / $15 door"
-                value={show.price}
-                onChange={(v) => update((d) => void (d.shows[index].price = v))}
-              />
-              <Text
-                label="Age"
-                hint="e.g. 21+"
-                value={show.ageRestriction}
-                onChange={(v) => update((d) => void (d.shows[index].ageRestriction = v))}
-              />
-              <Select
-                label="Status"
-                value={show.status}
-                options={STATUSES}
-                onChange={(v) => update((d) => void (d.shows[index].status = v))}
-              />
-            </Row>
-
-            <MediaField
-              label="Poster"
-              hint={`cropped to ${settings.posterAspect}`}
-              value={show.posterUrl}
-              onChange={(v) => update((d) => void (d.shows[index].posterUrl = v))}
-              aspect={posterAspect}
-              previewHeight={180}
-            />
-            <ReadFlyerButton
-              posterUrl={show.posterUrl}
-              onRead={(flyer) =>
-                update((d) => void (d.shows[index] = applyFlyer(d.shows[index], flyer)))
-              }
-            />
-            <Text
-              label="Poster alt text"
-              hint="describe the poster — image SEO and accessibility"
-              value={show.posterAlt}
-              onChange={(v) => update((d) => void (d.shows[index].posterAlt = v))}
-              ai={{ what: "poster alt text", about: aboutShow(show), image: show.posterUrl }}
-            />
-
-            <Area
-              label="About this show"
-              hint="blank line = new paragraph · ## heading · - bullet · [text](url) · **bold**"
-              rows={8}
-              value={show.description}
-              onChange={(v) => update((d) => void (d.shows[index].description = v))}
-              ai={{ what: "about this show (page body)", about: aboutShow(show) }}
-            />
-
+            <Text label="Venue" value={show.venueName} onChange={(v) => update((d) => void (d.shows[index].venueName = v))} />
+            <Text label="RSVP or ticket link" placeholder="Paste your Partiful or ticket link" value={show.ticketUrl} onChange={(v) => update((d) => void (d.shows[index].ticketUrl = v))} />
+            <Toggle label="Publish on the website" hint="Off keeps this show as a draft." value={show.published} onChange={(v) => update((d) => void (d.shows[index].published = v))} />
+            <Card title={`Lineup (${show.lineup.length})`} subtitle="Add performers and hosts">
             <div className="rounded-lg border border-neutral-800 p-3">
               <p className="mb-3 text-[11px] uppercase tracking-[0.14em] text-neutral-400">
                 The bill ({show.lineup.length})
@@ -450,6 +286,163 @@ export default function ShowsTab({ content, update }: { content: Content; update
               ))}
             </div>
 
+            </Card>
+            <Card title="Poster" subtitle="Optional: upload artwork or read a flyer">
+            <MediaField
+              label="Poster"
+              hint={`cropped to ${settings.posterAspect}`}
+              value={show.posterUrl}
+              onChange={(v) => update((d) => void (d.shows[index].posterUrl = v))}
+              aspect={posterAspect}
+              previewHeight={180}
+            />
+            <ReadFlyerButton
+              posterUrl={show.posterUrl}
+              onRead={(flyer) =>
+                update((d) => void (d.shows[index] = applyFlyer(d.shows[index], flyer)))
+              }
+            />
+            <Text
+              label="Poster alt text"
+              hint="describe the poster — image SEO and accessibility"
+              value={show.posterAlt}
+              onChange={(v) => update((d) => void (d.shows[index].posterAlt = v))}
+              ai={{ what: "poster alt text", about: aboutShow(show), image: show.posterUrl }}
+            />
+
+            </Card>
+            <Card title="More show settings" subtitle="Description, address, price, links, SEO and archive controls">
+
+            <Area
+              label="Tagline"
+              hint="one line under the title"
+              rows={2}
+              value={show.tagline}
+              onChange={(v) => update((d) => void (d.shows[index].tagline = v))}
+              ai={{ what: "show tagline", about: aboutShow(show) }}
+            />
+            <Row>
+              <Text
+                label="URL slug"
+                hint={`/shows/${show.slug}`}
+                value={show.slug}
+                onChange={(v) => update((d) => void (d.shows[index].slug = slugify(v)))}
+              />
+            </Row>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() =>
+                  update(
+                    (d) =>
+                      void (d.shows[index].slug = slugify(
+                        `${show.title} ${show.date}`.trim()
+                      ))
+                  )
+                }
+              >
+                Slug from title + date
+              </Button>
+            </div>
+
+            <Row>
+              <Text
+                label="Doors"
+                type="time"
+                value={show.doorsTime}
+                onChange={(v) => update((d) => void (d.shows[index].doorsTime = v))}
+              />
+              <Text
+                label="Ends"
+                hint="optional"
+                type="time"
+                value={show.endTime}
+                onChange={(v) => update((d) => void (d.shows[index].endTime = v))}
+              />
+            </Row>
+
+            <Row>
+              <Text
+                label="Venue website"
+                value={show.venueUrl}
+                placeholder="https://"
+                onChange={(v) => update((d) => void (d.shows[index].venueUrl = v))}
+              />
+            </Row>
+            <Text
+              label="Street address"
+              value={show.address}
+              onChange={(v) => update((d) => void (d.shows[index].address = v))}
+            />
+            <Row>
+              <Text
+                label="City"
+                value={show.city}
+                onChange={(v) => update((d) => void (d.shows[index].city = v))}
+              />
+              <Text
+                label="State"
+                value={show.region}
+                onChange={(v) => update((d) => void (d.shows[index].region = v))}
+              />
+              <Text
+                label="ZIP"
+                value={show.postalCode}
+                onChange={(v) => update((d) => void (d.shows[index].postalCode = v))}
+              />
+            </Row>
+            <Row>
+              <Text
+                label="Map link"
+                hint="Google Maps URL"
+                value={show.mapUrl}
+                placeholder="https://maps.google.com/..."
+                onChange={(v) => update((d) => void (d.shows[index].mapUrl = v))}
+              />
+              <Text
+                label="Room note"
+                hint="e.g. downstairs, back room"
+                value={show.roomNote}
+                onChange={(v) => update((d) => void (d.shows[index].roomNote = v))}
+              />
+            </Row>
+
+            <Row>
+              <Text
+                label="Ticket button text"
+                value={show.ticketLabel}
+                onChange={(v) => update((d) => void (d.shows[index].ticketLabel = v))}
+              />
+            </Row>
+            <Row>
+              <Text
+                label="Price"
+                hint="e.g. $15, Free, $10 adv / $15 door"
+                value={show.price}
+                onChange={(v) => update((d) => void (d.shows[index].price = v))}
+              />
+              <Text
+                label="Age"
+                hint="e.g. 21+"
+                value={show.ageRestriction}
+                onChange={(v) => update((d) => void (d.shows[index].ageRestriction = v))}
+              />
+              <Select
+                label="Status"
+                value={show.status}
+                options={STATUSES}
+                onChange={(v) => update((d) => void (d.shows[index].status = v))}
+              />
+            </Row>
+
+            <Area
+              label="About this show"
+              hint="blank line = new paragraph · ## heading · - bullet · [text](url) · **bold**"
+              rows={8}
+              value={show.description}
+              onChange={(v) => update((d) => void (d.shows[index].description = v))}
+              ai={{ what: "about this show (page body)", about: aboutShow(show) }}
+            />
+
             <div className="rounded-lg border border-neutral-800 p-3">
               <p className="mb-3 text-[11px] uppercase tracking-[0.14em] text-neutral-400">
                 Photos from the night ({show.photos.length})
@@ -533,12 +526,6 @@ export default function ShowsTab({ content, update }: { content: Content; update
 
             <Row>
               <Toggle
-                label="Published"
-                hint="off = only you can see it"
-                value={show.published}
-                onChange={(v) => update((d) => void (d.shows[index].published = v))}
-              />
-              <Toggle
                 label="Featured"
                 value={show.featured}
                 onChange={(v) => update((d) => void (d.shows[index].featured = v))}
@@ -593,10 +580,12 @@ export default function ShowsTab({ content, update }: { content: Content; update
                 Delete show
               </Button>
             </div>
+            </Card>
           </Card>
-        ))}
+        ) : null)}
       </Section>
 
+      <Card title="Page settings" subtitle="Optional: change the Shows page layout and search settings">
       <Section
         title="Shows page"
         hint="Page heading, empty state and past-show archive settings. Manage dates and lineups in the show list above."
@@ -670,6 +659,7 @@ export default function ShowsTab({ content, update }: { content: Content; update
         onChange={(seo) => update((d) => void (d.showsPage.seo = seo))}
       />
 
+      </Card>
     </>
   );
 }
