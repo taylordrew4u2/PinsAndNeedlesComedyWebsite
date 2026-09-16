@@ -1,3 +1,4 @@
+import Image from "next/image";
 import BrandAccents from "@/components/BrandAccents";
 import FameStar from "./FameStar";
 import styles from "./hall.module.css";
@@ -26,21 +27,10 @@ export default async function HallOfFamePage() {
       <PageHeader hero={home.hero} nav={site.nav} active="/hall-of-fame" />
       <section className={styles.gallery}>
         <div className={styles.intro}>
-          <svg className={styles.crest} viewBox="0 0 100 100" aria-hidden="true" fill="none">
-            <circle cx="50" cy="50" r="28" stroke="currentColor" strokeWidth=".7" />
-            <circle cx="50" cy="50" r="23" stroke="currentColor" strokeWidth=".4" />
-            <path d="M46 87C9 72 7 35 27 14M54 87C91 72 93 35 73 14" stroke="currentColor" strokeWidth="1.1" />
-            {[0, 1, 2, 3, 4].map((leaf) => (
-              <g key={leaf} fill="currentColor">
-                <ellipse cx={18 + (leaf > 2 ? (leaf - 2) * 4 : 0)} cy={27 + leaf * 11} rx="3" ry="7" transform={`rotate(-35 18 ${27 + leaf * 11})`} />
-                <ellipse cx={82 - (leaf > 2 ? (leaf - 2) * 4 : 0)} cy={27 + leaf * 11} rx="3" ry="7" transform={`rotate(35 82 ${27 + leaf * 11})`} />
-              </g>
-            ))}
-            <path d="m50 34 4.5 10 11 1-8.3 7.4 2.5 10.6L50 57.5 40.3 63l2.5-10.6L34.5 45l11-1Z" fill="currentColor" />
-          </svg>
+          <Image className={styles.crest} src="/brand/pins-and-needles-heart-on-dark.svg" alt="" aria-hidden="true" width={140} height={140} />
           <p className={styles.eyebrow}>Pins &amp; Needles Comedy</p>
           <h1 className={styles.title}>{hall.heading}</h1>
-          <div className={styles.rule} aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 0 13 7 20 10 13 13 10 20 7 13 0 10 7 7Z" /></svg></div>
+          <div className={styles.rule} aria-hidden="true" />
           <p className={styles.description}>{hall.intro}</p>
         </div>
         {performers.length ? (
