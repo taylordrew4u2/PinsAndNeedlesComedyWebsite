@@ -57,6 +57,24 @@ an edit, and the error surfaces the store's own words instead of a generic
 "Save failed" — whoever sees it is already logged in, and the alternative is
 sending them hunting through deployment logs they may not be able to reach.
 
+## The admin shows the few things first
+
+Every tab follows one rule: the handful of fields someone touches every week
+sit in the open, and everything else waits behind a "More options" panel. A
+show is a name, a date, a venue, a ticket link and an on/off switch; its
+address, price, photos, slug and search settings are all still there, one tap
+down. Nothing was removed to get there — the tabs were reorganised, not cut.
+
+The first screen after login is not a form. It is the jobs people come to do
+("Add a show", "Run tonight's show", "Write a news post"), what is coming up,
+and a short list of things that look half-finished — a draft with a date next
+week, a live show with no ticket link. Each one opens the exact card to fix.
+
+Two things make that safe for someone who is not a developer. Every delete
+asks first, because autosave would make it final within a second. And the
+"Show everything" switch lives in the browser's own storage rather than in the
+content, so one producer flipping it never rearranges the other's phone.
+
 ## Bad Decisions: the part with real load
 
 The weekly show takes written submissions from the room. A QR code points at

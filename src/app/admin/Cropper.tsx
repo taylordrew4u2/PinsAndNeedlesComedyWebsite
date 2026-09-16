@@ -134,10 +134,10 @@ export default function Cropper({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
       <div className="w-full max-w-md rounded-lg border border-neutral-700 bg-neutral-950 p-4">
-        <h3 className="mb-1 text-[13px] font-semibold uppercase tracking-[0.16em] text-neutral-200">
+        <h3 className="mb-1 text-[17px] font-semibold text-neutral-50">
           Crop image
         </h3>
-        <p className="mb-4 text-[12px] text-neutral-500">Drag to reposition, slide to zoom.</p>
+        <p className="mb-4 text-[14px] text-neutral-400">Drag the picture to move it, slide to zoom. Then tap the white button.</p>
 
         <div
           className="relative mx-auto touch-none overflow-hidden bg-neutral-900"

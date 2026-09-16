@@ -36,8 +36,11 @@ export default function MediaField({
   const [pending, setPending] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showUrl, setShowUrl] = useState(false);
 
   const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(value);
+  const wantsVideo = /^video/.test(accept);
+  const noun = wantsVideo ? "video" : "picture";
 
   const send = async (blob: Blob, filename: string) => {
     setBusy(true);
@@ -64,12 +67,12 @@ export default function MediaField({
   };
 
   return (
-    <div>
+    <div className="min-w-0">
       <Label hint={hint}>{label}</Label>
 
       <div className="flex flex-wrap items-start gap-3">
         <div
-          className="flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-neutral-800 bg-neutral-900"
+          className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
           style={{ height: previewHeight, width: previewHeight * (aspect ?? 1) }}
         >
           {value ? (
@@ -80,9 +83,7 @@ export default function MediaField({
               <img src={value} alt="" className="h-full w-full object-cover" />
             )
           ) : (
-            <span className="px-2 text-center text-[10px] uppercase tracking-[0.2em] text-neutral-600">
-              Empty
-            </span>
+            <span className="px-2 text-center text-[12px] text-neutral-600">No {noun} yet</span>
           )}
         </div>
 
@@ -98,8 +99,8 @@ export default function MediaField({
             }}
           />
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => inputRef.current?.click()} disabled={busy}>
-              {busy ? "Uploading…" : value ? "Replace" : "Upload"}
+            <Button tone={value ? "default" : "primary"} onClick={() => inputRef.current?.click()} disabled={busy}>
+              {busy ? "Uploading…" : value ? `Change ${noun}` : `${wantsVideo ? "🎬" : "📷"} Choose a ${noun}`}
             </Button>
             {value ? (
               <Button tone="danger" onClick={() => onChange("")}>
@@ -107,13 +108,23 @@ export default function MediaField({
               </Button>
             ) : null}
           </div>
-          <input
-            className="w-full rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-[12px] text-neutral-300 outline-none focus:border-neutral-500"
-            placeholder="…or paste a URL"
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-          />
-          {error ? <p className="text-[12px] text-red-400">{error}</p> : null}
+          {showUrl || /^https?:\/\//i.test(value) ? (
+            <input
+              className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-[14px] text-neutral-300 outline-none focus:border-neutral-500"
+              placeholder="Paste a link to a picture instead"
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowUrl(true)}
+              className="self-start text-[13px] text-neutral-500 underline underline-offset-2 hover:text-neutral-300"
+            >
+              …or paste a link instead
+            </button>
+          )}
+          {error ? <p className="text-[13px] text-red-400">{error}</p> : null}
         </div>
       </div>
 

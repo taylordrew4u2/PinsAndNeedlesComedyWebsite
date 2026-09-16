@@ -40,7 +40,7 @@ time during one bar hour, and it has to cost nothing to run.
 <br><em>The QR entry shows only a countdown, then switches to the submission prompt during the configured opening window.</em>
 </td>
 <td width="50%" valign="top">
-<img src="docs/images/admin.png" alt="The admin Bad Decisions tab: a Tonight panel with a live count, Draw one, Refresh and Archive everything buttons, above the page's own settings." width="100%">
+<img src="docs/images/admin.png" alt="The admin's Bad Decisions tab: a Run tonight's show button, the page-is-live switch, and the Tonight's pile panel with a live count and a Draw one button. The page's own settings wait under More options." width="100%">
 <br><em>What the host has open on stage. Draw one picks at random on the server, so two phones can never pull the same submission.</em>
 </td>
 </tr>

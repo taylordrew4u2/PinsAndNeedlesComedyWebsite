@@ -1,28 +1,49 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AiHint } from "@/lib/writer";
 import { splitList } from "@/lib/writer";
 import { writeField } from "./write-client";
 
+/**
+ * The admin's building blocks.
+ *
+ * Sized for a comedian on a phone after a show: 16px inputs so iOS does not
+ * zoom, tap targets you cannot miss, labels in plain sentences, and help text
+ * under the label instead of squeezed beside it. The rule every tab follows
+ * with these: the handful of fields someone touches every week sit in the
+ * open, and everything else waits behind a <More> — never in the way, never
+ * gone.
+ */
+
+/** True when "Show everything" is on: every <More> then starts open. */
+export const Everything = createContext(false);
+
 export function Section({
   title,
+  icon,
   hint,
   children,
 }: {
   title: string;
+  icon?: string;
   hint?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="mb-8 rounded-lg border border-neutral-800 bg-neutral-950">
-      <header className="border-b border-neutral-800 px-4 py-3">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[0.18em] text-neutral-200">
+    <section className="mb-6 rounded-2xl border border-neutral-800 bg-neutral-950">
+      <header className="border-b border-neutral-800 px-5 py-4">
+        <h2 className="flex items-center gap-2.5 text-[19px] font-semibold text-neutral-50">
+          {icon ? (
+            <span aria-hidden="true" className="text-[22px] leading-none">
+              {icon}
+            </span>
+          ) : null}
           {title}
         </h2>
-        {hint ? <p className="mt-1 text-[12px] text-neutral-500">{hint}</p> : null}
+        {hint ? <p className="mt-1.5 text-[14px] leading-relaxed text-neutral-400">{hint}</p> : null}
       </header>
-      <div className="grid min-w-0 grid-cols-1 gap-4 p-4">{children}</div>
+      <div className="grid min-w-0 grid-cols-1 gap-5 p-5">{children}</div>
     </section>
   );
 }
@@ -49,9 +70,9 @@ export function Label({
   bare?: boolean;
 }) {
   return (
-    <span className={`${bare ? "" : "mb-1.5 "}block text-[11px] uppercase tracking-[0.14em] text-neutral-400`}>
-      {children}
-      {hint ? <span className="ml-2 normal-case tracking-normal text-neutral-600">{hint}</span> : null}
+    <span className={`${bare ? "" : "mb-2 "}block`}>
+      <span className="block text-[15px] font-medium text-neutral-100">{children}</span>
+      {hint ? <span className="mt-0.5 block text-[13px] leading-snug text-neutral-500">{hint}</span> : null}
     </span>
   );
 }
@@ -87,15 +108,19 @@ export function WriteButton({
 
   return (
     <span className="flex shrink-0 items-center gap-2">
-      {error ? <span className="max-w-[240px] truncate text-[11px] normal-case tracking-normal text-red-400" title={error}>{error}</span> : null}
+      {error ? (
+        <span className="max-w-[200px] truncate text-[12px] text-red-400" title={error}>
+          {error}
+        </span>
+      ) : null}
       <button
         type="button"
         onClick={() => void run()}
         disabled={busy}
         title={hint.image ? "Look at the picture and write this" : "Write this for search and AI answer engines"}
-        className="rounded border border-neutral-700 px-2 py-0.5 text-[11px] normal-case tracking-normal text-neutral-300 transition-colors hover:border-neutral-400 hover:text-white disabled:cursor-wait disabled:opacity-50"
+        className="min-h-[36px] rounded-lg border border-neutral-700 px-3 py-1.5 text-[13px] font-medium text-neutral-200 transition-colors hover:border-white hover:text-white disabled:cursor-wait disabled:opacity-50"
       >
-        {busy ? "Writing…" : current.trim() ? "✦ Rewrite" : "✦ Write"}
+        {busy ? "Writing…" : current.trim() ? "✦ Rewrite for me" : "✦ Write it for me"}
       </button>
     </span>
   );
@@ -117,7 +142,7 @@ function Head({
 }) {
   if (!ai) return <Label hint={hint}>{label}</Label>;
   return (
-    <span className="mb-1.5 flex items-start justify-between gap-3">
+    <span className="mb-2 flex items-start justify-between gap-3">
       <Label hint={hint} bare>
         {label}
       </Label>
@@ -127,7 +152,7 @@ function Head({
 }
 
 const inputClass =
-  "w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-[14px] text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-neutral-400";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3.5 py-3 text-[16px] text-neutral-50 outline-none transition-colors placeholder:text-neutral-600 focus:border-white focus:ring-2 focus:ring-white/15";
 
 export function Text({
   label,
@@ -148,7 +173,7 @@ export function Text({
   ai?: AiHint;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <Head label={label} hint={hint} ai={ai} current={value} onWrite={onChange} />
       <input
         className={inputClass}
@@ -180,7 +205,7 @@ export function Area({
   ai?: AiHint;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <Head label={label} hint={hint} ai={ai} current={value} onWrite={onChange} />
       <textarea
         className={`${inputClass} resize-y leading-relaxed`}
@@ -201,6 +226,7 @@ export function Num({
   max = 100,
   step = 1,
   suffix,
+  hint,
 }: {
   label: string;
   value: number;
@@ -209,12 +235,13 @@ export function Num({
   max?: number;
   step?: number;
   suffix?: string;
+  hint?: string;
 }) {
   return (
-    <label className="block">
-      <Label>
+    <label className="block min-w-0">
+      <Label hint={hint}>
         {label}
-        <span className="ml-2 text-neutral-500">
+        <span className="ml-2 font-normal text-neutral-500">
           {value}
           {suffix ?? ""}
         </span>
@@ -222,7 +249,7 @@ export function Num({
       <div className="flex items-center gap-3">
         <input
           type="range"
-          className="h-1 w-full accent-white"
+          className="h-1.5 w-full accent-white"
           min={min}
           max={max}
           step={step}
@@ -231,7 +258,7 @@ export function Num({
         />
         <input
           type="number"
-          className="w-20 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-[13px] text-neutral-100 outline-none focus:border-neutral-400"
+          className="w-24 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-[16px] text-neutral-50 outline-none focus:border-white"
           min={min}
           max={max}
           step={step}
@@ -257,7 +284,7 @@ export function Select<T extends string>({
   hint?: string;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <Label hint={hint}>{label}</Label>
       <select
         className={inputClass}
@@ -286,21 +313,26 @@ export function Toggle({
   hint?: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2.5">
-      <span>
-        <span className="block text-[13px] text-neutral-200">{label}</span>
-        {hint ? <span className="block text-[11px] text-neutral-500">{hint}</span> : null}
+    <label className="flex min-w-0 cursor-pointer items-center justify-between gap-4 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3.5">
+      <span className="min-w-0">
+        <span className="block text-[15px] font-medium text-neutral-50">{label}</span>
+        {hint ? <span className="block text-[13px] leading-snug text-neutral-500">{hint}</span> : null}
       </span>
-      <span
-        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-          value ? "bg-white" : "bg-neutral-700"
-        }`}
-      >
+      <span className="flex shrink-0 items-center gap-2">
+        <span className={`text-[12px] font-medium ${value ? "text-emerald-400" : "text-neutral-500"}`}>
+          {value ? "On" : "Off"}
+        </span>
         <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
-            value ? "left-[18px] bg-black" : "left-0.5 bg-neutral-300"
+          className={`relative h-7 w-12 rounded-full transition-colors ${
+            value ? "bg-emerald-500" : "bg-neutral-700"
           }`}
-        />
+        >
+          <span
+            className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
+              value ? "left-6" : "left-1"
+            }`}
+          />
+        </span>
       </span>
       <input
         type="checkbox"
@@ -322,12 +354,12 @@ export function Color({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <Label>{label}</Label>
       <div className="flex items-center gap-2">
         <input
           type="color"
-          className="h-9 w-12 cursor-pointer rounded border border-neutral-700 bg-neutral-900"
+          className="h-12 w-14 shrink-0 cursor-pointer rounded-lg border border-neutral-700 bg-neutral-900"
           value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -341,69 +373,249 @@ export function Color({
   );
 }
 
+type Tone = "default" | "ghost" | "danger" | "primary";
+type Size = "normal" | "big";
+
+const buttonTones: Record<Tone, string> = {
+  default: "border-neutral-700 bg-neutral-900 text-neutral-100 hover:border-neutral-400",
+  ghost: "border-transparent bg-transparent text-neutral-400 hover:text-white",
+  danger: "border-red-900/60 bg-red-950/40 text-red-300 hover:border-red-500",
+  primary: "border-white bg-white text-black hover:bg-neutral-200",
+};
+
+const buttonSizes: Record<Size, string> = {
+  normal: "min-h-[42px] rounded-lg px-3.5 py-2 text-[14px]",
+  big: "min-h-[54px] rounded-xl px-5 py-3 text-[16px]",
+};
+
+const buttonBase =
+  "inline-flex items-center justify-center gap-2 border font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+
 export function Button({
   children,
   onClick,
   tone = "default",
+  size = "normal",
   type = "button",
   disabled,
+  title,
 }: {
   children: ReactNode;
   onClick?: () => void;
-  tone?: "default" | "ghost" | "danger" | "primary";
+  tone?: Tone;
+  size?: Size;
   type?: "button" | "submit";
   disabled?: boolean;
+  title?: string;
 }) {
-  const tones = {
-    default: "border-neutral-700 bg-neutral-900 text-neutral-200 hover:border-neutral-500",
-    ghost: "border-transparent bg-transparent text-neutral-400 hover:text-neutral-100",
-    danger: "border-red-900/60 bg-red-950/40 text-red-300 hover:border-red-600",
-    primary: "border-white bg-white text-black hover:bg-neutral-200",
-  } as const;
-
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tones[tone]}`}
+      title={title}
+      className={`${buttonBase} ${buttonSizes[size]} ${buttonTones[tone]}`}
     >
       {children}
     </button>
   );
 }
 
-export function Card({
-  title,
-  subtitle,
-  actions,
+/** A link that looks like a button — for pages and the public site. */
+export function LinkButton({
+  href,
   children,
-  defaultOpen = false,
+  tone = "default",
+  size = "normal",
+  external,
 }: {
-  title: string;
-  subtitle?: string;
-  actions?: ReactNode;
+  href: string;
+  children: ReactNode;
+  tone?: Tone;
+  size?: Size;
+  /** Opens in a new tab. */
+  external?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noreferrer" : undefined}
+      className={`${buttonBase} ${buttonSizes[size]} ${buttonTones[tone]}`}
+    >
+      {children}
+    </a>
+  );
+}
+
+/** A row of small buttons under a thing: move up, move down, delete. */
+export function Actions({ children }: { children: ReactNode }) {
+  return <div className="flex flex-wrap gap-2">{children}</div>;
+}
+
+/** Autosave makes a delete final within a second, so every one asks first. */
+export function confirmDelete(what: string): boolean {
+  return window.confirm(`Delete ${what}? This can't be undone.`);
+}
+
+export function Pill({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: "live" | "draft" | "past" | "warn" | "neutral";
+}) {
+  const tones = {
+    live: "border-emerald-800 bg-emerald-950 text-emerald-300",
+    draft: "border-amber-800 bg-amber-950 text-amber-300",
+    past: "border-neutral-700 bg-neutral-900 text-neutral-400",
+    warn: "border-red-800 bg-red-950 text-red-300",
+    neutral: "border-neutral-700 bg-neutral-900 text-neutral-300",
+  } as const;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[12px] font-medium ${tones[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** A friendly box of words: what something is, or what just happened. */
+export function Note({
+  children,
+  tone = "info",
+}: {
+  children: ReactNode;
+  tone?: "info" | "good" | "warn" | "bad";
+}) {
+  const tones = {
+    info: "border-neutral-800 bg-neutral-900 text-neutral-300",
+    good: "border-emerald-800/60 bg-emerald-950/40 text-emerald-200",
+    warn: "border-amber-800/60 bg-amber-950/40 text-amber-200",
+    bad: "border-red-800/60 bg-red-950/40 text-red-200",
+  } as const;
+  return (
+    <div className={`rounded-xl border px-4 py-3 text-[14px] leading-relaxed ${tones[tone]}`}>
+      {children}
+    </div>
+  );
+}
+
+/** Numbered instructions. */
+export function Steps({ children }: { children: ReactNode }) {
+  return (
+    <ol className="ml-5 list-decimal space-y-1.5 text-[14px] leading-relaxed text-neutral-300">
+      {children}
+    </ol>
+  );
+}
+
+/**
+ * Where the rarely-touched fields live. Closed by default, so a page shows
+ * only what matters most; "Show everything" in the header opens all of them.
+ */
+export function More({
+  title = "More options",
+  hint,
+  children,
+  defaultOpen,
+}: {
+  title?: string;
+  hint?: string;
   children: ReactNode;
   defaultOpen?: boolean;
 }) {
+  const everything = useContext(Everything);
+  const [open, setOpen] = useState(defaultOpen ?? everything);
+  return (
+    <div className="min-w-0 rounded-xl border border-dashed border-neutral-700 bg-neutral-900/30">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-[15px] font-medium text-neutral-200">
+            <span aria-hidden="true" className="mr-2 text-neutral-500">
+              {open ? "▾" : "▸"}
+            </span>
+            {title}
+          </span>
+          {hint ? <span className="block pl-5 text-[13px] leading-snug text-neutral-500">{hint}</span> : null}
+        </span>
+        <span className="shrink-0 rounded-md border border-neutral-700 px-2 py-1 text-[12px] text-neutral-400">
+          {open ? "Hide" : "Show"}
+        </span>
+      </button>
+      {open ? (
+        <div className="grid min-w-0 grid-cols-1 gap-5 border-t border-neutral-800 p-4">{children}</div>
+      ) : null}
+    </div>
+  );
+}
+
+/** One item in a list — a show, a post, a person. Tap the top to open it. */
+export function Card({
+  title,
+  subtitle,
+  badge,
+  actions,
+  children,
+  defaultOpen = false,
+  highlight = false,
+}: {
+  title: string;
+  subtitle?: string;
+  /** A status pill shown at the right of the title. */
+  badge?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  /** Scroll this card into view when it appears — for "I just made this, show me". */
+  highlight?: boolean;
+}) {
+  const ref = useRef<HTMLDetailsElement | null>(null);
+  // Tracked here rather than read off the DOM: a CSS `[open]` ancestor
+  // selector would also match an open card wrapped around this one, and
+  // the marker must follow this card alone.
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    if (highlight) ref.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [highlight]);
   return (
     <details
-      open={defaultOpen}
-      className="group min-w-0 rounded-lg border border-neutral-800 bg-neutral-950 open:bg-neutral-900/40"
+      ref={ref}
+      open={open}
+      onToggle={(event) => {
+        // React bubbles toggle synthetically, so a nested card's toggle
+        // lands here too; only this element's own state counts.
+        if (event.target === event.currentTarget) setOpen(event.currentTarget.open);
+      }}
+      className="min-w-0 scroll-mt-44 rounded-xl border border-neutral-800 bg-neutral-950 open:border-neutral-600 open:bg-neutral-900/40"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
-        <span className="min-w-0">
-          <span className="block truncate text-[14px] text-neutral-100">{title || "Untitled"}</span>
-          {subtitle ? (
-            <span className="block truncate text-[11px] text-neutral-500">{subtitle}</span>
-          ) : null}
+      <summary className="flex min-h-[56px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className={`shrink-0 text-[11px] text-neutral-500 transition-transform ${open ? "rotate-90" : ""}`}
+          >
+            ▶
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[16px] font-medium text-neutral-50">{title || "Untitled"}</span>
+            {subtitle ? (
+              <span className="block truncate text-[13px] text-neutral-500">{subtitle}</span>
+            ) : null}
+          </span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
+          {badge}
           {actions}
-          <span className="text-[11px] text-neutral-500">Details</span>
         </span>
       </summary>
-      <div className="grid min-w-0 grid-cols-1 gap-4 border-t border-neutral-800 p-4">{children}</div>
+      <div className="grid min-w-0 grid-cols-1 gap-5 border-t border-neutral-800 p-4">{children}</div>
     </details>
   );
 }
@@ -423,10 +635,10 @@ export function Tags({
   ai?: AiHint;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <Head
         label={label}
-        hint={hint ?? "comma separated"}
+        hint={hint ?? "Separate each one with a comma"}
         ai={ai}
         current={value.join(", ")}
         onWrite={(text) => onChange(splitList(text))}
@@ -445,4 +657,9 @@ export function Tags({
       />
     </label>
   );
+}
+
+/** A small heading that groups a few fields inside a panel. */
+export function Sub({ children }: { children: ReactNode }) {
+  return <h3 className="-mb-2 text-[15px] font-semibold text-neutral-200">{children}</h3>;
 }
