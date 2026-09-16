@@ -8,6 +8,13 @@ import type { Update } from "../types";
 
 export default function ContactTab({ content, update }: { content: Content; update: Update }) {
   const { contact } = content;
+  const page = {
+    page: "contact: bookings, performer submissions, press",
+    url: "/contact",
+    email: contact.email,
+    bookingEmail: contact.bookingEmail,
+    city: contact.city,
+  };
 
   return (
     <>
@@ -16,12 +23,14 @@ export default function ContactTab({ content, update }: { content: Content; upda
           label="Heading"
           value={contact.heading}
           onChange={(v) => update((d) => void (d.contact.heading = v))}
+          ai={{ what: "contact page heading", about: page }}
         />
         <Area
           label="Intro"
           rows={2}
           value={contact.intro}
           onChange={(v) => update((d) => void (d.contact.intro = v))}
+          ai={{ what: "contact page intro", about: page }}
         />
         <Row>
           <Text
@@ -99,6 +108,7 @@ export default function ContactTab({ content, update }: { content: Content; upda
         title="Contact SEO & AI SEO"
         seo={contact.seo}
         suggestion={suggestFor(content, "contact")}
+        about={page}
         onChange={(seo) => update((d) => void (d.contact.seo = seo))}
       />
     </>

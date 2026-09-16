@@ -16,12 +16,14 @@ export default function ShopTab({ content, update }: { content: Content; update:
           label="Heading"
           value={shop.heading}
           onChange={(v) => update((d) => void (d.shop.heading = v))}
+          ai={{ what: "shop page heading", about: { page: "merch shop", url: "/shop" } }}
         />
         <Area
           label="Intro"
           rows={2}
           value={shop.intro}
           onChange={(v) => update((d) => void (d.shop.intro = v))}
+          ai={{ what: "shop page intro", about: { page: "merch shop", url: "/shop" } }}
         />
       </Section>
 
@@ -74,6 +76,7 @@ export default function ShopTab({ content, update }: { content: Content; update:
           label="Button label"
           value={shop.storefrontLabel}
           onChange={(v) => update((d) => void (d.shop.storefrontLabel = v))}
+          ai={{ what: "button label linking out to the storefront", about: { page: "merch shop", storefront: shop.storefrontUrl } }}
         />
       </Section>
 
@@ -81,6 +84,7 @@ export default function ShopTab({ content, update }: { content: Content; update:
         title="Shop SEO & AI SEO"
         seo={shop.seo}
         suggestion={suggestFor(content, "shop")}
+        about={{ page: "merch shop", url: "/shop", intro: shop.intro }}
         onChange={(seo) => update((d) => void (d.shop.seo = seo))}
       />
     </>

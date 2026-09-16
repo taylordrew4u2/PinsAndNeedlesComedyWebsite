@@ -8,6 +8,7 @@ import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
 import type { Update } from "../types";
+import { aboutWeekly } from "@/lib/writer";
 
 const WEEKDAYS = (
   ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const
@@ -18,6 +19,8 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
   const posterAspect = aspectValue(content.showsPage.posterAspect);
   const set = <K extends keyof WeeklyPage>(key: K) => (value: WeeklyPage[K]) =>
     update((d) => void (d.weekly[key] = value));
+  const about = aboutWeekly(weekly);
+  const ai = (what: string) => ({ what, about });
 
   return (
     <>
@@ -38,8 +41,8 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
           value={weekly.enabled}
           onChange={set("enabled")}
         />
-        <Text label="Title" value={weekly.title} onChange={set("title")} />
-        <Area label="Tagline" rows={2} value={weekly.tagline} onChange={set("tagline")} />
+        <Text label="Title" value={weekly.title} onChange={set("title")} ai={ai("weekly show title")} />
+        <Area label="Tagline" rows={2} value={weekly.tagline} onChange={set("tagline")} ai={ai("weekly show tagline")} />
         <Row>
           <Select label="Night" value={weekly.weekday} options={WEEKDAYS} onChange={set("weekday")} />
           <Text label="Doors" type="time" value={weekly.doorsTime} onChange={set("doorsTime")} />
@@ -74,18 +77,23 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
           aspect={posterAspect}
           previewHeight={180}
         />
-        <Text label="Poster alt text" value={weekly.posterAlt} onChange={set("posterAlt")} />
+        <Text
+          label="Poster alt text"
+          value={weekly.posterAlt}
+          onChange={set("posterAlt")}
+          ai={{ what: "poster alt text", about, image: weekly.posterUrl }}
+        />
       </Section>
 
       <Section title="The form" hint="What people see on their phone. Keep every line short.">
-        <Text label="The question" value={weekly.question} onChange={set("question")} />
-        <Text label="Placeholder inside the box" value={weekly.placeholder} onChange={set("placeholder")} />
-        <Text label="Name toggle label" value={weekly.namePrompt} onChange={set("namePrompt")} />
-        <Area label="Small print under the form" rows={2} value={weekly.formNote} onChange={set("formNote")} />
+        <Text label="The question" value={weekly.question} onChange={set("question")} ai={ai("the question the submission form asks the audience")} />
+        <Text label="Placeholder inside the box" value={weekly.placeholder} onChange={set("placeholder")} ai={ai("placeholder inside the decision box")} />
+        <Text label="Name toggle label" value={weekly.namePrompt} onChange={set("namePrompt")} ai={ai("label on the toggle to put your name on your decision")} />
+        <Area label="Small print under the form" rows={2} value={weekly.formNote} onChange={set("formNote")} ai={ai("small print under the submission form")} />
         <Row>
-          <Text label="Button text" value={weekly.submitLabel} onChange={set("submitLabel")} />
+          <Text label="Button text" value={weekly.submitLabel} onChange={set("submitLabel")} ai={ai("submit button text")} />
         </Row>
-        <Area label="After they send" rows={2} value={weekly.thanksText} onChange={set("thanksText")} />
+        <Area label="After they send" rows={2} value={weekly.thanksText} onChange={set("thanksText")} ai={ai("thank-you message after a decision is sent")} />
         <Text
           label="Text-in number"
           hint="optional — leave blank to hide it. A free Google Voice number works; texts land in your Google Voice inbox."
@@ -99,6 +107,7 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
             hint="{number} is replaced with the number above"
             value={weekly.smsNote}
             onChange={set("smsNote")}
+            ai={ai("one line offering the text-in number, containing the literal token {number}")}
           />
         ) : null}
         <Toggle
@@ -135,6 +144,7 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
           hint="{when} becomes the night and time it opens — e.g. Thursday at 8:00 PM"
           value={weekly.closedText}
           onChange={set("closedText")}
+          ai={ai("message shown while the form is shut, containing the literal token {when}")}
         />
         <Toggle
           label="Keep the form open all the time"
@@ -151,6 +161,7 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
           rows={5}
           value={weekly.howItWorks}
           onChange={set("howItWorks")}
+          ai={ai("how the show works (page body)")}
         />
         <Toggle
           label="Include recurring dates on Shows"
@@ -164,6 +175,7 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
         title="Bad Decisions SEO & AI SEO"
         seo={weekly.seo}
         suggestion={suggestFor(content, "weekly")}
+        about={about}
         onChange={set("seo")}
       />
     </>

@@ -9,6 +9,7 @@ import type { Update } from "../types";
 
 export default function AboutTab({ content, update }: { content: Content; update: Update }) {
   const { about } = content;
+  const page = { page: "about the show and the people who run it", url: "/about" };
 
   return (
     <>
@@ -17,11 +18,13 @@ export default function AboutTab({ content, update }: { content: Content; update
           label="Heading"
           value={about.heading}
           onChange={(v) => update((d) => void (d.about.heading = v))}
+          ai={{ what: "about page heading", about: page }}
         />
         <Text
           label="Intro line"
           value={about.intro}
           onChange={(v) => update((d) => void (d.about.intro = v))}
+          ai={{ what: "about page intro line", about: page }}
         />
         <Area
           label="Our story"
@@ -29,6 +32,7 @@ export default function AboutTab({ content, update }: { content: Content; update
           rows={16}
           value={about.story}
           onChange={(v) => update((d) => void (d.about.story = v))}
+          ai={{ what: "our story (about page body)", about: page }}
         />
       </Section>
 
@@ -73,11 +77,13 @@ export default function AboutTab({ content, update }: { content: Content; update
                 label="Caption"
                 value={logo.caption}
                 onChange={(v) => update((d) => void (d.about.logos[index].caption = v))}
+                ai={{ what: "logo caption", about: { item: "one version of the brand logo" }, image: logo.url }}
               />
               <Text
                 label="Alt text"
                 value={logo.alt}
                 onChange={(v) => update((d) => void (d.about.logos[index].alt = v))}
+                ai={{ what: "logo alt text", about: { item: "one version of the brand logo" }, image: logo.url }}
               />
             </Row>
             <div className="flex flex-wrap gap-2">
@@ -144,6 +150,7 @@ export default function AboutTab({ content, update }: { content: Content; update
           label="Section heading"
           value={about.producersHeading}
           onChange={(v) => update((d) => void (d.about.producersHeading = v))}
+          ai={{ what: "heading over the producers section", about: page }}
         />
 
         {about.producers.map((producer, index) => (
@@ -171,18 +178,28 @@ export default function AboutTab({ content, update }: { content: Content; update
                 label="Role"
                 value={producer.role}
                 onChange={(v) => update((d) => void (d.about.producers[index].role = v))}
+                ai={{ what: "producer role title", about: { person: producer.name, bio: producer.bio } }}
               />
             </Row>
             <Text
               label="Headshot alt text"
               value={producer.headshotAlt}
               onChange={(v) => update((d) => void (d.about.producers[index].headshotAlt = v))}
+              ai={{
+                what: "headshot alt text",
+                about: { person: producer.name, role: producer.role },
+                image: producer.headshotUrl,
+              }}
             />
             <Area
               label="Bio"
               rows={6}
               value={producer.bio}
               onChange={(v) => update((d) => void (d.about.producers[index].bio = v))}
+              ai={{
+                what: "producer bio",
+                about: { person: producer.name, role: producer.role, links: producer.links.map((l) => l.url) },
+              }}
             />
 
             {producer.links.map((link, linkIndex) => (
@@ -273,6 +290,7 @@ export default function AboutTab({ content, update }: { content: Content; update
         title="About SEO & AI SEO"
         seo={about.seo}
         suggestion={suggestFor(content, "about")}
+        about={page}
         onChange={(seo) => update((d) => void (d.about.seo = seo))}
       />
     </>

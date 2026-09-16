@@ -1,6 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import type { AiHint } from "@/lib/writer";
+import { splitList } from "@/lib/writer";
+import { writeField } from "./write-client";
 
 export function Section({
   title,
@@ -35,11 +38,90 @@ export function Row({ children }: { children: ReactNode }) {
   );
 }
 
-export function Label({ children, hint }: { children: ReactNode; hint?: string }) {
+export function Label({
+  children,
+  hint,
+  bare,
+}: {
+  children: ReactNode;
+  hint?: string;
+  /** No bottom margin — for when the label sits in a row with a button. */
+  bare?: boolean;
+}) {
   return (
-    <span className="mb-1.5 block text-[11px] uppercase tracking-[0.14em] text-neutral-400">
+    <span className={`${bare ? "" : "mb-1.5 "}block text-[11px] uppercase tracking-[0.14em] text-neutral-400`}>
       {children}
       {hint ? <span className="ml-2 normal-case tracking-normal text-neutral-600">{hint}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * The "write it for me" control on a copy field. Sends what the field is and
+ * what it is about to the server, which answers with copy tuned for search
+ * and AI answer engines; the result lands in the field like typing would.
+ */
+export function WriteButton({
+  hint,
+  current,
+  onWrite,
+}: {
+  hint: AiHint;
+  current: string;
+  onWrite: (text: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const run = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      onWrite(await writeField(hint, current));
+    } catch (writeError) {
+      setError(writeError instanceof Error ? writeError.message : "Could not write that");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <span className="flex shrink-0 items-center gap-2">
+      {error ? <span className="max-w-[240px] truncate text-[11px] normal-case tracking-normal text-red-400" title={error}>{error}</span> : null}
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={busy}
+        title={hint.image ? "Look at the picture and write this" : "Write this for search and AI answer engines"}
+        className="rounded border border-neutral-700 px-2 py-0.5 text-[11px] normal-case tracking-normal text-neutral-300 transition-colors hover:border-neutral-400 hover:text-white disabled:cursor-wait disabled:opacity-50"
+      >
+        {busy ? "Writing…" : current.trim() ? "✦ Rewrite" : "✦ Write"}
+      </button>
+    </span>
+  );
+}
+
+/** Label row for a field: the label on the left, the write button on the right when there is one. */
+function Head({
+  label,
+  hint,
+  ai,
+  current,
+  onWrite,
+}: {
+  label: ReactNode;
+  hint?: string;
+  ai?: AiHint;
+  current: string;
+  onWrite: (text: string) => void;
+}) {
+  if (!ai) return <Label hint={hint}>{label}</Label>;
+  return (
+    <span className="mb-1.5 flex items-start justify-between gap-3">
+      <Label hint={hint} bare>
+        {label}
+      </Label>
+      <WriteButton hint={ai} current={current} onWrite={onWrite} />
     </span>
   );
 }
@@ -54,6 +136,7 @@ export function Text({
   placeholder,
   hint,
   type = "text",
+  ai,
 }: {
   label: string;
   value: string;
@@ -61,10 +144,12 @@ export function Text({
   placeholder?: string;
   hint?: string;
   type?: string;
+  /** Adds a Write button that fills the field with search- and AI-tuned copy. */
+  ai?: AiHint;
 }) {
   return (
     <label className="block">
-      <Label hint={hint}>{label}</Label>
+      <Head label={label} hint={hint} ai={ai} current={value} onWrite={onChange} />
       <input
         className={inputClass}
         type={type}
@@ -83,6 +168,7 @@ export function Area({
   rows = 5,
   placeholder,
   hint,
+  ai,
 }: {
   label: string;
   value: string;
@@ -90,10 +176,12 @@ export function Area({
   rows?: number;
   placeholder?: string;
   hint?: string;
+  /** Adds a Write button that fills the field with search- and AI-tuned copy. */
+  ai?: AiHint;
 }) {
   return (
     <label className="block">
-      <Label hint={hint}>{label}</Label>
+      <Head label={label} hint={hint} ai={ai} current={value} onWrite={onChange} />
       <textarea
         className={`${inputClass} resize-y leading-relaxed`}
         rows={rows}
@@ -326,15 +414,24 @@ export function Tags({
   value,
   onChange,
   hint,
+  ai,
 }: {
   label: string;
   value: string[];
   onChange: (value: string[]) => void;
   hint?: string;
+  /** Adds a Write button that fills the list with search phrases. */
+  ai?: AiHint;
 }) {
   return (
     <label className="block">
-      <Label hint={hint ?? "comma separated"}>{label}</Label>
+      <Head
+        label={label}
+        hint={hint ?? "comma separated"}
+        ai={ai}
+        current={value.join(", ")}
+        onWrite={(text) => onChange(splitList(text))}
+      />
       <input
         className={inputClass}
         value={value.join(", ")}

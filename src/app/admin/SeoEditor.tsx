@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { addSuggestedFaqs } from "@/lib/seo";
 import type { Seo } from "@/lib/types";
 import type { Suggestion } from "./suggest";
 import { Area, Button, Label, Tags, Text, Toggle } from "./ui";
 import MediaField from "./MediaField";
+import { writeSeo } from "./write-client";
 
 function Meter({ value, ideal, max }: { value: number; ideal: [number, number]; max: number }) {
   const ok = value >= ideal[0] && value <= ideal[1];
@@ -22,14 +24,41 @@ export default function SeoEditor({
   onChange,
   title,
   hint,
+  about,
 }: {
   seo: Seo;
   suggestion: Suggestion;
   onChange: (next: Seo) => void;
   title?: string;
   hint?: string;
+  /** Facts about the page, for the Write buttons. */
+  about: Record<string, unknown>;
 }) {
   const set = <K extends keyof Seo>(key: K, value: Seo[K]) => onChange({ ...seo, [key]: value });
+  const [writing, setWriting] = useState(false);
+  const [writeError, setWriteError] = useState("");
+
+  const writeAll = async () => {
+    setWriting(true);
+    setWriteError("");
+    try {
+      const draft = await writeSeo(about, seo);
+      onChange({
+        ...seo,
+        title: draft.title || seo.title,
+        description: draft.description || seo.description,
+        keywords: draft.keywords.length ? draft.keywords : seo.keywords,
+        aiSummary: draft.aiSummary || seo.aiSummary,
+        ogImage: seo.ogImage || suggestion.ogImage,
+        canonical: seo.canonical || suggestion.canonical,
+        faq: addSuggestedFaqs(seo.faq, draft.faq),
+      });
+    } catch (error) {
+      setWriteError(error instanceof Error ? error.message : "Could not write that");
+    } finally {
+      setWriting(false);
+    }
+  };
 
   const applyAll = () =>
     onChange({
@@ -48,14 +77,23 @@ export default function SeoEditor({
       <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-neutral-200">{title ?? "SEO & AI SEO"}</summary>
       <div className="grid gap-4 border-t border-neutral-800 p-4">
         <p className="text-xs text-neutral-500">{hint ?? "Edit search titles, descriptions and FAQs here. Changes save automatically."}</p>
-      <div className="flex flex-wrap gap-2">
-        <Button tone="primary" onClick={applyAll}>
-          Regenerate all suggestions
+      <div className="flex flex-wrap items-center gap-2">
+        <Button tone="primary" onClick={() => void writeAll()} disabled={writing}>
+          {writing ? "Writing…" : "✦ Write all with AI"}
         </Button>
+        <Button onClick={applyAll}>Use the built-in suggestions</Button>
+        <span className="text-[11px] text-neutral-500">
+          {writeError || "AI writes title, description, keywords, summary and FAQ for search and answer engines."}
+        </span>
       </div>
 
       <div>
-        <Text label="Meta title" value={seo.title} onChange={(value) => set("title", value)} />
+        <Text
+          label="Meta title"
+          value={seo.title}
+          onChange={(value) => set("title", value)}
+          ai={{ what: "meta title", about }}
+        />
         <div className="mt-1 flex items-center justify-between gap-3">
           <Meter value={seo.title.length} ideal={[30, 60]} max={60} />
           <Button tone="ghost" onClick={() => set("title", suggestion.title)}>
@@ -70,6 +108,7 @@ export default function SeoEditor({
           rows={3}
           value={seo.description}
           onChange={(value) => set("description", value)}
+          ai={{ what: "meta description", about }}
         />
         <div className="mt-1 flex items-center justify-between gap-3">
           <Meter value={seo.description.length} ideal={[120, 158]} max={158} />
@@ -80,7 +119,12 @@ export default function SeoEditor({
       </div>
 
       <div>
-        <Tags label="Keywords" value={seo.keywords} onChange={(value) => set("keywords", value)} />
+        <Tags
+          label="Keywords"
+          value={seo.keywords}
+          onChange={(value) => set("keywords", value)}
+          ai={{ what: "keywords", about }}
+        />
         <div className="mt-1 flex justify-end">
           <Button tone="ghost" onClick={() => set("keywords", suggestion.keywords)}>
             Use suggestion
@@ -95,6 +139,7 @@ export default function SeoEditor({
           rows={4}
           value={seo.aiSummary}
           onChange={(value) => set("aiSummary", value)}
+          ai={{ what: "AI summary", about }}
         />
         <div className="mt-1 flex items-center justify-between gap-3">
           <Meter value={seo.aiSummary.length} ideal={[150, 480]} max={480} />

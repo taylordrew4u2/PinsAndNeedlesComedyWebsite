@@ -11,12 +11,13 @@ export default function HallOfFameTab({ content, update }: { content: Content; u
   const setPerson = (index: number, patch: Partial<HallPerformer>) => update((d) => {
     Object.assign(d.hallOfFame.performers[index], patch);
   });
+  const page = { page: "hall of fame: every comedian who has performed at the show", url: "/hall-of-fame" };
   return <>
     <Section title="Hall of Fame" hint="Celebrate everyone who has taken your stage. Changes save automatically.">
       <a href="/hall-of-fame" target="_blank" rel="noreferrer" className="text-sm underline underline-offset-4">Preview Hall of Fame </a>
-      <Text label="Page heading" value={hall.heading} onChange={(v) => update((d) => void (d.hallOfFame.heading = v))} />
-      <Area label="Introduction" rows={3} value={hall.intro} onChange={(v) => update((d) => void (d.hallOfFame.intro = v))} />
-      <Text label="Empty page message" value={hall.emptyText} onChange={(v) => update((d) => void (d.hallOfFame.emptyText = v))} />
+      <Text label="Page heading" value={hall.heading} onChange={(v) => update((d) => void (d.hallOfFame.heading = v))} ai={{ what: "hall of fame page heading", about: page }} />
+      <Area label="Introduction" rows={3} value={hall.intro} onChange={(v) => update((d) => void (d.hallOfFame.intro = v))} ai={{ what: "hall of fame introduction", about: page }} />
+      <Text label="Empty page message" value={hall.emptyText} onChange={(v) => update((d) => void (d.hallOfFame.emptyText = v))} ai={{ what: "empty state message when no performers are listed", about: page }} />
       <Toggle label="Show Hall of Fame in navigation" value={hall.showInNav} onChange={(v) => update((d) => void (d.hallOfFame.showInNav = v))} />
     </Section>
     <Section title={`Performers (${hall.performers.length})`} hint="Every performer gets an equally sized star, ordered A–Z by display name. No photo needed. New entries start as drafts.">
@@ -29,7 +30,7 @@ export default function HallOfFameTab({ content, update }: { content: Content; u
         return <Card key={person.id} title={person.name || "New performer"} subtitle={person.published ? "Published" : "Draft"} defaultOpen={true}>
         <Text label="Name" value={person.name} onChange={(v) => setPerson(index, { name: v })} />
         <Text label="Credit or show" hint="For example: Headliner · September 2026" value={person.credit} onChange={(v) => setPerson(index, { credit: v })} />
-        <Area label="Short bio" rows={3} value={person.bio} onChange={(v) => setPerson(index, { bio: v })} />
+        <Area label="Short bio" rows={3} value={person.bio} onChange={(v) => setPerson(index, { bio: v })} ai={{ what: "short bio of a comedian who performed at the show (two sentences)", about: { person: person.name, credit: person.credit, social: social?.url || person.linkUrl } }} />
         <Row>
           <label className="grid gap-2 text-sm">Social platform
             <select className="rounded border border-white/20 bg-neutral-900 p-2" value={person.socialPlatform || "instagram"} onChange={(e) => setPerson(index, { socialPlatform: e.target.value as HallPerformer["socialPlatform"] })}>
@@ -50,6 +51,6 @@ export default function HallOfFameTab({ content, update }: { content: Content; u
         </div>
       </Card>; })}
     </Section>
-    <SeoEditor title="Hall of Fame SEO" seo={hall.seo} suggestion={suggestFor(content, "hall")} onChange={(v) => update((d) => void (d.hallOfFame.seo = v))} />
+    <SeoEditor title="Hall of Fame SEO" seo={hall.seo} suggestion={suggestFor(content, "hall")} about={page} onChange={(v) => update((d) => void (d.hallOfFame.seo = v))} />
   </>;
 }
