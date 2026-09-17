@@ -85,11 +85,12 @@ ANTHROPIC_MODEL=claude-opus-5        # optional
 Works on Vercel with nothing else to run. One model reads pictures and writes
 prose.
 
-### Ollama on your own machine (local development)
+### Ollama on your own machine (no key, no bill)
 
-This is the setup that needs no key and no bill. It only works where the site
-and Ollama run on the same machine — see the first bullet below for why a
-deployment cannot use it this way.
+It only works where the site and Ollama run on the same machine — a deployment
+on Vercel cannot reach your laptop. That sounds like it rules out using it for
+the real site. It does not: see "Writing for the live site without a key"
+below.
 
 ```
 ollama serve                       # in its own terminal
@@ -115,6 +116,36 @@ nothing configured, the server not running, the model not pulled, or no vision
 model for flyers — and prints the command that fixes it. It exits non-zero when
 something is wrong, so it also works in a script.
 
+### Writing for the live site without a key
+
+The public pages are `force-dynamic` and read the content store on every
+request. The store is a GitHub repo or a Blob bucket, not the deployment's own
+filesystem. So the admin running on **your machine**, pointed at the same
+`CONTENT_GITHUB_*` (or `BLOB_READ_WRITE_TOKEN`) values the deployment uses,
+edits the **live** content — a post saved there is on the public site seconds
+later, with no rebuild and no deploy.
+
+That is the whole answer to not wanting an API key: the AI helpers never have
+to run on Vercel at all.
+
+1. Copy the deployment's `CONTENT_GITHUB_TOKEN`, `CONTENT_GITHUB_REPO` and
+   `CONTENT_GITHUB_BRANCH` into your `.env.local`, along with
+   `ADMIN_PASSWORD` and `ADMIN_SECRET`.
+2. `ollama serve`, then `npm run dev`.
+3. Write the post at `localhost:3000/admin` and save it. It is live.
+
+Leave `ANTHROPIC_API_KEY` unset on Vercel. The Write buttons there will say
+they need a provider; nothing else on the site cares.
+
+Two things to hold onto:
+
+- **There is no staging in this setup.** Those variables point at the real
+  content. Saving from your laptop is the same act as saving from the deployed
+  admin — the post goes live when you switch it on, not when you deploy.
+- **This only works with the `github` or `blob` driver.** With the default `fs`
+  driver your local admin writes `./data/content.json`, which the deployment
+  never sees.
+
 ### Ollama (the variables in full)
 
 ```
@@ -133,8 +164,8 @@ Four things worth knowing:
 
 - **A deployed site cannot reach your laptop.** `OLLAMA_URL` has to be a host
   Vercel can open — a box with a public address, or a tunnel. `localhost` only
-  works when the site is running on the same machine, which in practice means
-  `npm run dev`.
+  works when the site is running on the same machine. Usually you do not want
+  to solve this at all: write from the local admin instead, as above.
 - **Reading a flyer needs a vision model.** Most text models will refuse the
   image or quietly ignore it. Set `OLLAMA_VISION_MODEL` to something that can
   see (`llama3.2-vision`, `qwen2.5vl`, `llava`) and pull it first. If you skip
