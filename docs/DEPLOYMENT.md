@@ -85,7 +85,37 @@ ANTHROPIC_MODEL=claude-opus-5        # optional
 Works on Vercel with nothing else to run. One model reads pictures and writes
 prose.
 
-### Ollama (a model you host)
+### Ollama on your own machine (local development)
+
+This is the setup that needs no key and no bill. It only works where the site
+and Ollama run on the same machine — see the first bullet below for why a
+deployment cannot use it this way.
+
+```
+ollama serve                       # in its own terminal
+ollama pull llama3.1:8b            # the model that writes
+ollama pull llama3.2-vision        # only if you want flyers read
+```
+
+Then in `.env.local`:
+
+```
+OLLAMA_URL=http://127.0.0.1:11434
+OLLAMA_VISION_MODEL=llama3.2-vision
+```
+
+```
+npm run ai:check                   # says what will answer, and what is missing
+npm run dev
+```
+
+`npm run ai:check` is the thing to run when a Write button says it cannot. From
+inside the admin every cause looks identical; the check names which one it is —
+nothing configured, the server not running, the model not pulled, or no vision
+model for flyers — and prints the command that fixes it. It exits non-zero when
+something is wrong, so it also works in a script.
+
+### Ollama (the variables in full)
 
 ```
 OLLAMA_URL=http://your-host:11434
@@ -99,7 +129,7 @@ Setting `OLLAMA_URL` is taken as meaning it, so it wins over an Anthropic key
 that is also set. `AI_PROVIDER=anthropic` or `AI_PROVIDER=ollama` overrides that
 if you want to be explicit.
 
-Four things worth knowing before you point production at it:
+Four things worth knowing:
 
 - **A deployed site cannot reach your laptop.** `OLLAMA_URL` has to be a host
   Vercel can open — a box with a public address, or a tunnel. `localhost` only
@@ -116,13 +146,6 @@ Four things worth knowing before you point production at it:
   but throws away the `description` on each field, and ours carry most of the
   instructions — so they are repeated in the prompt. Even then, an 8B model
   writes a thinner article than a frontier one. It works; it is not the same.
-
-To check a server is reachable and has the model:
-
-```
-curl http://your-host:11434/api/tags
-ollama pull llama3.1:8b
-```
 
 Whichever provider answered, the News tab's writer names the model in the note
 above the draft, so you can tell at a glance which one you got.
