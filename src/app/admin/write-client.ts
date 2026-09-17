@@ -1,6 +1,7 @@
 "use client";
 
 import type { AiHint, SeoDraft } from "@/lib/writer";
+import type { PostBrief, PostDraft } from "@/lib/post-writer";
 import type { Seo } from "@/lib/types";
 
 async function post(body: Record<string, unknown>) {
@@ -24,4 +25,16 @@ export async function writeField(hint: AiHint, current: string): Promise<string>
 export async function writeSeo(about: Record<string, unknown>, seo: Seo): Promise<SeoDraft> {
   const data = await post({ kind: "seo", about, seo });
   return data.seo as SeoDraft;
+}
+
+/** Ask the server to write a whole news post from a few details and a flyer. */
+export async function writePost(brief: PostBrief): Promise<PostDraft> {
+  const response = await fetch("/api/admin/post", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(brief),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) throw new Error(data.error || "Could not write the post");
+  return data.post as PostDraft;
 }

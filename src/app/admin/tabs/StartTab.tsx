@@ -5,7 +5,6 @@ import type { Content } from "@/lib/types";
 import { formatDate } from "@/lib/render";
 import { nyToday } from "@/lib/shows";
 import { newShow } from "./ShowsTab";
-import { newPost } from "./NewsTab";
 import { newHallPerformer } from "./HallOfFameTab";
 import { Button, Note, Pill, Section } from "../ui";
 import type { Go, Update } from "../types";
@@ -78,11 +77,6 @@ export default function StartTab({
     update((draft) => void draft.shows.unshift(show));
     go("shows", show.id);
   };
-  const addPost = () => {
-    const post = newPost();
-    update((draft) => void draft.posts.unshift(post));
-    go("news", post.id);
-  };
   const addPerformer = () => {
     const person = newHallPerformer();
     update((draft) => void draft.hallOfFame.performers.push(person));
@@ -144,7 +138,12 @@ export default function StartTab({
             onClick={() => go("shows", "flyer")}
           />
           <Job icon="🎲" title="Run tonight's show" hint="Pick decisions and put them on the big screen" href="/admin/run-show" />
-          <Job icon="✍️" title="Write a news post" hint="A recap, an announcement, anything" onClick={addPost} />
+          <Job
+            icon="✍️"
+            title="Write a news post"
+            hint="Type a few details, add the flyer, get a finished post back"
+            onClick={() => go("news", "write")}
+          />
           <Job icon="🎬" title="Add reels" hint="Pull videos in from Instagram" onClick={() => go("reels")} />
           <Job icon="⭐" title="Add someone to the Hall of Fame" hint="A comic who performed with you" onClick={addPerformer} />
           <Job icon="👀" title="Look at the website" hint="Opens in a new tab" href="/" external />

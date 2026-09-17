@@ -24,6 +24,7 @@ import {
   confirmDelete,
 } from "../ui";
 import MediaField from "../MediaField";
+import PostWriter from "../PostWriter";
 import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
 import type { Update } from "../types";
@@ -92,14 +93,26 @@ export default function NewsTab({
         title={`Posts (${content.posts.length})`}
         hint="Recaps and announcements. Tap a post to open it."
       >
+        <Card
+          title="✦ Write a whole post for me"
+          subtitle="Type a few details, add the flyer, get a finished draft"
+          defaultOpen={focus === "write"}
+          highlight={focus === "write"}
+        >
+          <PostWriter
+            coverAspect={coverAspect}
+            create={newPost}
+            update={update}
+            onCreated={setOpened}
+          />
+        </Card>
+
         <div>
-          <Button size="big" tone="primary" onClick={addPost}>
-            ✍️ Write a new post
-          </Button>
+          <Button onClick={addPost}>✍️ Or start an empty post</Button>
         </div>
 
         {content.posts.length === 0 ? (
-          <Note>No posts yet. Tap “Write a new post” to start one.</Note>
+          <Note>No posts yet. Open “Write a whole post for me” above to make the first one.</Note>
         ) : null}
 
         {content.posts.map((post, index) => (
