@@ -3,14 +3,13 @@ import { isAuthed } from "@/lib/auth";
 import { FLYER_PROMPT, FLYER_SCHEMA, normalizeFlyer } from "@/lib/flyer";
 import { nyToday } from "@/lib/shows";
 import {
-  AI_MODEL,
-  AI_UNCONFIGURED,
-  aiClient,
   aiConfigured,
   aiErrorMessage,
+  aiUnconfigured,
+  ask,
+  parseJsonAnswer,
   checkPicture,
   fetchPicture,
-  pictureBlock,
   type Picture,
 } from "@/lib/ai";
 
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   if (!aiConfigured()) {
-    return NextResponse.json({ ok: false, error: AI_UNCONFIGURED }, { status: 503 });
+    return NextResponse.json({ ok: false, error: aiUnconfigured() }, { status: 503 });
   }
 
   const picture = await pictureFrom(request);
@@ -50,28 +49,21 @@ export async function POST(request: Request) {
 
   const today = nyToday();
   try {
-    const client = aiClient();
-    const response = await client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 4000,
+    const answer = await ask({
       system: `${FLYER_PROMPT} Today is ${today}.`,
-      output_config: { effort: "medium", format: { type: "json_schema", schema: FLYER_SCHEMA } },
-      messages: [
-        {
-          role: "user",
-          content: [
-            pictureBlock(picture),
-            { type: "text", text: "Read this flyer." },
-          ],
-        },
-      ],
+      text: "Read this flyer.",
+      picture,
+      schema: FLYER_SCHEMA,
+      maxTokens: 4000,
+      effort: "medium",
+      // Reading printed words back, not writing: no room for invention.
+      temperature: 0,
     });
 
-    if (response.stop_reason === "refusal") {
+    if (answer.refused) {
       return NextResponse.json({ ok: false, error: "The model declined to read this image" }, { status: 422 });
     }
-    const text = response.content.find((block) => block.type === "text")?.text || "";
-    const flyer = normalizeFlyer(JSON.parse(text), today);
+    const flyer = normalizeFlyer(parseJsonAnswer(answer.text), today);
     return NextResponse.json({ ok: true, flyer });
   } catch (error) {
     console.error("[admin] flyer read failed:", error);

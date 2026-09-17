@@ -13,7 +13,9 @@ Production and Preview.
 | `ADMIN_PASSWORD` | yes | Password for `/admin`. |
 | `ADMIN_SECRET` | yes | Signs the admin cookie. `openssl rand -hex 32`. |
 | `DECISIONS_INBOUND_SECRET` | no | Lets a relay post a texted decision to `/api/decisions/inbound`. Unset, that endpoint refuses everything. |
-| `DECISIONS_INBOUND_FROM` | no | Comma-separated senders the endpoint accepts. Unset, it accepts anything with the secret. Note this cannot filter text spam — see section 5. |
+| `DECISIONS_INBOUND_FROM` | no | Comma-separated senders the endpoint accepts. Unset, it accepts anything with the secret. Note this cannot filter text spam — see section 6. |
+| `ANTHROPIC_API_KEY` | no | Turns on the admin's AI helpers — the Write buttons, reading a flyer, writing a whole news post. |
+| `OLLAMA_URL` | no | Runs those helpers on an Ollama server you host instead of the Anthropic API. See section 4. |
 
 **`/admin` refuses every login unless both admin variables are set.** There is
 no production fallback — see [ARCHITECTURE.md](./ARCHITECTURE.md#the-admin-fails-closed).
@@ -66,7 +68,89 @@ If it says **Save failed**, the message carries the store's own error. The usual
 causes are a missing token, a token scoped to the wrong repository, or a content
 repo that does not exist yet.
 
-## 4. Instagram sync (optional)
+## 4. The AI helpers (optional)
+
+Three things in `/admin` ask a model to write: the ✦ Write buttons on every
+copy field, "Fill in from poster" on a show, and "Write a whole post for me" in
+the News tab. All three go through `src/lib/ai.ts`, which can talk to either
+provider. Nothing above that file knows which one answered.
+
+### Anthropic (hosted)
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-opus-5        # optional
+```
+
+Works on Vercel with nothing else to run. One model reads pictures and writes
+prose.
+
+### Ollama on your own machine (local development)
+
+This is the setup that needs no key and no bill. It only works where the site
+and Ollama run on the same machine — see the first bullet below for why a
+deployment cannot use it this way.
+
+```
+ollama serve                       # in its own terminal
+ollama pull llama3.1:8b            # the model that writes
+ollama pull llama3.2-vision        # only if you want flyers read
+```
+
+Then in `.env.local`:
+
+```
+OLLAMA_URL=http://127.0.0.1:11434
+OLLAMA_VISION_MODEL=llama3.2-vision
+```
+
+```
+npm run ai:check                   # says what will answer, and what is missing
+npm run dev
+```
+
+`npm run ai:check` is the thing to run when a Write button says it cannot. From
+inside the admin every cause looks identical; the check names which one it is —
+nothing configured, the server not running, the model not pulled, or no vision
+model for flyers — and prints the command that fixes it. It exits non-zero when
+something is wrong, so it also works in a script.
+
+### Ollama (the variables in full)
+
+```
+OLLAMA_URL=http://your-host:11434
+OLLAMA_MODEL=llama3.1:8b             # optional, the default
+OLLAMA_VISION_MODEL=llama3.2-vision  # optional, only for reading flyers
+OLLAMA_CONTEXT=16384                 # optional, tokens of context to load
+OLLAMA_TIMEOUT_MS=180000             # optional, how long to wait for an answer
+```
+
+Setting `OLLAMA_URL` is taken as meaning it, so it wins over an Anthropic key
+that is also set. `AI_PROVIDER=anthropic` or `AI_PROVIDER=ollama` overrides that
+if you want to be explicit.
+
+Four things worth knowing:
+
+- **A deployed site cannot reach your laptop.** `OLLAMA_URL` has to be a host
+  Vercel can open — a box with a public address, or a tunnel. `localhost` only
+  works when the site is running on the same machine, which in practice means
+  `npm run dev`.
+- **Reading a flyer needs a vision model.** Most text models will refuse the
+  image or quietly ignore it. Set `OLLAMA_VISION_MODEL` to something that can
+  see (`llama3.2-vision`, `qwen2.5vl`, `llava`) and pull it first. If you skip
+  this, the flyer button tells you which variable to set.
+- **Context, not just the model, decides quality.** A whole news post plus the
+  brand brief plus a flyer runs past a small window, and the model silently
+  loses the beginning. 16k is the floor; give it more if the machine can.
+- **Small models ignore the schema.** Ollama constrains the *shape* of the JSON
+  but throws away the `description` on each field, and ours carry most of the
+  instructions — so they are repeated in the prompt. Even then, an 8B model
+  writes a thinner article than a frontier one. It works; it is not the same.
+
+Whichever provider answered, the News tab's writer names the model in the note
+above the draft, so you can tell at a glance which one you got.
+
+## 5. Instagram sync (optional)
 
 Only needed for pulling reels in automatically. Create an app at
 developers.facebook.com, add the Instagram product, and set its OAuth redirect
@@ -76,7 +160,7 @@ URI to `<NEXT_PUBLIC_SITE_URL>/api/admin/instagram/callback`. Then set
 The token is stored in `content.json` and refreshes itself before its ~60-day
 expiry — which is why the content repository must be private.
 
-## 5. Texting a decision in (optional, free)
+## 6. Texting a decision in (optional, free)
 
 Some people will never scan a QR code. This gets their texts into the same
 pile the host draws from, without paying anyone.
@@ -186,7 +270,7 @@ message. Point its **A message comes in** webhook at
 route verifies Twilio's signature and refuses every message while the token is
 unset, so leaving it unconfigured is safe.
 
-## 6. Moving the domain
+## 7. Moving the domain
 
 Do this last. Until `NEXT_PUBLIC_SITE_URL` matches the host actually serving
 traffic, the site refuses to let search engines index it — that gate is

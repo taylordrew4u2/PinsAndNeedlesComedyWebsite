@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import type Anthropic from "@anthropic-ai/sdk";
 import { isAuthed } from "@/lib/auth";
 import { getContent } from "@/lib/store";
 import { nyToday } from "@/lib/shows";
 import { emptySeo } from "@/lib/seo";
-import { AI_MODEL, AI_UNCONFIGURED, aiClient, aiConfigured, aiErrorMessage, fetchPicture, pictureBlock } from "@/lib/ai";
+import { aiConfigured, aiErrorMessage, aiUnconfigured, ask, fetchPicture, parseJsonAnswer } from "@/lib/ai";
 import {
   brandBrief,
   normalizeSeoDraft,
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   if (!aiConfigured()) {
-    return NextResponse.json({ ok: false, error: AI_UNCONFIGURED }, { status: 503 });
+    return NextResponse.json({ ok: false, error: aiUnconfigured() }, { status: 503 });
   }
 
   const body = (await request.json().catch(() => ({}))) as Body;
@@ -57,51 +56,41 @@ export async function POST(request: Request) {
 
   const today = nyToday();
   const system = writerSystem(brandBrief(await getContent(), today));
-  const client = aiClient();
 
   try {
     if (kind === "seo") {
       const current: Seo = { ...emptySeo(), ...record(body.seo) } as Seo;
-      const response = await client.messages.create({
-        model: AI_MODEL,
-        max_tokens: 4000,
+      const answer = await ask({
         system,
-        output_config: { format: { type: "json_schema", schema: SEO_SCHEMA } },
-        messages: [{ role: "user", content: seoPrompt(hint.about ?? {}, current) }],
+        text: seoPrompt(hint.about ?? {}, current),
+        schema: SEO_SCHEMA,
+        maxTokens: 4000,
+        temperature: 0.4,
       });
-      if (response.stop_reason === "refusal") {
+      if (answer.refused) {
         return NextResponse.json({ ok: false, error: "The model declined this request" }, { status: 422 });
       }
-      const text = response.content.find((block) => block.type === "text")?.text || "{}";
-      return NextResponse.json({ ok: true, seo: normalizeSeoDraft(JSON.parse(text)) });
+      return NextResponse.json({ ok: true, seo: normalizeSeoDraft(parseJsonAnswer(answer.text)) });
     }
 
-    const content: Anthropic.ContentBlockParam[] = [];
-    if (hint.image) {
-      const picture = await fetchPicture(hint.image, request);
-      if (typeof picture === "string") {
-        return NextResponse.json({ ok: false, error: picture }, { status: 400 });
-      }
-      content.push(pictureBlock(picture));
+    const picture = hint.image ? await fetchPicture(hint.image, request) : undefined;
+    if (typeof picture === "string") {
+      return NextResponse.json({ ok: false, error: picture }, { status: 400 });
     }
     const current = typeof body.current === "string" ? body.current : "";
-    content.push({ type: "text", text: writerPrompt(hint, current, Boolean(hint.image)) });
 
-    const response = await client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 4000,
+    const answer = await ask({
       system,
-      output_config: { effort: "medium" },
-      messages: [{ role: "user", content }],
+      text: writerPrompt(hint, current, Boolean(hint.image)),
+      picture,
+      maxTokens: 4000,
+      effort: "medium",
+      temperature: 0.7,
     });
-    if (response.stop_reason === "refusal") {
+    if (answer.refused) {
       return NextResponse.json({ ok: false, error: "The model declined this request" }, { status: 422 });
     }
-    const text = response.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("")
-      .trim()
+    const text = answer.text
       // The model is told not to quote, but a stray pair of quotes is cheap to strip.
       .replace(/^["“]([\s\S]*)["”]$/, "$1");
     return NextResponse.json({ ok: true, text });
