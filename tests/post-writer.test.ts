@@ -146,3 +146,10 @@ test("the note back to the admin counts what arrived, or says nothing did", () =
   );
   assert.match(describePostDraft(draft()), /Nothing came back/);
 });
+
+test("the note names the model that wrote it, when the server said which", () => {
+  const written = draft({ title: "T", body: "one two three" });
+  assert.match(describePostDraft(written, "llama3.1:8b"), /llama3\.1:8b wrote it\./);
+  // No model named: the note just leaves it out.
+  assert.doesNotMatch(describePostDraft(written), /wrote it\./);
+});

@@ -181,8 +181,8 @@ export function applyPostDraft(post: Post, draft: PostDraft): Post {
   };
 }
 
-/** One line for the admin: what came back, and what to check. */
-export function describePostDraft(draft: PostDraft): string {
+/** One line for the admin: what came back, which model wrote it, what to check. */
+export function describePostDraft(draft: PostDraft, model = ""): string {
   if (!draft.body && !draft.title) {
     return "Nothing came back. Add a few more details and try again.";
   }
@@ -193,5 +193,6 @@ export function describePostDraft(draft: PostDraft): string {
     draft.seo.keywords.length ? `${draft.seo.keywords.length} keywords` : "",
     draft.seo.faq.length ? `${draft.seo.faq.length} FAQ answers` : "",
   ].filter(Boolean);
-  return `Wrote a draft: ${parts.join(", ")}. Read it over, fix anything it got wrong, then turn on “Show it on the website”.`;
+  const by = model ? ` ${model} wrote it.` : "";
+  return `Wrote a draft: ${parts.join(", ")}.${by} Read it over, fix anything it got wrong, then turn on “Show it on the website”.`;
 }

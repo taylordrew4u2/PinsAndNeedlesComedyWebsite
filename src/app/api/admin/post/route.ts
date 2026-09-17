@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
-import type Anthropic from "@anthropic-ai/sdk";
 import { isAuthed } from "@/lib/auth";
 import { getContent } from "@/lib/store";
 import { nyToday } from "@/lib/shows";
-import { AI_MODEL, AI_UNCONFIGURED, aiClient, aiConfigured, aiErrorMessage, fetchPicture, pictureBlock } from "@/lib/ai";
+import {
+  aiConfigured,
+  aiErrorMessage,
+  aiModel,
+  aiUnconfigured,
+  ask,
+  fetchPicture,
+  parseJsonAnswer,
+} from "@/lib/ai";
 import { brandBrief, writerSystem } from "@/lib/writer";
 import {
   isPostKind,
@@ -38,7 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   if (!aiConfigured()) {
-    return NextResponse.json({ ok: false, error: AI_UNCONFIGURED }, { status: 503 });
+    return NextResponse.json({ ok: false, error: aiUnconfigured() }, { status: 503 });
   }
 
   const body = (await request.json().catch(() => ({}))) as Body;
@@ -57,31 +64,31 @@ export async function POST(request: Request) {
     );
   }
 
-  const content: Anthropic.ContentBlockParam[] = [];
-  if (brief.image) {
-    const picture = await fetchPicture(brief.image, request);
-    if (typeof picture === "string") {
-      return NextResponse.json({ ok: false, error: picture }, { status: 400 });
-    }
-    content.push(pictureBlock(picture));
+  const picture = brief.image ? await fetchPicture(brief.image, request) : undefined;
+  if (typeof picture === "string") {
+    return NextResponse.json({ ok: false, error: picture }, { status: 400 });
   }
-  content.push({ type: "text", text: postPrompt(brief, Boolean(brief.image)) });
 
   try {
-    const client = aiClient();
-    const response = await client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 8000,
+    const answer = await ask({
       system: `${writerSystem(brandBrief(await getContent(), today))}\n${POST_SYSTEM}\nToday is ${today}.`,
-      output_config: { effort: "high", format: { type: "json_schema", schema: POST_SCHEMA } },
-      messages: [{ role: "user", content }],
+      text: postPrompt(brief, Boolean(brief.image)),
+      picture,
+      schema: POST_SCHEMA,
+      maxTokens: 8000,
+      effort: "high",
+      temperature: 0.7,
     });
 
-    if (response.stop_reason === "refusal") {
+    if (answer.refused) {
       return NextResponse.json({ ok: false, error: "The model declined this request" }, { status: 422 });
     }
-    const answer = response.content.find((block) => block.type === "text")?.text || "{}";
-    return NextResponse.json({ ok: true, post: normalizePostDraft(JSON.parse(answer)) });
+    return NextResponse.json({
+      ok: true,
+      post: normalizePostDraft(parseJsonAnswer(answer.text)),
+      // Which model wrote it, so the admin can tell at a glance.
+      model: aiModel(Boolean(brief.image)),
+    });
   } catch (error) {
     console.error("[admin] post write failed:", error);
     return NextResponse.json(

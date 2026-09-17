@@ -47,14 +47,14 @@ export default function PostWriter({
     setError("");
     setNote("");
     try {
-      const draft = await writePost({ kind, topic, details, date, image: coverUrl });
+      const { draft, model } = await writePost({ kind, topic, details, date, image: coverUrl });
       const post = create();
       post.date = date;
       post.coverUrl = coverUrl;
       const written = applyPostDraft(post, draft);
       update((d) => void d.posts.unshift(written));
       onCreated(written.id);
-      setNote(describePostDraft(draft));
+      setNote(describePostDraft(draft, model));
       setTopic("");
       setDetails("");
       setCoverUrl("");

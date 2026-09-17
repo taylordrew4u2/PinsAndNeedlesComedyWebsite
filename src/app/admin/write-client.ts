@@ -27,8 +27,12 @@ export async function writeSeo(about: Record<string, unknown>, seo: Seo): Promis
   return data.seo as SeoDraft;
 }
 
-/** Ask the server to write a whole news post from a few details and a flyer. */
-export async function writePost(brief: PostBrief): Promise<PostDraft> {
+/**
+ * Ask the server to write a whole news post from a few details and a flyer.
+ * Comes back with the model that wrote it, which is worth showing: it may be
+ * a hosted one or an Ollama model running on your own machine.
+ */
+export async function writePost(brief: PostBrief): Promise<{ draft: PostDraft; model: string }> {
   const response = await fetch("/api/admin/post", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -36,5 +40,5 @@ export async function writePost(brief: PostBrief): Promise<PostDraft> {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.ok) throw new Error(data.error || "Could not write the post");
-  return data.post as PostDraft;
+  return { draft: data.post as PostDraft, model: String(data.model || "") };
 }
