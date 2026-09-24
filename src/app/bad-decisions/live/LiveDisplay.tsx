@@ -11,6 +11,9 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [question, setQuestion] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [pointerIdle, setPointerIdle] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  // Known only in the browser; the server renders without the button.
+  const [canGoFullscreen, setCanGoFullscreen] = useState(false);
   useWakeLock();
   const area = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -84,20 +87,35 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     return () => { clearTimeout(timer); window.removeEventListener("pointermove", moved); };
   }, []);
 
-  // Double-click (or double-tap) anywhere for full screen, and again to leave.
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    else void document.documentElement.requestFullscreen?.().catch(() => {});
-  };
+  // Full screen three ways: the button (shown while the mouse moves), the F
+  // key, or a double-click anywhere. Safari on iPad only has the webkit-
+  // prefixed calls, so both are tried.
+  useEffect(() => {
+    // Reads the browser's capabilities, which the server cannot know.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCanGoFullscreen(canFullscreen());
+    const sync = () => setFullscreen(Boolean(fullscreenElement()));
+    const key = (event: KeyboardEvent) => {
+      if ((event.key === "f" || event.key === "F") && !event.metaKey && !event.ctrlKey && !event.altKey) toggleFullscreen();
+    };
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    window.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+      window.removeEventListener("keydown", key);
+    };
+  }, []);
 
   return (
+    <>
     <main
       className={`flex h-svh select-none items-center justify-center bg-black px-6 pb-40 pt-10 text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
       aria-label="Live show"
       aria-live="polite"
       aria-atomic="true"
       onDoubleClick={toggleFullscreen}
-      title="Double-click for full screen"
     >
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
         {question ? (
@@ -120,5 +138,50 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         </div>
       ) : null}
     </main>
+    {/* Outside <main>, so it is not read out with the question. */}
+    {canGoFullscreen && !(fullscreen && pointerIdle) ? (
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        onDoubleClick={(event) => event.stopPropagation()}
+        className={`fixed bottom-3 left-3 rounded-md border border-white/30 bg-black/70 px-4 py-2 text-sm text-white transition-opacity sm:bottom-4 sm:left-4 ${pointerIdle ? "pointer-events-none opacity-0" : "opacity-100"}`}
+      >
+        {fullscreen ? "Exit full screen" : "Full screen (F)"}
+      </button>
+    ) : null}
+    </>
   );
+}
+
+type WebkitDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => void;
+};
+type WebkitElement = HTMLElement & { webkitRequestFullscreen?: () => void };
+
+function fullscreenElement(): Element | null {
+  return document.fullscreenElement ?? (document as WebkitDocument).webkitFullscreenElement ?? null;
+}
+
+function canFullscreen(): boolean {
+  if (typeof document === "undefined") return false;
+  const root = document.documentElement as WebkitElement;
+  return Boolean(root.requestFullscreen || root.webkitRequestFullscreen);
+}
+
+function toggleFullscreen(): void {
+  const doc = document as WebkitDocument;
+  const root = document.documentElement as WebkitElement;
+  try {
+    if (fullscreenElement()) {
+      if (document.exitFullscreen) void document.exitFullscreen().catch(() => {});
+      else doc.webkitExitFullscreen?.();
+    } else if (root.requestFullscreen) {
+      void root.requestFullscreen().catch(() => {});
+    } else {
+      root.webkitRequestFullscreen?.();
+    }
+  } catch {
+    // Refused (not triggered by a click or key): nothing to do.
+  }
 }
