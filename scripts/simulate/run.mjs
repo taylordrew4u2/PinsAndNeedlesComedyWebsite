@@ -239,86 +239,28 @@ async function simulate() {
       await shoot(guest, "guest-countdown", "Guest phone before doors: countdown");
     });
 
-    section("3. Dress rehearsal (a separate practice copy)");
-    const rehearsalShow = watchErrors(await hostContext.newPage(), errors, "rehearsal Run Show");
-    const rehearsalScreen = watchErrors(await projectorContext.newPage(), errors, "rehearsal screen");
-    const practicePhone = watchErrors(await guestContext.newPage(), errors, "practice phone");
-    const rehearsalText = async () => (await rehearsalScreen.locator("main").innerText()).replace(/^\s*Rehearsal\s*/i, "").trim();
-    const liveUntouched = async () => {
-      expect(!fake.paths().some((p) => p.startsWith("submissions/")), "a practice question reached the live pile");
-      expect((await projectorText()) === "", "the live projector changed");
-    };
-    let practiceEntry = "";
+    section("3. Host controls");
     await check("host signs in to Run Show", async () => {
       await runShow.goto(`${base}/admin/run-show`, { waitUntil: "networkidle" });
       await runShow.locator("input[type=password]").fill(password);
       await runShow.locator("button[type=submit]:not([disabled])").click();
       await runShow.getByText("Questions (0)").waitFor({ timeout: 10_000 });
     });
-    await check("the rehearsal opens from Run Show, clearly marked", async () => {
-      await runShow.getByRole("link", { name: /Dress rehearsal/ }).click();
-      await runShow.getByText(/Dress rehearsal · practice only/i).waitFor({ timeout: 10_000 });
-      await rehearsalShow.goto(`${base}/admin/run-show?mode=rehearsal`, { waitUntil: "networkidle" });
-      await rehearsalShow.getByText("Practice questions (0)").waitFor({ timeout: 10_000 });
-      await runShow.goto(`${base}/admin/run-show`, { waitUntil: "networkidle" });
-      await shoot(rehearsalShow, "rehearsal-run-show", "The rehearsal's own Run Show");
+    await check("Run Show has one stable live URL and no rehearsal controls", async () => {
+      expect(await runShow.getByRole("link", { name: "Open live screen" }).getAttribute("href") === "/bad-decisions/live", "live URL changed");
+      expect(!/rehearsal/i.test(await bodyText(runShow)), "rehearsal controls still visible");
     });
-    await check("the rehearsal screen is its own screen, labelled REHEARSAL", async () => {
-      await rehearsalScreen.goto(`${base}/bad-decisions/live?mode=rehearsal`, { waitUntil: "networkidle" });
-      expect(await rehearsalScreen.getByText("Rehearsal", { exact: true }).isVisible(), "no REHEARSAL label");
-      expect(await rehearsalScreen.locator('img[alt^="Scan"]').isVisible(), "no QR");
-    });
-    await check("its QR opens the practice form, not the real one", async () => {
-      const svg = await (await fetch(`${base}/api/decisions/live/qr?mode=rehearsal`)).text();
-      const url = new URL(decodeQrSvg(svg));
-      expect(url.searchParams.get("mode") === "rehearsal" && url.searchParams.get("qr") === key, `unexpected ${url.search}`);
-      practiceEntry = `${base}/bad-decisions?qr=${key}&mode=rehearsal`;
-      return "…&mode=rehearsal";
-    });
-    await check("any phone gets the practice form before doors, marked practice only", async () => {
-      await practicePhone.goto(practiceEntry, { waitUntil: "networkidle" });
-      await practicePhone.locator("textarea").first().waitFor({ timeout: 10_000 });
-      expect(/practice only/i.test(await bodyText(practicePhone)), "no practice banner");
-      await shoot(practicePhone, "practice-form", "The practice form (always open, marked practice only)");
-    });
-    await check("two practice questions land in the practice pile", async () => {
-      await sendFromPage(practicePhone, "PRACTICE: does the projector work?");
-      await sendFromPage(practicePhone, "PRACTICE: second one");
-      await rehearsalShow.getByRole("button", { name: "Refresh" }).click();
-      await rehearsalShow.getByText("Practice questions (2)").waitFor({ timeout: 10_000 });
-    });
-    await check("the real show saw nothing: live pile empty, projector blank, guests on the countdown", async () => {
-      await liveUntouched();
-      await runShow.getByRole("button", { name: "Refresh" }).click();
-      await runShow.getByText("Questions (0)").waitFor({ timeout: 10_000 });
-      await guest.reload({ waitUntil: "networkidle" });
-      expect(/submissions open in/i.test(await bodyText(guest)), "the real form opened");
-    });
-    await check("Show on screen puts practice on the rehearsal screen only", async () => {
-      await rehearsalShow.locator("li", { hasText: "does the projector work" }).getByRole("button", { name: "Show on screen" }).click();
-      await until(async () => (await rehearsalText()).includes("does the projector work"), 8_000, "rehearsal screen did not update");
-      await projector.waitForTimeout(3_000);
-      await liveUntouched();
-      await shoot(rehearsalScreen, "rehearsal-screen", "The rehearsal screen showing a practice question");
-    });
-    await check("Clear screen blanks the rehearsal screen", async () => {
-      await rehearsalShow.getByRole("button", { name: "Clear screen" }).click();
-      await until(async () => (await rehearsalText()) === "", 8_000, "rehearsal screen not blank");
-    });
-    await check("Delete all practice questions empties the rehearsal", async () => {
-      await rehearsalShow.locator("li", { hasText: "second one" }).getByRole("button", { name: "Show on screen" }).click();
-      await until(async () => (await rehearsalText()).includes("second one"), 8_000, "rehearsal screen did not update");
-      await rehearsalShow.getByRole("button", { name: "Delete all practice questions" }).click();
-      await rehearsalShow.getByText(/Rehearsal cleared\. 2 practice questions deleted/).waitFor({ timeout: 20_000 });
-      await until(async () => (await rehearsalText()) === "", 8_000, "rehearsal screen not blank");
-      expect(!fake.paths().some((p) => p.startsWith("rehearsal/submissions/")), "practice files left behind");
-      await liveUntouched();
+    await check("opening questions requires authentication", async () => {
+      const response = await fetch(`${base}/api/admin/run-show`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manualOpen: true }),
+      });
+      expect(response.status === 401, `unexpected status ${response.status}`);
     });
 
-    section("4. 8 PM: the form opens");
+    section("4. The host opens questions before scheduled hours");
     await check("the guest's countdown turns into the form by itself", async () => {
-      const content = fake.read("content/content.json");
-      fake.write("content/content.json", { ...content, weekly: { ...content.weekly, alwaysOpen: true } });
+      await runShow.getByRole("button", { name: "Open questions now", exact: true }).click();
+      await runShow.getByText("Questions are open", { exact: true }).waitFor();
       await guest.locator("textarea").first().waitFor({ timeout: 45_000 });
       await shoot(guest, "guest-form", "Guest phone at 8 PM: the form, no reload needed");
     });
@@ -371,20 +313,26 @@ async function simulate() {
       await projector.unroute("**/api/decisions/live");
       expect(kept, "question vanished while offline");
     });
-    await check("rehearsing during the show leaves the show alone", async () => {
-      await practicePhone.goto(practiceEntry, { waitUntil: "networkidle" });
-      await sendFromPage(practicePhone, "PRACTICE: mid-show check");
-      await rehearsalShow.getByRole("button", { name: "Refresh" }).click();
-      await rehearsalShow.locator("li", { hasText: "mid-show check" }).getByRole("button", { name: "Show on screen" }).click();
-      await until(async () => (await rehearsalText()).includes("mid-show check"), 8_000, "rehearsal screen did not update");
-      await projector.waitForTimeout(3_000);
-      expect((await projectorText()).includes("text my ex"), "the live projector changed");
-      await runShow.getByRole("button", { name: "Refresh" }).click();
-      await runShow.getByText("Questions (41)").waitFor({ timeout: 10_000 });
-      await rehearsalShow.getByRole("button", { name: "Delete all practice questions" }).click();
-      await rehearsalShow.getByText(/Rehearsal cleared\. 1 practice question deleted/).waitFor({ timeout: 20_000 });
-      expect((await projectorText()).includes("text my ex"), "clearing the rehearsal touched the live projector");
-      return "live pile unchanged, live projector unchanged";
+    await check("returning to scheduled hours and reopening preserves the live question and page settings", async () => {
+      const before = fake.read("content/content.json");
+      const selected = fake.read("live-show/selection.json");
+      await runShow.getByRole("button", { name: "Use scheduled hours", exact: true }).click();
+      await runShow.getByText("Questions are closed", { exact: true }).waitFor();
+      await guest.getByText(/submissions open in/i).waitFor({ timeout: 45_000 });
+      const closed = await guest.evaluate(async (k) => fetch("/api/decisions", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Decisions-QR": k },
+        body: JSON.stringify({ decision: "Should not be accepted while closed" }),
+      }).then(r => r.status), key);
+      expect(closed === 403, `closed questions accepted a submission: ${closed}`);
+      await runShow.getByRole("button", { name: "Open questions now", exact: true }).click();
+      await runShow.getByText("Questions are open", { exact: true }).waitFor();
+      await guest.locator("textarea").first().waitFor({ timeout: 45_000 });
+      const after = fake.read("content/content.json");
+      expect(JSON.stringify({ ...before, updatedAt: "" }) === JSON.stringify({ ...after, updatedAt: "" }), "unrelated content changed");
+      expect(JSON.stringify(selected) === JSON.stringify(fake.read("live-show/selection.json")), "selected question changed");
+      expect((await projectorText()).includes("text my ex"), "projector lost its question");
+      await runShow.reload({ waitUntil: "networkidle" });
+      await runShow.getByText("Questions are open", { exact: true }).waitFor();
     });
     await check("idle polling costs GitHub nothing (304 answers)", async () => {
       const before = { ...fake.stats };

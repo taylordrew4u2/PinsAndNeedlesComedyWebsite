@@ -10,9 +10,9 @@ const weekly = {
   openMinutesBefore: 60, closeMinutesAfter: 240, alwaysOpen: false,
 } as unknown as WeeklyPage;
 
-test("only an explicit mode=rehearsal selects the rehearsal", () => {
-  assert.equal(spaceOf("rehearsal"), "rehearsal");
-  assert.equal(spaceOf(["rehearsal", "live"]), "rehearsal");
+test("legacy rehearsal URLs now select the live show", () => {
+  assert.equal(spaceOf("rehearsal"), "live");
+  assert.equal(spaceOf(["rehearsal", "live"]), "live");
   for (const value of [undefined, null, "", "live", "Rehearsal", "rehearsal ", ["live"], 1]) {
     assert.equal(spaceOf(value), "live");
   }

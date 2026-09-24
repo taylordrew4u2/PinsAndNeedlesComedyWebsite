@@ -1,20 +1,13 @@
 /**
- * The live show and the dress rehearsal are two separate spaces.
- *
- * A rehearsal is a practice copy of the whole show: its own pile, its own
- * projector selection, its own always-open form, stored under its own prefix.
- * Nothing done in it reaches the live show — not the pile, not the projector,
- * not the window — and it can run at any time, including during the show.
- *
- * Live storage paths are unprefixed, exactly as they were before rehearsals
- * existed, so the real show's data never moves.
+ * Public requests now use only the live show. Keep the legacy storage namespace
+ * so existing practice records remain separate and no live data needs to move.
  */
 export type Space = "live" | "rehearsal";
 
-/** The URL's `mode=rehearsal` (or a header) selects the rehearsal; anything else is live. */
-export function spaceOf(value: unknown): Space {
-  const first = Array.isArray(value) ? value[0] : value;
-  return first === "rehearsal" ? "rehearsal" : "live";
+/** All current URLs use the live show. Legacy practice data stays isolated below. */
+export function spaceOf(_value: unknown): Space {
+  void _value;
+  return "live";
 }
 
 /** Where a space keeps its files, relative to the content store's root. */

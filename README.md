@@ -94,19 +94,17 @@ about every two seconds; the admin question list refreshes every ten seconds.
 Use **Clear screen** when finished. Deleting the selected submission or archiving
 the pile also clears the display. No selection produces a blank screen with the QR.
 
-**Dress rehearsal.** A separate practice copy of the show, at
-`/admin/run-show?mode=rehearsal` (linked from Run Show). It has its own
-projector screen (`/bad-decisions/live?mode=rehearsal`, labelled REHEARSAL),
-its own QR code, an always-open practice form, and its own pile stored under
-`rehearsal/`. Nothing in it touches the live show (not the pile, the
-projector, the form or the 8 PM window), so it works any time, even during the
-show. **Delete all practice questions** wipes it.
+**Open questions any time.** In Run Show, tap **Open questions now** to accept
+questions immediately, regardless of the scheduled hours. They stay open until
+you tap **Use scheduled hours**. This does not clear the selected question or
+change any other screen's live setting. The live screen URL stays
+`https://pinsandneedlescomedy.com/bad-decisions/live`. Rehearsal controls have been
+removed; existing practice data is left untouched and separate from live data.
 
 **Show simulator.** `npm run build && npm run simulate` plays a whole show
 night on a stand-in copy of the site: the production build on a fake GitHub
 content store, with a guest's phone, the host's phone, Run Show and the
-projector. It covers the rehearsal staying separate from the show (before doors and
-mid-show), 8 PM, a rush of 40 guests on one wifi, a dropped connection on the
+projector. It covers opening questions manually without changing the live screen, scheduled hours, a rush of 40 guests on one wifi, a dropped connection on the
 projector, Draw one and Archive, and nothing real is touched. `npm run simulate -- --live` only reads the real site: pages, the
 projector's QR, where it leads, and whether the form is open. Both write
 `simulator-report/index.html` with screenshots. From a phone, run it in GitHub
