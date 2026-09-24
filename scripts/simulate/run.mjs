@@ -399,6 +399,25 @@ async function simulate() {
       expect(result.ok && result.drawn, JSON.stringify(result).slice(0, 80));
       return `“${result.drawn.decision}”`;
     });
+    await check("the screen stays put until the host changes it", async () => {
+      // New questions arrive, Draw one runs, time passes: none of it moves the screen.
+      const statuses = await guest.evaluate(async (k) => Promise.all([1, 2, 3].map((i) =>
+        fetch("/api/decisions", {
+          method: "POST", headers: { "Content-Type": "application/json", "X-Decisions-QR": k },
+          body: JSON.stringify({ decision: `Late arrival ${i}` }),
+        }).then((response) => response.status))), key);
+      expect(statuses.every((status) => status === 200), `sends: ${statuses.join(",")}`);
+      await adminAction({ action: "draw" });
+      await projector.waitForTimeout(8_000);
+      expect((await projectorText()).includes("text my ex"), "the screen changed without the host");
+      return "3 new questions + a draw + 8 s: still showing";
+    });
+    await check("every submission stays in Run Show, including the one on screen", async () => {
+      await runShow.getByRole("button", { name: "Refresh" }).click();
+      await runShow.getByText("Questions (44)").waitFor({ timeout: 10_000 });
+      expect(await runShow.locator("li", { hasText: "text my ex" }).count() === 1, "the on-screen question left the list");
+      return "44 listed";
+    });
 
     section("6. After the show");
     await check("Archive everything empties the pile and blanks the projector", async () => {
@@ -409,7 +428,7 @@ async function simulate() {
         archived += result.archived;
         if (!result.remaining) break;
       }
-      expect(archived === 41, `archived ${archived}`);
+      expect(archived === 44, `archived ${archived}`);
       await until(async () => (await projectorText()) === "", 8_000, "projector not blank");
       return `${archived} archived`;
     });
