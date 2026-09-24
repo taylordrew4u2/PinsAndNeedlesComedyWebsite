@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   checkAccess,
   contentTypeFor,
+  forgetReads,
   githubConfig,
+  listDir,
   mediaUrl,
   readFile,
   safePath,
@@ -230,4 +232,79 @@ test("urlPath encodes each segment but keeps the separators", () => {
   assert.equal(urlPath("uploads/x?y#z"), "uploads/x%3Fy%23z");
   // Still refuses to climb out, and still keeps the path shape.
   assert.equal(urlPath("uploads/../../etc/passwd"), "uploads/etc/passwd");
+});
+
+/**
+ * A stand-in for GitHub that honours If-None-Match: it answers 304 when the
+ * caller already holds the current version, the way the real API does.
+ */
+function etagGithub() {
+  const state = { etag: '"v1"', body: { content: Buffer.from("one").toString("base64"), sha: "s1", size: 3 } as unknown, status: 200 };
+  const sent: (string | undefined)[] = [];
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    const asked = (init?.headers as Record<string, string> | undefined)?.["If-None-Match"];
+    sent.push(asked);
+    const status = state.status === 200 && asked === state.etag ? 304 : state.status;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      headers: new Headers(status === 200 ? { etag: state.etag } : {}),
+      json: async () => state.body,
+      text: async () => JSON.stringify(state.body),
+      arrayBuffer: async () => Buffer.alloc(0),
+    };
+  }) as unknown as typeof fetch;
+  return { fetchImpl, state, sent };
+}
+
+test("an unchanged file is not downloaded again: GitHub answers 304 and the copy is reused", async () => {
+  forgetReads();
+  const { fetchImpl, sent } = etagGithub();
+  const first = await readFile(config, "live-show/selection.json", fetchImpl);
+  const second = await readFile(config, "live-show/selection.json", fetchImpl);
+  assert.deepEqual(sent, [undefined, '"v1"']);
+  assert.equal(second.bytes?.toString(), "one");
+  assert.equal(second.sha, first.sha);
+});
+
+test("a changed file is read fresh, never served from the old copy", async () => {
+  forgetReads();
+  const { fetchImpl, state } = etagGithub();
+  await readFile(config, "live-show/selection.json", fetchImpl);
+  state.etag = '"v2"';
+  state.body = { content: Buffer.from("two").toString("base64"), sha: "s2", size: 3 };
+  const next = await readFile(config, "live-show/selection.json", fetchImpl);
+  assert.equal(next.bytes?.toString(), "two");
+  assert.equal(next.sha, "s2");
+});
+
+test("a deleted file reads as missing and its old copy is dropped", async () => {
+  forgetReads();
+  const { fetchImpl, state, sent } = etagGithub();
+  await readFile(config, "live-show/selection.json", fetchImpl);
+  state.status = 404;
+  assert.deepEqual(await readFile(config, "live-show/selection.json", fetchImpl), { bytes: null, sha: null });
+  state.status = 200;
+  await readFile(config, "live-show/selection.json", fetchImpl);
+  assert.equal(sent.at(-1), undefined);
+});
+
+test("listings are reused on 304 too", async () => {
+  forgetReads();
+  const { fetchImpl, state, sent } = etagGithub();
+  state.body = [{ name: "a.json", path: "submissions/a.json", sha: "x", type: "file" }, { name: "d", path: "submissions/d", sha: "y", type: "dir" }];
+  const first = await listDir(config, "submissions", fetchImpl);
+  const second = await listDir(config, "submissions", fetchImpl);
+  assert.deepEqual(second, [{ name: "a.json", path: "submissions/a.json", sha: "x" }]);
+  assert.deepEqual(second, first);
+  assert.equal(sent.at(-1), '"v1"');
+});
+
+test("a big upload is not held in memory, so the next read downloads it again", async () => {
+  forgetReads();
+  const { fetchImpl, state, sent } = etagGithub();
+  state.body = { content: Buffer.alloc(9 * 1024 * 1024).toString("base64"), sha: "big", size: 9 * 1024 * 1024 };
+  await readFile(config, "uploads/huge.png", fetchImpl);
+  await readFile(config, "uploads/huge.png", fetchImpl);
+  assert.deepEqual(sent, [undefined, undefined]);
 });
