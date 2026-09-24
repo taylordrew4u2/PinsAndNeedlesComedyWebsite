@@ -15,3 +15,6 @@ next-env.d.ts
 
 # The live screen selection may contain audience submission text
 /data/live-show/
+
+# Output of npm run simulate
+/simulator-report/

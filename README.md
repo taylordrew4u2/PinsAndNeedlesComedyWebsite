@@ -99,6 +99,18 @@ else. A rehearsal cannot start while the real window is open, and nothing sent
 during the real window is ever tagged as a test. Texting in always follows the
 real window.
 
+**Show simulator.** `npm run build && npm run simulate` plays a whole show
+night on a stand-in copy of the site: the production build on a fake GitHub
+content store, with a guest's phone, the host's phone, Run Show and the
+projector. It covers the rehearsal, 8 PM, a rush of 40 guests on one wifi, a
+dropped connection on the projector, Draw one and Archive, and nothing real is
+touched. `npm run simulate -- --live` only reads the real site: pages, the
+projector's QR, where it leads, and whether the form is open. Both write
+`simulator-report/index.html` with screenshots. From a phone, run it in GitHub
+under Actions → Show simulator → Run workflow; the report is attached to the
+run. The simulator needs `npm i --no-save playwright jsqr && npx playwright
+install chromium`.
+
 Selection persists in `live-show/selection.json` on the configured content storage
 driver (local filesystem, private GitHub content repo, or private Blob storage).
 The public endpoint `/api/decisions/live` returns only the chosen question text.

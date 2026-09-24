@@ -9,7 +9,8 @@
     "ai:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/ai-check.mts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types \"tests/*.test.ts\""
+    "test": "node --test --experimental-strip-types \"tests/*.test.ts\"",
+    "simulate": "node scripts/simulate/run.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",

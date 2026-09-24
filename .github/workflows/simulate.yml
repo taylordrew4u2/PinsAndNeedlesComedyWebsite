@@ -1,0 +1,53 @@
+name: Show simulator
+
+# Run from GitHub: Actions → Show simulator → Run workflow.
+# "full" plays a whole show night on a stand-in copy of the site (nothing
+# real is touched). "live" only reads the real site: pages, the projector's
+# QR, where it leads, and whether the form is open. Both attach a report
+# with screenshots to the run.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "full = whole show night on a stand-in; live = read-only check of the real site"
+        type: choice
+        options: [full, live]
+        default: full
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install the simulator's browser
+        run: |
+          npm i --no-save playwright jsqr
+          npx playwright install --with-deps chromium
+
+      - name: Build
+        if: inputs.mode == 'full'
+        run: npm run build
+
+      - name: Simulate a show night
+        if: inputs.mode == 'full'
+        run: npm run simulate
+
+      - name: Check the live site
+        if: inputs.mode == 'live'
+        run: npm run simulate -- --live
+
+      - name: Attach the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-report-${{ inputs.mode }}
+          path: simulator-report/
