@@ -9,12 +9,14 @@ import { Throttle, clientAddress } from "@/lib/throttle";
 export const dynamic = "force-dynamic";
 
 /**
- * One address gets a handful of sends a minute. Enough to stop a script from
- * filling the pile, loose enough that a table of six on the same bar wifi all
- * get through. Resets on every cold start, which is fine — it only needs to
- * hold for the length of one bar hour.
+ * One address gets a minute's worth of sends. The whole room can share one:
+ * everyone on the bar's wifi, and whole neighbourhoods behind a carrier's
+ * NAT, so this is sized for "the host says scan now" rather than for one
+ * phone — it only stops a script from flooding the pile. The QR key, the
+ * window and the honeypot do the rest. Resets on every cold start, which is
+ * fine — it only needs to hold for the length of one bar hour.
  */
-const sends = new Throttle(8, 60_000);
+const sends = new Throttle(60, 60_000);
 
 /**
  * The public count, cached for a few seconds.
