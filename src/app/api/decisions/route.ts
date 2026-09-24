@@ -119,7 +119,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[decisions] save failed:", error);
     return NextResponse.json(
-      { ok: false, error: "Couldn't save that. Try once more, or text it in." },
+      { ok: false, error: "Couldn't save that. Try once more." },
       { status: 500 }
     );
   }
