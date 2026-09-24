@@ -79,8 +79,9 @@ secret scoped to one endpoint, and a
   question list, the current selection, and controls to show or clear a question.
 - **Display:** `/bad-decisions/live` is a separate public URL for the projector.
   It shows the selected question and a small audience submission QR in the bottom
-  corner. Clearing the question keeps the QR visible. Names, other submissions,
-  and admin controls never appear on this screen.
+  corner. Clearing the question keeps the QR visible. The sender's name shows
+  under the question only when they ticked "Put my name on it"; other
+  submissions and admin controls never appear on this screen.
 
 Open **Run Show** from admin, then **Open live screen** on the display computer.
 Double-click the live screen for full screen. It keeps the display awake, hides an

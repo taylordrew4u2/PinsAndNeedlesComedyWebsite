@@ -9,10 +9,11 @@ const POINTER_IDLE_MS = 2_500;
 
 export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolean; space?: Space }) {
   const [question, setQuestion] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
   const [pointerIdle, setPointerIdle] = useState(false);
   useWakeLock();
   const area = useRef<HTMLDivElement>(null);
-  const text = useRef<HTMLHeadingElement>(null);
+  const text = useRef<HTMLDivElement>(null);
 
   // Fit a full audience submission into the projector area without covering the QR.
   useLayoutEffect(() => {
@@ -33,7 +34,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     let active = true;
     void document.fonts.ready.then(() => { if (active) fit(); });
     return () => { active = false; observer.disconnect(); };
-  }, [question]);
+  }, [question, name]);
   useEffect(() => {
     let disposed = false;
     let pending = false;
@@ -48,7 +49,10 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         // the question doesn't blink off mid-bit; the next poll catches up.
         if (!response.ok) return;
         const data = await response.json();
-        if (!disposed) setQuestion(typeof data?.question === "string" ? data.question : null);
+        if (disposed) return;
+        const next = typeof data?.question === "string" ? data.question : null;
+        setQuestion(next);
+        setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
       } catch {
         // Offline or aborted: leave the screen as it is.
       } finally { pending = false; }
@@ -96,7 +100,13 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       title="Double-click for full screen"
     >
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
-        {question ? <h1 ref={text} className="w-full whitespace-pre-wrap break-words text-center leading-tight">{question}</h1> : null}
+        {question ? (
+          // Sized together, so a long question and its name both fit above the QR.
+          <div ref={text} className="w-full text-center">
+            <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
+            {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">— {name}</p> : null}
+          </div>
+        ) : null}
       </div>
       {space === "rehearsal" ? (
         <p className="fixed left-3 top-3 rounded bg-amber-300 px-3 py-1 text-sm font-bold uppercase tracking-widest text-black sm:left-4 sm:top-4">
