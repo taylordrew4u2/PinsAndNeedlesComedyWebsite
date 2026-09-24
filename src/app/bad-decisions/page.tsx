@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import DecisionForm from "@/components/DecisionForm";
 import { getContent } from "@/lib/store";
 import { validDecisionQrKey } from "@/lib/decision-access";
-import { closedMessage, submissionWindow } from "@/lib/decisions";
+import { closedMessage } from "@/lib/decisions";
+import { submissionGate } from "@/lib/rehearsal-store";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function WeeklyPage({ searchParams }: {
   const { weekly, shows } = await getContent();
   if (!weekly.enabled) notFound();
   const now = new Date();
-  const gate = submissionWindow(weekly, shows, now);
+  const gate = await submissionGate(weekly, shows, now);
 
   return (
     <main className="flex min-h-svh items-center justify-center px-5 py-10">

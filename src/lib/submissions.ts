@@ -125,6 +125,7 @@ function parse(bytes: string | Buffer): Submission | null {
       createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
       status: value.status === "drawn" || value.status === "archived" ? value.status : "open",
       drawnAt: typeof value.drawnAt === "string" ? value.drawnAt : "",
+      ...(value.rehearsal === true ? { rehearsal: true as const } : {}),
     };
   } catch {
     return null;
@@ -155,7 +156,11 @@ export async function getSubmission(id: string): Promise<Submission | null> {
   return (await readOne(id)).submission;
 }
 
-export async function addSubmission(decision: string, name: string): Promise<Submission> {
+export async function addSubmission(
+  decision: string,
+  name: string,
+  options: { rehearsal?: boolean } = {}
+): Promise<Submission> {
   const now = new Date();
   const submission: Submission = {
     id: submissionId(now),
@@ -164,6 +169,7 @@ export async function addSubmission(decision: string, name: string): Promise<Sub
     createdAt: now.toISOString(),
     status: "open",
     drawnAt: "",
+    ...(options.rehearsal ? { rehearsal: true as const } : {}),
   };
   await write(submission, null);
   return submission;
@@ -306,6 +312,19 @@ export async function deleteSubmission(id: string): Promise<void> {
     return;
   }
   await fs.rm(path.join(LOCAL_DIR, `${id}.json`), { force: true });
+}
+
+/**
+ * Finishing a dress rehearsal: delete every test it left, and only those.
+ * Read past the cache so a test sent a moment ago is not missed. Deleting a
+ * test that is on the projector clears the projector too.
+ */
+export async function deleteRehearsalSubmissions(): Promise<number> {
+  const tests = (await listSubmissions({ fresh: true })).filter((submission) => submission.rehearsal);
+  // One at a time: on GitHub each delete is a commit, and parallel commits to
+  // one branch conflict.
+  for (const submission of tests) await deleteSubmission(submission.id);
+  return tests.length;
 }
 
 /**
