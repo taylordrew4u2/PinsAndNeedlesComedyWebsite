@@ -3,26 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import type { Rehearsal } from "@/lib/rehearsal";
+import { modeQuery, type Space } from "@/lib/space";
 import { useWakeLock } from "@/lib/use-wake-lock";
 
-type RehearsalState = {
-  rehearsal: Rehearsal | null;
-  rehearsing: boolean;
-  showWindowOpen: boolean;
-  enabled: boolean;
-};
-type State = RehearsalState & { submissions: Submission[]; selected: LiveSelection | null; truncated: boolean };
+type State = { submissions: Submission[]; selected: LiveSelection | null; truncated: boolean };
 
-const clock = (iso: string) =>
-  new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
-
-export default function RunShow() {
+/**
+ * The host's controls. The same screen runs the real show and the dress
+ * rehearsal; `space` decides which pile and which projector screen it drives,
+ * and the two never touch.
+ */
+export default function RunShow({ space = "live" }: { space?: Space }) {
+  const rehearsal = space === "rehearsal";
+  const api = `/api/admin/run-show${modeQuery(space)}`;
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [authLost, setAuthLost] = useState(false);
-  const [notice, setNotice] = useState("");
   useWakeLock();
   const revision = useRef(0);
   const changing = useRef(false);
@@ -33,7 +31,7 @@ export default function RunShow() {
     loading.current = true;
     const started = revision.current;
     try {
-      const response = await fetch("/api/admin/run-show", { cache: "no-store" });
+      const response = await fetch(api, { cache: "no-store" });
       if (response.status === 401) { setAuthLost(true); return; }
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not load questions.");
@@ -45,7 +43,7 @@ export default function RunShow() {
     } catch (failure) {
       if (started === revision.current) setError(failure instanceof Error ? failure.message : "Could not load questions.");
     } finally { loading.current = false; }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     // refresh reads external server state, rather than deriving state from props.
@@ -57,31 +55,8 @@ export default function RunShow() {
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", resume); };
   }, [refresh]);
 
-  const select = async (submissionId: string | null) => {
-    if (changing.current) return;
-    changing.current = true;
-    revision.current += 1;
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch("/api/admin/run-show", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ submissionId }),
-      });
-      if (response.status === 401) { setAuthLost(true); return; }
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not update the live screen.");
-      setState((current) => current ? { ...current, selected: data.selected } : current);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not update the live screen.");
-    } finally {
-      revision.current += 1;
-      changing.current = false;
-      setBusy(false);
-    }
-  };
-
-  const rehearse = async (action: "start" | "finish") => {
+  /** One change at a time; the poll waits until it has landed. */
+  const change = async (body: object, done: (data: { selected?: LiveSelection | null; deleted?: number }) => void) => {
     if (changing.current) return;
     changing.current = true;
     revision.current += 1;
@@ -89,73 +64,81 @@ export default function RunShow() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/run-show", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rehearsal: action }),
+      const response = await fetch(api, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       if (response.status === 401) { setAuthLost(true); return; }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not update the rehearsal.");
-      if (action === "finish") {
-        setNotice(`Rehearsal finished. ${data.deleted === 1 ? "1 test question" : `${data.deleted} test questions`} deleted.`);
-      }
+      if (!response.ok) throw new Error(data.error || "Could not update the screen.");
+      done(data);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not update the rehearsal.");
+      setError(failure instanceof Error ? failure.message : "Could not update the screen.");
     } finally {
       revision.current += 1;
       changing.current = false;
       setBusy(false);
     }
-    await refresh();
   };
 
-  const tests = state ? state.submissions.filter((item) => item.rehearsal).length : 0;
+  const select = (submissionId: string | null) =>
+    change({ submissionId }, (data) => setState((current) => current ? { ...current, selected: data.selected ?? null } : current));
+
+  const clearAll = () =>
+    change({ clearRehearsal: true }, (data) => {
+      setState((current) => current ? { ...current, submissions: [], selected: null } : current);
+      setNotice(`Rehearsal cleared. ${data.deleted === 1 ? "1 practice question" : `${data.deleted ?? 0} practice questions`} deleted.`);
+    });
 
   if (authLost) return (
     <main className="flex min-h-svh items-center justify-center px-5">
-      <a href="/admin/run-show" className="underline">Sign in again to Run Show</a>
+      <a href={`/admin/run-show${modeQuery(space)}`} className="underline">Sign in again to Run Show</a>
     </main>
   );
 
   return (
     <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-2xl">Run Show</h1>
-          <a href="/bad-decisions/live" target="_blank" rel="noopener noreferrer" className="rounded-md border border-white/30 px-4 py-2 text-sm">Open live screen </a>
-        </header>
-        {state ? (
-          <section aria-label="Dress rehearsal" className={`mb-6 rounded-lg border p-4 ${state.rehearsing ? "border-amber-300 bg-amber-300/10" : "border-white/20"}`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xs uppercase tracking-widest text-neutral-400">
-                {state.rehearsing && state.rehearsal ? <span className="text-amber-200">Rehearsal on · form open until {clock(state.rehearsal.endsAt)}</span> : "Dress rehearsal"}
-              </h2>
-              {state.rehearsing || state.rehearsal || tests > 0 ? (
-                <button type="button" onClick={() => void rehearse("finish")} disabled={busy} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">
-                  {tests > 0 ? `Finish & delete ${tests === 1 ? "1 test" : `${tests} tests`}` : "Finish rehearsal"}
-                </button>
-              ) : (
-                <button type="button" onClick={() => void rehearse("start")} disabled={busy || state.showWindowOpen || !state.enabled} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Start rehearsal</button>
-              )}
-            </div>
-            {state.rehearsing ? (
-              <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
-                <li>Scan the printed QR code with <b>this phone</b> (the one signed in here) and send a test. Guests still see the countdown.</li>
-                <li>It shows up below tagged TEST. Tap <b>Show on screen</b>.</li>
-                <li>Check it on the projector, then tap <b>Clear screen</b>.</li>
-                <li>Tap <b>Finish</b>. Only the tests are deleted.</li>
-              </ol>
-            ) : state.showWindowOpen ? (
-              <p className="mt-2 text-sm text-neutral-400">The real submission window is open, so the form is already live.</p>
-            ) : !state.enabled ? (
-              <p className="mt-2 text-sm text-neutral-400">Bad Decisions is switched off in the admin.</p>
-            ) : state.rehearsal || tests > 0 ? (
-              <p className="mt-2 text-sm text-neutral-400">The rehearsal has ended. Finish it to delete the test questions before the show.</p>
-            ) : (
-              <p className="mt-2 text-sm text-neutral-400">Opens the QR form on this phone only, for 30 minutes (never past the real opening), so you can run the whole show once. Guests keep seeing the countdown. Everything you send is tagged TEST and deleted when you finish.</p>
-            )}
-          </section>
+        {rehearsal ? (
+          <p className="mb-4 rounded-md bg-amber-300 px-4 py-2 text-center text-sm font-bold uppercase tracking-widest text-black">
+            Dress rehearsal · practice only
+          </p>
         ) : null}
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl">{rehearsal ? "Rehearsal" : "Run Show"}</h1>
+          <a href={`/bad-decisions/live${modeQuery(space)}`} target="_blank" rel="noopener noreferrer" className="rounded-md border border-white/30 px-4 py-2 text-sm">
+            {rehearsal ? "Open rehearsal screen" : "Open live screen"}
+          </a>
+        </header>
+
+        {rehearsal ? (
+          <section aria-label="How to rehearse" className="mb-6 rounded-lg border border-amber-300 bg-amber-300/10 p-4">
+            <p className="text-sm text-neutral-200">
+              A separate practice copy of the show. It has its own screen, its own QR code and its own questions,
+              and nothing here touches the real show. Use it any time, even during the show.
+            </p>
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
+              <li>Tap <b>Open rehearsal screen</b> on the projector. It says REHEARSAL in the corner.</li>
+              <li>Scan the QR on that screen with any phone and send a practice question.</li>
+              <li>It shows up below. Tap <b>Show on screen</b>, check the projector, then <b>Clear screen</b>.</li>
+              <li>When you&apos;re done, tap <b>Delete all practice questions</b>.</li>
+            </ol>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <a href="/admin/run-show" className="text-sm underline">← Back to the real show</a>
+              <button type="button" onClick={() => void clearAll()} disabled={busy || !state || (state.submissions.length === 0 && !state.selected)} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">
+                Delete all practice questions
+              </button>
+            </div>
+          </section>
+        ) : (
+          <a href="/admin/run-show?mode=rehearsal" className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-white/20 p-4 hover:border-white/50">
+            <span>
+              <span className="block text-xs uppercase tracking-widest text-neutral-400">Dress rehearsal</span>
+              <span className="mt-1 block text-sm text-neutral-300">A separate practice copy with its own screen and QR. It never touches the real show.</span>
+            </span>
+            <span aria-hidden="true" className="text-xl">→</span>
+          </a>
+        )}
+
         {notice ? <p role="status" className="mb-4 text-emerald-300">{notice}</p> : null}
         <div className="mb-6 rounded-lg border border-white/20 p-4">
           <div className="flex items-center justify-between gap-4">
@@ -166,7 +149,7 @@ export default function RunShow() {
         </div>
         {error ? <p role="alert" className="mb-4 text-red-300">{error}</p> : null}
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base">Questions{state ? ` (${state.submissions.length})` : ""}</h2>
+          <h2 className="text-base">{rehearsal ? "Practice questions" : "Questions"}{state ? ` (${state.submissions.length})` : ""}</h2>
           <button type="button" onClick={() => void refresh()} disabled={busy} className="px-3 py-2 text-sm underline disabled:opacity-40">Refresh</button>
         </div>
         {state?.truncated ? <p className="mb-3 text-sm text-amber-200">Showing the newest available questions. Older entries can be managed in the main admin.</p> : null}
@@ -176,7 +159,6 @@ export default function RunShow() {
               const selected = state.selected?.submissionId === item.id;
               return (
                 <li key={item.id} className={`rounded-lg border p-4 ${selected ? "border-white bg-white/10" : "border-white/15"}`}>
-                  {item.rehearsal ? <span className="mb-2 inline-block rounded bg-amber-300 px-2 py-0.5 text-xs font-bold tracking-widest text-black">TEST</span> : null}
                   <p className="whitespace-pre-wrap break-words text-lg leading-relaxed">{item.decision}</p>
                   <div className="mt-4 flex items-center justify-between gap-4">
                     <span className="text-sm text-neutral-400">{item.name || "Anonymous"}</span>

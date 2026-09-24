@@ -5,8 +5,12 @@ import { randomUUID } from "node:crypto";
 import { driver, requireGithub } from "./store";
 import { readFile as githubRead, writeFile as githubWrite } from "./github-store";
 import { parseSelection, type LiveSelection } from "./live-selection";
+import { storagePrefix, type Space } from "./space";
 
-const KEY = "live-show/selection.json";
+/** live-show/selection.json for the show; rehearsal/live-show/… for practice. */
+function keyOf(space: Space): string {
+  return `${storagePrefix(space)}live-show/selection.json`;
+}
 
 /**
  * One small JSON record under live-show/, on whichever driver holds content.
@@ -61,17 +65,17 @@ export async function writeRecord(key: string, value: unknown, message: string):
 }
 
 /** This separate, durable record survives deployments and serverless instances. */
-export async function readLiveSelection(): Promise<LiveSelection | null> {
-  return parseSelection(await readRecord(KEY));
+export async function readLiveSelection(space: Space = "live"): Promise<LiveSelection | null> {
+  return parseSelection(await readRecord(keyOf(space)));
 }
 
-export async function writeLiveSelection(selection: LiveSelection | null): Promise<void> {
-  await writeRecord(KEY, selection, "Update live show selection");
+export async function writeLiveSelection(selection: LiveSelection | null, space: Space = "live"): Promise<void> {
+  await writeRecord(keyOf(space), selection, space === "rehearsal" ? "Update rehearsal screen" : "Update live show selection");
 }
 
-export async function clearLiveSelection(submissionId?: string): Promise<void> {
-  const current = await readLiveSelection();
+export async function clearLiveSelection(submissionId?: string, space: Space = "live"): Promise<void> {
+  const current = await readLiveSelection(space);
   if (current && (!submissionId || current.submissionId === submissionId)) {
-    await writeLiveSelection(null);
+    await writeLiveSelection(null, space);
   }
 }

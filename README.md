@@ -90,21 +90,20 @@ about every two seconds; the admin question list refreshes every ten seconds.
 Use **Clear screen** when finished. Deleting the selected submission or archiving
 the pile also clears the display. No selection produces a blank screen with the QR.
 
-**Dress rehearsal.** Before doors, tap **Start rehearsal** in Run Show. The QR
-form opens for 30 minutes, never past the real opening, and only on a device
-signed in to the admin; guests who scan early still see the countdown. Send a
-test from that phone with the printed QR, put it on the projector, then tap **Finish**. Anything
-sent during the rehearsal is tagged TEST, and Finish deletes those and nothing
-else. A rehearsal cannot start while the real window is open, and nothing sent
-during the real window is ever tagged as a test. Texting in always follows the
-real window.
+**Dress rehearsal.** A separate practice copy of the show, at
+`/admin/run-show?mode=rehearsal` (linked from Run Show). It has its own
+projector screen (`/bad-decisions/live?mode=rehearsal`, labelled REHEARSAL),
+its own QR code, an always-open practice form, and its own pile stored under
+`rehearsal/`. Nothing in it touches the live show (not the pile, the
+projector, the form or the 8 PM window), so it works any time, even during the
+show. **Delete all practice questions** wipes it.
 
 **Show simulator.** `npm run build && npm run simulate` plays a whole show
 night on a stand-in copy of the site: the production build on a fake GitHub
 content store, with a guest's phone, the host's phone, Run Show and the
-projector. It covers the rehearsal, 8 PM, a rush of 40 guests on one wifi, a
-dropped connection on the projector, Draw one and Archive, and nothing real is
-touched. `npm run simulate -- --live` only reads the real site: pages, the
+projector. It covers the rehearsal staying separate from the show (before doors and
+mid-show), 8 PM, a rush of 40 guests on one wifi, a dropped connection on the
+projector, Draw one and Archive, and nothing real is touched. `npm run simulate -- --live` only reads the real site: pages, the
 projector's QR, where it leads, and whether the form is open. Both write
 `simulator-report/index.html` with screenshots. From a phone, run it in GitHub
 under Actions → Show simulator → Run workflow; the report is attached to the

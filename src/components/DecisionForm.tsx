@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { DECISION_MAX, NAME_MAX } from "@/lib/decisions";
 import { countdownParts } from "@/lib/countdown";
 import { formatPhone, smsHref } from "@/lib/sms";
+import type { Space } from "@/lib/space";
 
 /**
  * The submission form. Built for a phone in a bar: one field, one choice,
@@ -15,6 +16,7 @@ import { formatPhone, smsHref } from "@/lib/sms";
  * its own.
  */
 export default function DecisionForm({
+  space = "live",
   qrKey,
   question,
   placeholder,
@@ -32,6 +34,8 @@ export default function DecisionForm({
   smsNumber,
   smsNote,
 }: {
+  /** Which show this form belongs to; the rehearsal saves to its own pile. */
+  space?: Space;
   qrKey: string;
   question: string;
   placeholder: string;
@@ -82,7 +86,7 @@ export default function DecisionForm({
       nextPoll = current + 30_000;
       boundary = NaN;
       try {
-        const response = await fetch("/api/decisions", { cache: "no-store", headers: { "X-Decisions-QR": qrKey }, signal: controller.signal });
+        const response = await fetch("/api/decisions", { cache: "no-store", headers: { "X-Decisions-QR": qrKey, "X-Decisions-Space": space }, signal: controller.signal });
         if (!response.ok) throw new Error("Unavailable");
         const data = await response.json();
         if (disposed || typeof data.open !== "boolean") return;
@@ -128,7 +132,7 @@ export default function DecisionForm({
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
     };
-  }, [initialOpen, initialOpensAt, initialClosesAt, initialServerNow, qrKey]);
+  }, [initialOpen, initialOpensAt, initialClosesAt, initialServerNow, qrKey, space]);
 
   useEffect(() => {
     if (open) heading.current?.focus();
@@ -142,7 +146,7 @@ export default function DecisionForm({
     try {
       const response = await fetch("/api/decisions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Decisions-QR": qrKey },
+        headers: { "Content-Type": "application/json", "X-Decisions-QR": qrKey, "X-Decisions-Space": space },
         body: JSON.stringify({ decision, name, anonymous: !named, website }),
       });
       const data = await response.json().catch(() => ({}));
