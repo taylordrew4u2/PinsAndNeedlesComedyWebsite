@@ -15,6 +15,15 @@ export type Rehearsal = { startedAt: string; endsAt: string };
 /** How long one rehearsal keeps the form open. */
 export const REHEARSAL_MINUTES = 30;
 
+/**
+ * What "Draw one" may pick from. During a rehearsal that is the tests, so the
+ * host can try the button; the rest of the time tests are never drawn, so a
+ * leftover test can't be read out on stage.
+ */
+export function drawable<T extends { status: string; rehearsal?: true }>(pile: T[], rehearsing: boolean): T[] {
+  return pile.filter((entry) => entry.status === "open" && Boolean(entry.rehearsal) === rehearsing);
+}
+
 /** Shorter than this before the real opening is not worth starting. */
 const MIN_REHEARSAL_MS = 60_000;
 

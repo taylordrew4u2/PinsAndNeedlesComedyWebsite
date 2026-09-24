@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
 import type { Rehearsal } from "@/lib/rehearsal";
+import { useWakeLock } from "@/lib/use-wake-lock";
 
 type RehearsalState = {
   rehearsal: Rehearsal | null;
@@ -22,6 +23,7 @@ export default function RunShow() {
   const [busy, setBusy] = useState(false);
   const [authLost, setAuthLost] = useState(false);
   const [notice, setNotice] = useState("");
+  useWakeLock();
   const revision = useRef(0);
   const changing = useRef(false);
   const loading = useRef(false);

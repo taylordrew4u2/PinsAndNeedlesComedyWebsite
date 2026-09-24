@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   REHEARSAL_MINUTES,
+  drawable,
   parseRehearsal,
   planRehearsal,
   rehearsalActive,
@@ -76,4 +77,22 @@ test("a malformed record is no rehearsal", () => {
   }
   const good = { startedAt: "2026-09-24T21:00:00.000Z", endsAt: "2026-09-24T21:30:00.000Z" };
   assert.deepEqual(parseRehearsal({ ...good, extra: 1 }), good);
+});
+
+test("Draw one never picks a leftover test during the real show", () => {
+  const pile = [
+    { id: "real-open", status: "open" },
+    { id: "real-drawn", status: "drawn" },
+    { id: "test-open", status: "open", rehearsal: true as const },
+  ];
+  assert.deepEqual(drawable(pile, false).map((entry) => entry.id), ["real-open"]);
+});
+
+test("during a rehearsal Draw one picks only the tests", () => {
+  const pile = [
+    { id: "real-open", status: "open" },
+    { id: "test-open", status: "open", rehearsal: true as const },
+    { id: "test-drawn", status: "drawn", rehearsal: true as const },
+  ];
+  assert.deepEqual(drawable(pile, true).map((entry) => entry.id), ["test-open"]);
 });
