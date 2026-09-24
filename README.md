@@ -83,6 +83,8 @@ secret scoped to one endpoint, and a
   and admin controls never appear on this screen.
 
 Open **Run Show** from admin, then **Open live screen** on the display computer.
+Double-click the live screen for full screen. It keeps the display awake, hides an
+idle mouse pointer, and holds the current question through a dropped connection.
 Choose **Show on screen** for any question. The live display checks for changes
 about every two seconds; the admin question list refreshes every ten seconds.
 Use **Clear screen** when finished. Deleting the selected submission or archiving
