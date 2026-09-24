@@ -88,6 +88,13 @@ about every two seconds; the admin question list refreshes every ten seconds.
 Use **Clear screen** when finished. Deleting the selected submission or archiving
 the pile also clears the display. No selection produces a blank screen with the QR.
 
+**Dress rehearsal.** Before doors, tap **Start rehearsal** in Run Show. The QR
+form opens for 30 minutes, never past the real opening. Send a test from your
+phone with the printed QR, put it on the projector, then tap **Finish**. Anything
+sent during the rehearsal is tagged TEST, and Finish deletes those and nothing
+else. A rehearsal cannot start while the real window is open, and nothing sent
+during the real window is ever tagged as a test.
+
 Selection persists in `live-show/selection.json` on the configured content storage
 driver (local filesystem, private GitHub content repo, or private Blob storage).
 The public endpoint `/api/decisions/live` returns only the chosen question text.

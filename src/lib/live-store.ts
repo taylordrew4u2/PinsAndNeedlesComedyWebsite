@@ -7,54 +7,66 @@ import { readFile as githubRead, writeFile as githubWrite } from "./github-store
 import { parseSelection, type LiveSelection } from "./live-selection";
 
 const KEY = "live-show/selection.json";
-const FILE = path.join(process.cwd(), "data", KEY);
 
-/** This separate, durable record survives deployments and serverless instances. */
-export async function readLiveSelection(): Promise<LiveSelection | null> {
+/**
+ * One small JSON record under live-show/, on whichever driver holds content.
+ * Null when it has never been written.
+ */
+export async function readRecord(key: string): Promise<unknown> {
   let bytes: string;
   if (driver === "github") {
-    const result = await githubRead(requireGithub(), KEY);
+    const result = await githubRead(requireGithub(), key);
     if (!result.bytes) return null;
     bytes = result.bytes.toString("utf8");
   } else if (driver === "blob") {
     const { get } = await import("@vercel/blob");
-    const result = await get(KEY, { access: "private", useCache: false });
+    const result = await get(key, { access: "private", useCache: false });
     if (!result) return null;
-    if (result.statusCode !== 200) throw new Error("Live selection unavailable");
+    if (result.statusCode !== 200) throw new Error(`${key} unavailable`);
     bytes = await new Response(result.stream).text();
   } else {
     try {
-      bytes = await fs.readFile(FILE, "utf8");
+      bytes = await fs.readFile(path.join(process.cwd(), "data", key), "utf8");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;
     }
   }
-  return parseSelection(JSON.parse(bytes));
+  return JSON.parse(bytes);
 }
 
-export async function writeLiveSelection(selection: LiveSelection | null): Promise<void> {
-  const json = JSON.stringify(selection);
+export async function writeRecord(key: string, value: unknown, message: string): Promise<void> {
+  const json = JSON.stringify(value);
   if (driver === "github") {
     const config = requireGithub();
-    const { sha } = await githubRead(config, KEY);
-    await githubWrite(config, KEY, Buffer.from(json), "Update live show selection", sha);
+    const { sha } = await githubRead(config, key);
+    await githubWrite(config, key, Buffer.from(json), message, sha);
   } else if (driver === "blob") {
     const { put } = await import("@vercel/blob");
-    await put(KEY, json, {
+    await put(key, json, {
       access: "private", contentType: "application/json", addRandomSuffix: false,
       allowOverwrite: true, cacheControlMaxAge: 0,
     });
   } else {
-    await fs.mkdir(path.dirname(FILE), { recursive: true });
-    const temporary = `${FILE}.${randomUUID()}.tmp`;
+    const file = path.join(process.cwd(), "data", key);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const temporary = `${file}.${randomUUID()}.tmp`;
     try {
       await fs.writeFile(temporary, json, "utf8");
-      await fs.rename(temporary, FILE);
+      await fs.rename(temporary, file);
     } finally {
       await fs.rm(temporary, { force: true });
     }
   }
+}
+
+/** This separate, durable record survives deployments and serverless instances. */
+export async function readLiveSelection(): Promise<LiveSelection | null> {
+  return parseSelection(await readRecord(KEY));
+}
+
+export async function writeLiveSelection(selection: LiveSelection | null): Promise<void> {
+  await writeRecord(KEY, selection, "Update live show selection");
 }
 
 export async function clearLiveSelection(submissionId?: string): Promise<void> {

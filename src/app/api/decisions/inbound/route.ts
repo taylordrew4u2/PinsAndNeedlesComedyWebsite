@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { sanitizeSubmission, submissionWindow } from "@/lib/decisions";
+import { sanitizeSubmission } from "@/lib/decisions";
+import { submissionGate } from "@/lib/rehearsal-store";
 import { looseText, readInbound, senderAllowed } from "@/lib/inbound";
 import { messageFromForward, textFromMime } from "@/lib/inbox";
 import { getContent } from "@/lib/store";
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
 
   // Enforced here as everywhere else: the point of the window is that whoever
   // sent this is in the room.
-  const gate = submissionWindow(weekly, content.shows);
+  const gate = await submissionGate(weekly, content.shows);
   if (!gate.open) {
     return NextResponse.json({ ok: true, accepted: false, reason: "closed" });
   }
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await addSubmission(clean.decision, "");
+    await addSubmission(clean.decision, "", { rehearsal: gate.rehearsal });
   } catch (error) {
     console.error("[inbound] save failed:", error);
     return NextResponse.json({ ok: false, error: "Could not save" }, { status: 500 });

@@ -1,4 +1,5 @@
-import { closedMessage, sanitizeSubmission, submissionWindow } from "@/lib/decisions";
+import { closedMessage, sanitizeSubmission } from "@/lib/decisions";
+import { submissionGate } from "@/lib/rehearsal-store";
 import { messageToDecision, verifyTwilioSignature } from "@/lib/sms";
 import { getContent } from "@/lib/store";
 import { addSubmission } from "@/lib/submissions";
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
   const { weekly } = content;
   if (!weekly.enabled) return quiet(404);
 
-  const gate = submissionWindow(weekly, content.shows);
+  const gate = await submissionGate(weekly, content.shows);
   if (!gate.open) {
     return reply(closedMessage(weekly, gate) || "Submissions are closed right now.");
   }
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
   if (!clean) return reply("Send the decision itself and we'll put it in the pile.");
 
   try {
-    await addSubmission(clean.decision, "");
+    await addSubmission(clean.decision, "", { rehearsal: gate.rehearsal });
   } catch (error) {
     console.error("[sms] save failed:", error);
     return reply("Couldn't save that one — try sending it again.");

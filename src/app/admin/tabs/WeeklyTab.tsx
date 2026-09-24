@@ -408,6 +408,7 @@ function StagePanel({ enabled }: { enabled: boolean }) {
               }`}
             >
               <p className={`text-[12px] font-medium uppercase tracking-[0.14em] ${index === 0 ? "text-neutral-600" : "text-neutral-500"}`}>
+                {entry.rehearsal ? "TEST · " : ""}
                 {entry.name ? `Called out: ${entry.name}` : "Anonymous"}
               </p>
               <p className={`mt-2 whitespace-pre-line leading-snug ${index === 0 ? "text-2xl sm:text-3xl" : "text-[16px]"}`}>{entry.decision}</p>
@@ -429,7 +430,10 @@ function StagePanel({ enabled }: { enabled: boolean }) {
             {open.map((entry) => (
               <li key={entry.id} className="flex items-start justify-between gap-3 rounded-lg border border-neutral-800 px-3 py-2">
                 <span className="min-w-0">
-                  <span className="block whitespace-pre-line text-[15px] leading-snug text-neutral-50">{entry.decision}</span>
+                  <span className="block whitespace-pre-line text-[15px] leading-snug text-neutral-50">
+                    {entry.rehearsal ? <span className="mr-2 rounded bg-amber-300 px-1.5 text-[11px] font-bold tracking-widest text-black">TEST</span> : null}
+                    {entry.decision}
+                  </span>
                   <span className="block text-[12px] text-neutral-500">
                     {entry.name ? entry.name : "anonymous"}
                     {entry.createdAt ? ` · ${new Date(entry.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : ""}

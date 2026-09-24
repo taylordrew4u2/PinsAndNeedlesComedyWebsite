@@ -310,6 +310,8 @@ export type Submission = {
   createdAt: string;
   status: SubmissionStatus;
   drawnAt: string;
+  /** Sent during a dress rehearsal; finishing the rehearsal deletes it. */
+  rehearsal?: true;
 };
 
 export type ShowsPage = {

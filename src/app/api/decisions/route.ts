@@ -1,6 +1,7 @@
 import { validDecisionQrKey } from "@/lib/decision-access";
 import { NextResponse } from "next/server";
-import { closedMessage, sanitizeSubmission, submissionWindow } from "@/lib/decisions";
+import { closedMessage, sanitizeSubmission } from "@/lib/decisions";
+import { submissionGate } from "@/lib/rehearsal-store";
 import { getContent } from "@/lib/store";
 import { addSubmission, countSince } from "@/lib/submissions";
 import { Throttle, clientAddress } from "@/lib/throttle";
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
   }
   const content = await getContent();
   const { weekly } = content;
-  const gate = submissionWindow(weekly, content.shows);
+  const gate = await submissionGate(weekly, content.shows);
   const state = {
     ok: true,
     open: weekly.enabled && gate.open,
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
 
   // The window is enforced here, not only in the form: the endpoint is the
   // thing a QR code points at, and it is open to anyone who has the URL.
-  const gate = submissionWindow(weekly, content.shows);
+  const gate = await submissionGate(weekly, content.shows);
   if (!gate.open) {
     return NextResponse.json(
       { ok: false, open: false, error: closedMessage(weekly, gate) || "Submissions are closed." },
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await addSubmission(clean.decision, clean.name);
+    await addSubmission(clean.decision, clean.name, { rehearsal: gate.rehearsal });
   } catch (error) {
     console.error("[decisions] save failed:", error);
     return NextResponse.json(
