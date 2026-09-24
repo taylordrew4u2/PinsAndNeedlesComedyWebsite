@@ -2,11 +2,12 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
+import { modeQuery, type Space } from "@/lib/space";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
 
-export default function LiveDisplay({ showQr }: { showQr: boolean }) {
+export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolean; space?: Space }) {
   const [question, setQuestion] = useState<string | null>(null);
   const [pointerIdle, setPointerIdle] = useState(false);
   useWakeLock();
@@ -41,7 +42,7 @@ export default function LiveDisplay({ showQr }: { showQr: boolean }) {
       if (pending) return;
       pending = true;
       try {
-        const response = await fetch("/api/decisions/live", { cache: "no-store", signal: controller.signal });
+        const response = await fetch(`/api/decisions/live${modeQuery(space)}`, { cache: "no-store", signal: controller.signal });
         // Only a real answer changes the screen. A failed poll — venue wifi
         // dropping a request, the server briefly busy — keeps what is up, so
         // the question doesn't blink off mid-bit; the next poll catches up.
@@ -64,7 +65,7 @@ export default function LiveDisplay({ showQr }: { showQr: boolean }) {
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
     };
-  }, []);
+  }, [space]);
 
   // The pointer vanishes when the mouse is still, so it never sits on the
   // projected screen, and comes back the moment the mouse moves.
@@ -97,10 +98,15 @@ export default function LiveDisplay({ showQr }: { showQr: boolean }) {
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
         {question ? <h1 ref={text} className="w-full whitespace-pre-wrap break-words text-center leading-tight">{question}</h1> : null}
       </div>
+      {space === "rehearsal" ? (
+        <p className="fixed left-3 top-3 rounded bg-amber-300 px-3 py-1 text-sm font-bold uppercase tracking-widest text-black sm:left-4 sm:top-4">
+          Rehearsal
+        </p>
+      ) : null}
       {showQr ? (
         <div className="fixed bottom-3 right-3 bg-white p-3 sm:bottom-4 sm:right-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/api/decisions/live/qr" alt="Scan to submit your question" width={160} height={160} className="h-24 w-24 sm:h-40 sm:w-40" />
+          <img src={`/api/decisions/live/qr${modeQuery(space)}`} alt="Scan to submit your question" width={160} height={160} className="h-24 w-24 sm:h-40 sm:w-40" />
         </div>
       ) : null}
     </main>

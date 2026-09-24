@@ -16,5 +16,8 @@ next-env.d.ts
 # The live screen selection may contain audience submission text
 /data/live-show/
 
+# The dress rehearsal's practice pile and screen (fs driver)
+/data/rehearsal/
+
 # Output of npm run simulate
 /simulator-report/

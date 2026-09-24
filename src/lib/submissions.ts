@@ -11,6 +11,7 @@ import {
 } from "./github-store";
 import { countIdsSince, sortSubmissions, submissionId } from "./decisions";
 import { mapWithLimit, planReads, pruneTo, type PileEntry } from "./pile";
+import { storagePrefix, type Space } from "./space";
 import type { Submission, SubmissionStatus } from "./types";
 
 /**
@@ -28,10 +29,19 @@ import type { Submission, SubmissionStatus } from "./types";
  *
  * Ids start with the timestamp, so listings come back in order and the
  * admin can cap how many it reads.
+ *
+ * The dress rehearsal keeps its own pile under rehearsal/submissions/, so
+ * practice never mixes with the real one. Every function here takes the
+ * space last and defaults to the live show.
  */
 
-const DIR = "submissions";
-const LOCAL_DIR = path.join(process.cwd(), "data", DIR);
+function dirOf(space: Space): string {
+  return `${storagePrefix(space)}submissions`;
+}
+
+function localDirOf(space: Space): string {
+  return path.join(process.cwd(), "data", dirOf(space));
+}
 
 /** How many the admin reads at most. Archive after each show keeps this small. */
 const LIST_LIMIT = 500;
@@ -74,16 +84,19 @@ const LISTING_CEILING = 1000;
  * comes back changed and is re-read — the cache can go stale in memory but
  * never in an answer.
  */
-const loaded = new Map<string, { version: string; submission: Submission }>();
+const caches: Record<Space, Map<string, { version: string; submission: Submission }>> = {
+  live: new Map(),
+  rehearsal: new Map(),
+};
 
-function fileFor(id: string): string {
+function fileFor(id: string, space: Space): string {
   if (!/^[A-Za-z0-9-]+$/.test(id)) throw new Error("Bad submission id");
-  return `${DIR}/${id}.json`;
+  return `${dirOf(space)}/${id}.json`;
 }
 
-async function write(submission: Submission, knownSha: string | null): Promise<void> {
+async function write(submission: Submission, knownSha: string | null, space: Space): Promise<void> {
   const json = JSON.stringify(submission, null, 2);
-  const key = fileFor(submission.id);
+  const key = fileFor(submission.id, space);
 
   if (driver === "github") {
     await githubWrite(
@@ -107,8 +120,8 @@ async function write(submission: Submission, knownSha: string | null): Promise<v
     });
     return;
   }
-  await fs.mkdir(LOCAL_DIR, { recursive: true });
-  const target = path.join(LOCAL_DIR, `${submission.id}.json`);
+  await fs.mkdir(localDirOf(space), { recursive: true });
+  const target = path.join(localDirOf(space), `${submission.id}.json`);
   const tmp = `${target}.${process.pid}.tmp`;
   await fs.writeFile(tmp, json, "utf8");
   await fs.rename(tmp, target);
@@ -125,15 +138,14 @@ function parse(bytes: string | Buffer): Submission | null {
       createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
       status: value.status === "drawn" || value.status === "archived" ? value.status : "open",
       drawnAt: typeof value.drawnAt === "string" ? value.drawnAt : "",
-      ...(value.rehearsal === true ? { rehearsal: true as const } : {}),
     };
   } catch {
     return null;
   }
 }
 
-async function readOne(id: string): Promise<{ submission: Submission | null; sha: string | null }> {
-  const key = fileFor(id);
+async function readOne(id: string, space: Space): Promise<{ submission: Submission | null; sha: string | null }> {
+  const key = fileFor(id, space);
   if (driver === "github") {
     const { bytes, sha } = await githubRead(requireGithub(), key);
     return { submission: bytes ? parse(bytes) : null, sha };
@@ -145,21 +157,21 @@ async function readOne(id: string): Promise<{ submission: Submission | null; sha
     return { submission: parse(await new Response(result.stream).text()), sha: null };
   }
   try {
-    return { submission: parse(await fs.readFile(path.join(LOCAL_DIR, `${id}.json`), "utf8")), sha: null };
+    return { submission: parse(await fs.readFile(path.join(localDirOf(space), `${id}.json`), "utf8")), sha: null };
   } catch {
     return { submission: null, sha: null };
   }
 }
 
 /** Read one id without exposing the rest of the pile. */
-export async function getSubmission(id: string): Promise<Submission | null> {
-  return (await readOne(id)).submission;
+export async function getSubmission(id: string, space: Space = "live"): Promise<Submission | null> {
+  return (await readOne(id, space)).submission;
 }
 
 export async function addSubmission(
   decision: string,
   name: string,
-  options: { rehearsal?: boolean } = {}
+  space: Space = "live"
 ): Promise<Submission> {
   const now = new Date();
   const submission: Submission = {
@@ -169,9 +181,8 @@ export async function addSubmission(
     createdAt: now.toISOString(),
     status: "open",
     drawnAt: "",
-    ...(options.rehearsal ? { rehearsal: true as const } : {}),
   };
-  await write(submission, null);
+  await write(submission, null, space);
   return submission;
 }
 
@@ -184,7 +195,8 @@ export async function addSubmission(
  * process costs nothing worth avoiding, and claiming a file had not changed
  * without the store saying so would be a guess.
  */
-async function listEntries(): Promise<{ entries: PileEntry[]; truncated: boolean }> {
+async function listEntries(space: Space): Promise<{ entries: PileEntry[]; truncated: boolean }> {
+  const DIR = dirOf(space);
   let entries: PileEntry[] = [];
 
   if (driver === "github") {
@@ -202,7 +214,7 @@ async function listEntries(): Promise<{ entries: PileEntry[]; truncated: boolean
       }));
   } else {
     try {
-      entries = (await fs.readdir(LOCAL_DIR))
+      entries = (await fs.readdir(localDirOf(space)))
         .filter((name) => name.endsWith(".json"))
         .map((name) => ({ id: name.slice(0, -5), version: "" }));
     } catch {
@@ -217,8 +229,8 @@ async function listEntries(): Promise<{ entries: PileEntry[]; truncated: boolean
 /**
  * The ids in the store, oldest first. One directory listing and nothing else.
  */
-export async function listSubmissionIds(): Promise<string[]> {
-  return (await listEntries()).entries.map((entry) => entry.id);
+export async function listSubmissionIds(space: Space = "live"): Promise<string[]> {
+  return (await listEntries(space)).entries.map((entry) => entry.id);
 }
 
 /**
@@ -230,12 +242,13 @@ export async function listSubmissionIds(): Promise<string[]> {
  * that and read everything — the draw does, because picking from a pile that
  * is even slightly behind could hand the host a submission already read out.
  */
-async function load(entries: PileEntry[], fresh: boolean): Promise<Submission[]> {
+async function load(entries: PileEntry[], fresh: boolean, space: Space): Promise<Submission[]> {
+  const loaded = caches[space];
   const plan = planReads(entries, (id) => (fresh ? undefined : loaded.get(id)?.version));
   const versions = new Map(entries.map((entry) => [entry.id, entry.version]));
 
   const fetched = await mapWithLimit(plan.read, READ_CONCURRENCY, async (id) => {
-    const { submission } = await readOne(id);
+    const { submission } = await readOne(id, space);
     const version = versions.get(id) || "";
     // Remembered only when the store can tell us later that it changed.
     if (submission && version) loaded.set(id, { version, submission });
@@ -249,19 +262,23 @@ async function load(entries: PileEntry[], fresh: boolean): Promise<Submission[]>
 }
 
 export async function listPile(
-  options: { fresh?: boolean } = {}
+  options: { fresh?: boolean } = {},
+  space: Space = "live"
 ): Promise<{ submissions: Submission[]; truncated: boolean }> {
-  const { entries, truncated } = await listEntries();
+  const { entries, truncated } = await listEntries(space);
   // Newest ids sort last; keep the most recent LIST_LIMIT.
-  const submissions = await load(entries.slice(-LIST_LIMIT), Boolean(options.fresh));
+  const submissions = await load(entries.slice(-LIST_LIMIT), Boolean(options.fresh), space);
 
-  pruneTo(loaded, entries);
+  pruneTo(caches[space], entries);
   return { submissions: sortSubmissions(submissions), truncated: truncated || entries.length > LIST_LIMIT };
 }
 
 /** Every stored submission, newest first, capped at LIST_LIMIT. */
-export async function listSubmissions(options: { fresh?: boolean } = {}): Promise<Submission[]> {
-  return (await listPile(options)).submissions;
+export async function listSubmissions(
+  options: { fresh?: boolean } = {},
+  space: Space = "live"
+): Promise<Submission[]> {
+  return (await listPile(options, space)).submissions;
 }
 
 /**
@@ -272,20 +289,25 @@ export async function listSubmissions(options: { fresh?: boolean } = {}): Promis
  * per submission. The admin, which needs the actual text, still reads
  * everything — it is one person, once a night, not a room full of phones.
  */
-export async function countSince(since: Date | null): Promise<number> {
-  return countIdsSince(await listSubmissionIds(), since);
+export async function countSince(since: Date | null, space: Space = "live"): Promise<number> {
+  return countIdsSince(await listSubmissionIds(space), since);
 }
 
-export async function setStatus(id: string, status: SubmissionStatus): Promise<Submission | null> {
-  const { submission, sha } = await readOne(id);
+export async function setStatus(
+  id: string,
+  status: SubmissionStatus,
+  space: Space = "live"
+): Promise<Submission | null> {
+  const { submission, sha } = await readOne(id, space);
   if (!submission) return null;
-  return writeStatus(submission, status, sha);
+  return writeStatus(submission, status, sha, space);
 }
 
 async function writeStatus(
   submission: Submission,
   status: SubmissionStatus,
-  sha: string | null
+  sha: string | null,
+  space: Space
 ): Promise<Submission> {
   const next: Submission = {
     ...submission,
@@ -293,15 +315,15 @@ async function writeStatus(
     drawnAt: status === "drawn" ? new Date().toISOString() : submission.drawnAt,
   };
   // Drop it before the write: what is in memory is about to be a version behind.
-  loaded.delete(submission.id);
-  await write(next, sha);
+  caches[space].delete(submission.id);
+  await write(next, sha, space);
   return next;
 }
 
-export async function deleteSubmission(id: string): Promise<void> {
-  const key = fileFor(id);
-  await clearLiveSelection(id);
-  loaded.delete(id);
+export async function deleteSubmission(id: string, space: Space = "live"): Promise<void> {
+  const key = fileFor(id, space);
+  await clearLiveSelection(id, space);
+  caches[space].delete(id);
   if (driver === "github") {
     await githubDelete(requireGithub(), key, `Delete submission ${id}`);
     return;
@@ -311,20 +333,20 @@ export async function deleteSubmission(id: string): Promise<void> {
     await del(key);
     return;
   }
-  await fs.rm(path.join(LOCAL_DIR, `${id}.json`), { force: true });
+  await fs.rm(path.join(localDirOf(space), `${id}.json`), { force: true });
 }
 
 /**
- * Finishing a dress rehearsal: delete every test it left, and only those.
- * Read past the cache so a test sent a moment ago is not missed. Deleting a
- * test that is on the projector clears the projector too.
+ * Wipes the rehearsal: every practice question and its projector. Only ever
+ * touches the rehearsal space, so the live pile cannot be reached from here.
  */
-export async function deleteRehearsalSubmissions(): Promise<number> {
-  const tests = (await listSubmissions({ fresh: true })).filter((submission) => submission.rehearsal);
+export async function clearRehearsal(): Promise<number> {
+  await clearLiveSelection(undefined, "rehearsal");
+  const { entries } = await listEntries("rehearsal");
   // One at a time: on GitHub each delete is a commit, and parallel commits to
   // one branch conflict.
-  for (const submission of tests) await deleteSubmission(submission.id);
-  return tests.length;
+  for (const entry of entries) await deleteSubmission(entry.id, "rehearsal");
+  return entries.length;
 }
 
 /**
@@ -343,9 +365,9 @@ export async function deleteRehearsalSubmissions(): Promise<number> {
  */
 export async function archiveAll(limit = ARCHIVE_BATCH): Promise<{ archived: number; remaining: number }> {
   await clearLiveSelection();
-  const { entries } = await listEntries();
+  const { entries } = await listEntries("live");
   const shas = new Map(entries.map((entry) => [entry.id, entry.version]));
-  const live = (await load(entries, false)).filter(
+  const live = (await load(entries, false, "live")).filter(
     (submission) => submission.status !== "archived"
   );
 
@@ -353,7 +375,7 @@ export async function archiveAll(limit = ARCHIVE_BATCH): Promise<{ archived: num
   await mapWithLimit(batch, WRITE_CONCURRENCY, (submission) =>
     // On GitHub the version is the blob sha the write needs; elsewhere it is
     // not, and the driver ignores it.
-    writeStatus(submission, "archived", driver === "github" ? shas.get(submission.id) ?? null : null)
+    writeStatus(submission, "archived", driver === "github" ? shas.get(submission.id) ?? null : null, "live")
   );
 
   return { archived: batch.length, remaining: live.length - batch.length };

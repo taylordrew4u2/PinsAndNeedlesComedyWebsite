@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
-import { pickRandom, submissionWindow } from "@/lib/decisions";
-import { drawable, rehearsalActive } from "@/lib/rehearsal";
-import { readRehearsal } from "@/lib/rehearsal-store";
-import { getContent } from "@/lib/store";
+import { pickRandom } from "@/lib/decisions";
 import {
   archiveAll,
   deleteSubmission,
@@ -59,13 +56,11 @@ export async function POST(request: Request) {
 
   try {
     if (body.action === "draw") {
-      // Tests are drawn only while rehearsing, and real decisions only
-      // outside it, so a leftover test never reaches the stage.
-      const { weekly, shows } = await getContent();
-      const rehearsing = rehearsalActive(await readRehearsal().catch(() => null), submissionWindow(weekly, shows));
       // Read past the cache: drawing from a pile even slightly behind could
       // hand the host something already read out on stage.
-      const open = drawable(await listSubmissions({ fresh: true }), rehearsing);
+      const open = (await listSubmissions({ fresh: true })).filter(
+        (entry) => entry.status === "open"
+      );
       const picked = pickRandom(open);
       if (!picked) return NextResponse.json({ ok: true, drawn: null, remaining: 0 });
       const drawn = await setStatus(picked.id, "drawn");

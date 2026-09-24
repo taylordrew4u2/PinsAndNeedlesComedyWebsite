@@ -1,4 +1,5 @@
 import type { Show, Submission, WeeklyPage } from "./types";
+import type { Space } from "./space.ts";
 import { formatTime, isUpcoming, nyInstant, nyToday } from "./shows.ts";
 import { emptySeo, slugify } from "./seo.ts";
 
@@ -277,6 +278,21 @@ export function submissionWindow(
       ? labelFor(current.date, current.opensAt, weekly.weekday, today)
       : "",
   };
+}
+
+/**
+ * The window for a space. The live show keeps its clock; the dress rehearsal
+ * is a practice copy with no clock at all — its form is always open, so it can
+ * be tried at any hour without touching the real window.
+ */
+export function windowFor(
+  space: Space,
+  weekly: WeeklyPage,
+  shows: Show[],
+  now: Date = new Date()
+): SubmissionWindow {
+  if (space === "rehearsal") return { open: true, date: "", opensAt: "", closesAt: "", opensLabel: "" };
+  return submissionWindow(weekly, shows, now);
 }
 
 function occurrence(
