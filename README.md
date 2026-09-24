@@ -89,11 +89,13 @@ Use **Clear screen** when finished. Deleting the selected submission or archivin
 the pile also clears the display. No selection produces a blank screen with the QR.
 
 **Dress rehearsal.** Before doors, tap **Start rehearsal** in Run Show. The QR
-form opens for 30 minutes, never past the real opening. Send a test from your
-phone with the printed QR, put it on the projector, then tap **Finish**. Anything
+form opens for 30 minutes, never past the real opening, and only on a device
+signed in to the admin; guests who scan early still see the countdown. Send a
+test from that phone with the printed QR, put it on the projector, then tap **Finish**. Anything
 sent during the rehearsal is tagged TEST, and Finish deletes those and nothing
 else. A rehearsal cannot start while the real window is open, and nothing sent
-during the real window is ever tagged as a test.
+during the real window is ever tagged as a test. Texting in always follows the
+real window.
 
 Selection persists in `live-show/selection.json` on the configured content storage
 driver (local filesystem, private GitHub content repo, or private Blob storage).

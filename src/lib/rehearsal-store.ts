@@ -1,4 +1,5 @@
 import "server-only";
+import { isAuthed } from "./auth";
 import { submissionWindow, type SubmissionWindow } from "./decisions";
 import { readRecord, writeRecord } from "./live-store";
 import { parseRehearsal, withRehearsal, type Rehearsal } from "./rehearsal";
@@ -27,8 +28,11 @@ export async function writeRehearsal(rehearsal: Rehearsal | null): Promise<void>
 }
 
 /**
- * The submission window every way in should enforce: the real one, opened by
- * a dress rehearsal when one is running.
+ * The window the QR form enforces: the real one, opened by a dress rehearsal
+ * when one is running — but only for the host. A rehearsal opens the form on
+ * a device signed in to the admin and nowhere else, so a guest who scanned
+ * the table QR early still sees the countdown, and nothing a guest sends is
+ * ever tagged as a test. Texting in always follows the real window.
  *
  * The record is read only while the real window is shut, so the show itself
  * costs nothing extra. If it cannot be read, the answer is the real window —
@@ -40,7 +44,7 @@ export async function submissionGate(
   now: Date = new Date()
 ): Promise<SubmissionWindow & { rehearsal: boolean }> {
   const gate = submissionWindow(weekly, shows, now);
-  if (gate.open) return { ...gate, rehearsal: false };
+  if (gate.open || !(await isAuthed())) return { ...gate, rehearsal: false };
   let rehearsal: Rehearsal | null = null;
   try {
     rehearsal = await readRehearsal();

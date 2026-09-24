@@ -138,7 +138,7 @@ export default function RunShow() {
             </div>
             {state.rehearsing ? (
               <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
-                <li>Scan the printed QR code with your phone and send a test.</li>
+                <li>Scan the printed QR code with <b>this phone</b> (the one signed in here) and send a test. Guests still see the countdown.</li>
                 <li>It shows up below tagged TEST. Tap <b>Show on screen</b>.</li>
                 <li>Check it on the projector, then tap <b>Clear screen</b>.</li>
                 <li>Tap <b>Finish</b>. Only the tests are deleted.</li>
@@ -150,7 +150,7 @@ export default function RunShow() {
             ) : state.rehearsal || tests > 0 ? (
               <p className="mt-2 text-sm text-neutral-400">The rehearsal has ended. Finish it to delete the test questions before the show.</p>
             ) : (
-              <p className="mt-2 text-sm text-neutral-400">Opens the QR form for 30 minutes (never past the real opening) so you can run the whole show once. Everything sent is tagged TEST and deleted when you finish.</p>
+              <p className="mt-2 text-sm text-neutral-400">Opens the QR form on this phone only, for 30 minutes (never past the real opening), so you can run the whole show once. Guests keep seeing the countdown. Everything you send is tagged TEST and deleted when you finish.</p>
             )}
           </section>
         ) : null}

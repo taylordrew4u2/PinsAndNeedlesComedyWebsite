@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
-import { sanitizeSubmission } from "@/lib/decisions";
-import { submissionGate } from "@/lib/rehearsal-store";
+import { sanitizeSubmission, submissionWindow } from "@/lib/decisions";
 import { looksLikeForwardedText, messageFromForward, textFromMime } from "@/lib/inbox";
 import { eachUnseen, type MailboxClient } from "@/lib/mailbox";
 import { getContent } from "@/lib/store";
@@ -59,7 +58,7 @@ export async function POST() {
 
   const content = await getContent();
   const { weekly } = content;
-  const gate = await submissionGate(weekly, content.shows);
+  const gate = submissionWindow(weekly, content.shows);
   if (!weekly.enabled || !gate.open) {
     // Outside the window a text is read but not added, same as the form.
     return NextResponse.json<Ingested & { ok: true }>({
@@ -101,7 +100,7 @@ export async function POST() {
         const clean = sanitizeSubmission({ decision: messageFromForward(textFromMime(raw)) });
 
         if (clean) {
-          await addSubmission(clean.decision, "", { rehearsal: gate.rehearsal });
+          await addSubmission(clean.decision, "");
           added += 1;
         } else {
           skipped += 1;

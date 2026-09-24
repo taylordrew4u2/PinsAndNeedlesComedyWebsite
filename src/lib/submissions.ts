@@ -321,7 +321,9 @@ export async function deleteSubmission(id: string): Promise<void> {
  */
 export async function deleteRehearsalSubmissions(): Promise<number> {
   const tests = (await listSubmissions({ fresh: true })).filter((submission) => submission.rehearsal);
-  await mapWithLimit(tests, WRITE_CONCURRENCY, (submission) => deleteSubmission(submission.id));
+  // One at a time: on GitHub each delete is a commit, and parallel commits to
+  // one branch conflict.
+  for (const submission of tests) await deleteSubmission(submission.id);
   return tests.length;
 }
 
