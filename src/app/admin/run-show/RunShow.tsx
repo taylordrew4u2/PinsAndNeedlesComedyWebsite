@@ -3,19 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { modeQuery, type Space } from "@/lib/space";
 import { useWakeLock } from "@/lib/use-wake-lock";
 
-type State = { submissions: Submission[]; selected: LiveSelection | null; truncated: boolean };
+type State = { submissions: Submission[]; selected: LiveSelection | null; truncated: boolean; questionsOpen: boolean; manualOpen: boolean };
 
-/**
- * The host's controls. The same screen runs the real show and the dress
- * rehearsal; `space` decides which pile and which projector screen it drives,
- * and the two never touch.
- */
-export default function RunShow({ space = "live" }: { space?: Space }) {
-  const rehearsal = space === "rehearsal";
-  const api = `/api/admin/run-show${modeQuery(space)}`;
+/** The host's controls for the live show. */
+export default function RunShow() {
+  const api = "/api/admin/run-show";
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -56,7 +50,7 @@ export default function RunShow({ space = "live" }: { space?: Space }) {
   }, [refresh]);
 
   /** One change at a time; the poll waits until it has landed. */
-  const change = async (body: object, done: (data: { selected?: LiveSelection | null; deleted?: number }) => void) => {
+  const change = async (body: object, done: (data: { selected?: LiveSelection | null; questionsOpen?: boolean; manualOpen?: boolean }) => void) => {
     if (changing.current) return;
     changing.current = true;
     revision.current += 1;
@@ -83,61 +77,36 @@ export default function RunShow({ space = "live" }: { space?: Space }) {
   const select = (submissionId: string | null) =>
     change({ submissionId }, (data) => setState((current) => current ? { ...current, selected: data.selected ?? null } : current));
 
-  const clearAll = () =>
-    change({ clearRehearsal: true }, (data) => {
-      setState((current) => current ? { ...current, submissions: [], selected: null } : current);
-      setNotice(`Rehearsal cleared. ${data.deleted === 1 ? "1 practice question" : `${data.deleted ?? 0} practice questions`} deleted.`);
+  const setManualOpen = (manualOpen: boolean) =>
+    change({ manualOpen }, (data) => {
+      setState((current) => current ? { ...current, questionsOpen: Boolean(data.questionsOpen), manualOpen: Boolean(data.manualOpen) } : current);
+      setNotice(manualOpen ? "Questions are open now and will stay open until you return to the schedule." : "Questions are following the schedule again.");
     });
 
   if (authLost) return (
     <main className="flex min-h-svh items-center justify-center px-5">
-      <a href={`/admin/run-show${modeQuery(space)}`} className="underline">Sign in again to Run Show</a>
+      <a href="/admin/run-show" className="underline">Sign in again to Run Show</a>
     </main>
   );
 
   return (
     <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6">
       <div className="mx-auto max-w-3xl">
-        {rehearsal ? (
-          <p className="mb-4 rounded-md bg-amber-300 px-4 py-2 text-center text-sm font-bold uppercase tracking-widest text-black">
-            Dress rehearsal · practice only
-          </p>
-        ) : null}
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-2xl">{rehearsal ? "Rehearsal" : "Run Show"}</h1>
-          <a href={`/bad-decisions/live${modeQuery(space)}`} target="_blank" rel="noopener noreferrer" className="rounded-md border border-white/30 px-4 py-2 text-sm">
-            {rehearsal ? "Open rehearsal screen" : "Open live screen"}
+          <h1 className="text-2xl">Run Show</h1>
+          <a href="/bad-decisions/live" target="_blank" rel="noopener noreferrer" className="rounded-md border border-white/30 px-4 py-2 text-sm">
+            Open live screen
           </a>
         </header>
 
-        {rehearsal ? (
-          <section aria-label="How to rehearse" className="mb-6 rounded-lg border border-amber-300 bg-amber-300/10 p-4">
-            <p className="text-sm text-neutral-200">
-              A separate practice copy of the show. It has its own screen, its own QR code and its own questions,
-              and nothing here touches the real show. Use it any time, even during the show.
-            </p>
-            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
-              <li>Tap <b>Open rehearsal screen</b> on the projector. It says REHEARSAL in the corner.</li>
-              <li>Scan the QR on that screen with any phone and send a practice question.</li>
-              <li>It shows up below. Tap <b>Show on screen</b>, check the projector, then <b>Clear screen</b>.</li>
-              <li>When you&apos;re done, tap <b>Delete all practice questions</b>.</li>
-            </ol>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <a href="/admin/run-show" className="text-sm underline">← Back to the real show</a>
-              <button type="button" onClick={() => void clearAll()} disabled={busy || !state || (state.submissions.length === 0 && !state.selected)} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">
-                Delete all practice questions
-              </button>
-            </div>
-          </section>
-        ) : (
-          <a href="/admin/run-show?mode=rehearsal" className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-white/20 p-4 hover:border-white/50">
-            <span>
-              <span className="block text-xs uppercase tracking-widest text-neutral-400">Dress rehearsal</span>
-              <span className="mt-1 block text-sm text-neutral-300">A separate practice copy with its own screen and QR. It never touches the real show.</span>
-            </span>
-            <span aria-hidden="true" className="text-xl">→</span>
-          </a>
-        )}
+        <section aria-label="Question submissions" className="mb-6 rounded-lg border border-white/20 p-4">
+          <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : "Questions are closed"}</p>
+          <p className="mt-1 text-sm text-neutral-400">Open questions whenever you want. The live screen stays as it is.</p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button type="button" onClick={() => void setManualOpen(true)} disabled={busy || !state || state.manualOpen} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Open questions now</button>
+            {state?.manualOpen ? <button type="button" onClick={() => void setManualOpen(false)} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Use scheduled hours</button> : null}
+          </div>
+        </section>
 
         {notice ? <p role="status" className="mb-4 text-emerald-300">{notice}</p> : null}
         <div className="mb-6 rounded-lg border border-white/20 p-4">
@@ -150,7 +119,7 @@ export default function RunShow({ space = "live" }: { space?: Space }) {
         </div>
         {error ? <p role="alert" className="mb-4 text-red-300">{error}</p> : null}
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base">{rehearsal ? "Practice questions" : "Questions"}{state ? ` (${state.submissions.length})` : ""}</h2>
+          <h2 className="text-base">Questions{state ? ` (${state.submissions.length})` : ""}</h2>
           <button type="button" onClick={() => void refresh()} disabled={busy} className="px-3 py-2 text-sm underline disabled:opacity-40">Refresh</button>
         </div>
         {state?.truncated ? <p className="mb-3 text-sm text-amber-200">Showing the newest available questions. Older entries can be managed in the main admin.</p> : null}

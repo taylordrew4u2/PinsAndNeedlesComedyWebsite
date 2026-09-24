@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
+import { getContentStrict, patchContent } from "@/lib/store";
+import { submissionWindow } from "@/lib/decisions";
 import { isAuthed } from "@/lib/auth";
-import { clearRehearsal, getSubmission, listPile } from "@/lib/submissions";
+import { getSubmission, listPile } from "@/lib/submissions";
 import { readLiveSelection, writeLiveSelection } from "@/lib/live-store";
 import { selectionFor } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
 
 export const dynamic = "force-dynamic";
-// Clearing the rehearsal is one delete per practice question.
 export const maxDuration = 60;
 const headers = { "Cache-Control": "private, no-store" };
 
-/** `?mode=rehearsal` works on the dress rehearsal's own pile and screen. */
+/** Legacy mode parameters also use the live show. */
 function spaceFrom(request: Request): Space {
   return spaceOf(new URL(request.url).searchParams.get("mode"));
 }
@@ -19,11 +20,13 @@ export async function GET(request: Request) {
   if (!(await isAuthed())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
   const space = spaceFrom(request);
   try {
-    const [pile, selected] = await Promise.all([listPile({}, space), readLiveSelection(space)]);
+    const [pile, selected, content] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict()]);
     return NextResponse.json({
       submissions: pile.submissions.filter((item) => item.status !== "archived"),
       truncated: pile.truncated,
       selected,
+      questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
+      manualOpen: content.weekly.enabled && content.weekly.alwaysOpen,
     }, { headers });
   } catch (error) {
     console.error("[run-show] load failed", error);
@@ -38,17 +41,23 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400, headers });
   }
-  // Wiping practice questions exists only in the rehearsal: the live pile is
-  // archived from the main admin, never deleted from here.
-  if (body && typeof body === "object" && "clearRehearsal" in body) {
-    if (space !== "rehearsal") {
-      return NextResponse.json({ error: "Only the rehearsal can be cleared here." }, { status: 400, headers });
+  if (body && typeof body === "object" && "manualOpen" in body) {
+    if (typeof body.manualOpen !== "boolean") {
+      return NextResponse.json({ error: "Invalid question setting" }, { status: 400, headers });
     }
     try {
-      return NextResponse.json({ deleted: await clearRehearsal(), selected: null }, { headers });
+      // Only change question availability. Never write the projector selection or other page settings.
+      const content = await patchContent({ weekly: {
+        alwaysOpen: body.manualOpen,
+        ...(body.manualOpen ? { enabled: true } : {}),
+      } });
+      return NextResponse.json({
+        questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
+        manualOpen: content.weekly.enabled && content.weekly.alwaysOpen,
+      }, { headers });
     } catch (error) {
-      console.error("[run-show] clearing the rehearsal failed", error);
-      return NextResponse.json({ error: "Could not clear the rehearsal. Try again." }, { status: 503, headers });
+      console.error("[run-show] question setting failed", error);
+      return NextResponse.json({ error: "Could not update questions. Try again." }, { status: 503, headers });
     }
   }
   if (!body || typeof body !== "object" || !("submissionId" in body)) {
