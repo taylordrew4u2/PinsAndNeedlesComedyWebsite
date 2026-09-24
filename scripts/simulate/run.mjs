@@ -342,9 +342,22 @@ async function simulate() {
     });
 
     section("5. The show");
-    await check("the host puts a question on the projector", async () => {
+    await check("someone who ticks \"Put my name on it\" gets their name on screen", async () => {
+      await guest.locator("textarea").first().fill("Should I propose at a comedy show?");
+      await guest.getByText("Put my name on it").click();
+      await guest.getByPlaceholder("Your name").fill("Jordan");
+      await guest.getByRole("button", { name: /^send it$/i }).click();
+      await guest.getByText(/in the pile/i).waitFor({ timeout: 10_000 });
+      await runShow.getByRole("button", { name: "Refresh" }).click();
+      await runShow.locator("li", { hasText: "propose at a comedy show" }).getByRole("button", { name: "Show on screen" }).click();
+      await until(async () => (await projectorText()).includes("— Jordan"), 8_000, "name not on the projector");
+      await shoot(projector, "projector-named", "A named question: the name shows under it");
+      return "“— Jordan” under the question";
+    });
+    await check("an anonymous question shows no name", async () => {
       await runShow.locator("li", { hasText: "text my ex" }).getByRole("button", { name: "Show on screen" }).click();
       await until(async () => (await projectorText()).includes("text my ex"), 8_000, "projector did not update");
+      expect(!(await projectorText()).includes("—"), "a name appeared on an anonymous question");
       await shoot(projector, "projector-live", "Projector during the show");
     });
     await check("reloading the projector keeps the question", async () => {
@@ -367,11 +380,11 @@ async function simulate() {
       await projector.waitForTimeout(3_000);
       expect((await projectorText()).includes("text my ex"), "the live projector changed");
       await runShow.getByRole("button", { name: "Refresh" }).click();
-      await runShow.getByText("Questions (40)").waitFor({ timeout: 10_000 });
+      await runShow.getByText("Questions (41)").waitFor({ timeout: 10_000 });
       await rehearsalShow.getByRole("button", { name: "Delete all practice questions" }).click();
       await rehearsalShow.getByText(/Rehearsal cleared\. 1 practice question deleted/).waitFor({ timeout: 20_000 });
       expect((await projectorText()).includes("text my ex"), "clearing the rehearsal touched the live projector");
-      return "live pile still 40, live projector unchanged";
+      return "live pile unchanged, live projector unchanged";
     });
     await check("idle polling costs GitHub nothing (304 answers)", async () => {
       const before = { ...fake.stats };
@@ -396,7 +409,7 @@ async function simulate() {
         archived += result.archived;
         if (!result.remaining) break;
       }
-      expect(archived === 40, `archived ${archived}`);
+      expect(archived === 41, `archived ${archived}`);
       await until(async () => (await projectorText()) === "", 8_000, "projector not blank");
       return `${archived} archived`;
     });

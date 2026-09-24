@@ -146,6 +146,7 @@ export default function RunShow({ space = "live" }: { space?: Space }) {
             <button type="button" onClick={() => void select(null)} disabled={busy || !state?.selected} className="rounded border border-white/30 px-3 py-2 text-sm disabled:opacity-40">Clear screen</button>
           </div>
           {state?.selected ? <p className="mt-3 whitespace-pre-wrap break-words text-lg">{state.selected.question}</p> : null}
+          {state?.selected?.name ? <p className="mt-1 text-sm text-neutral-300">— {state.selected.name} (shown on screen)</p> : null}
         </div>
         {error ? <p role="alert" className="mb-4 text-red-300">{error}</p> : null}
         <div className="mb-3 flex items-center justify-between">
