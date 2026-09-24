@@ -55,6 +55,65 @@ function headers(config: GithubConfig, accept: string) {
   };
 }
 
+/**
+ * Reads ask GitHub whether a file changed since the last read, and reuse
+ * what they already have when it did not.
+ *
+ * During a show the projector, Run Show and every phone on the QR page all
+ * poll, and together they come close to GitHub's 5,000-requests-an-hour
+ * limit — past it, reads fail and the projector goes blank. A 304 "not
+ * modified" answer does not count against that limit, and almost every poll
+ * gets one. The answer is never stale: GitHub compares the ETag itself.
+ */
+const MAX_REMEMBERED = 2000;
+/** Uploads go through here too; big images are re-read rather than held. */
+const MAX_REMEMBERED_BYTES = 48 * 1024 * 1024;
+const MAX_ENTRY_BYTES = 8 * 1024 * 1024;
+const remembered = new Map<string, { etag: string; value: unknown; size: number }>();
+let rememberedBytes = 0;
+
+function etagOf(response: Response): string {
+  return (typeof response.headers?.get === "function" && response.headers.get("etag")) || "";
+}
+
+/** The request headers, asking "only if changed" when a copy is on hand. */
+function conditional(config: GithubConfig, accept: string, key: string) {
+  const known = remembered.get(key);
+  return known ? { ...headers(config, accept), "If-None-Match": known.etag } : headers(config, accept);
+}
+
+function forget(key: string): void {
+  const known = remembered.get(key);
+  if (!known) return;
+  rememberedBytes -= known.size;
+  remembered.delete(key);
+}
+
+function remember(key: string, response: Response, value: unknown, size: number): void {
+  forget(key);
+  const etag = etagOf(response);
+  if (!etag || size > MAX_ENTRY_BYTES) return;
+  remembered.set(key, { etag, value, size });
+  rememberedBytes += size;
+  // Oldest first out, so a long night cannot grow this without bound.
+  while (remembered.size > MAX_REMEMBERED || rememberedBytes > MAX_REMEMBERED_BYTES) {
+    forget(remembered.keys().next().value as string);
+  }
+}
+
+/** What a 304 means: the copy from the last read. Throws if there is none. */
+function unchanged<T>(key: string): T {
+  const known = remembered.get(key);
+  if (!known) throw new Error("GitHub said not modified, but nothing was cached");
+  return known.value as T;
+}
+
+/** Forget every remembered read. For tests. */
+export function forgetReads(): void {
+  remembered.clear();
+  rememberedBytes = 0;
+}
+
 /** Reject anything that could climb out of the repo path we own. */
 export function safePath(path: string): string {
   const clean = path
@@ -95,12 +154,18 @@ export async function readFile(
   fetchImpl: Fetcher = fetch
 ): Promise<{ bytes: Buffer | null; sha: string | null }> {
   const url = `${config.api}/repos/${config.owner}/${config.repo}/contents/${urlPath(path)}?ref=${encodeURIComponent(config.branch)}`;
+  const accept = "application/vnd.github.object+json";
+  const key = `${accept} ${url}`;
   const response = await fetchImpl(url, {
-    headers: headers(config, "application/vnd.github.object+json"),
+    headers: conditional(config, accept, key),
     cache: "no-store",
   });
 
-  if (response.status === 404) return { bytes: null, sha: null };
+  if (response.status === 304) return unchanged(key);
+  if (response.status === 404) {
+    forget(key);
+    return { bytes: null, sha: null };
+  }
   if (!response.ok) {
     throw new Error(`GitHub read failed (${response.status}): ${await response.text()}`);
   }
@@ -109,9 +174,15 @@ export async function readFile(
   const sha = meta.sha ?? null;
 
   if (meta.content) {
-    return { bytes: Buffer.from(meta.content, "base64"), sha };
+    const result = { bytes: Buffer.from(meta.content, "base64"), sha };
+    remember(key, response, result, result.bytes.length);
+    return result;
   }
-  if (!sha || !meta.size) return { bytes: Buffer.alloc(0), sha };
+  if (!sha || !meta.size) {
+    const result = { bytes: Buffer.alloc(0), sha };
+    remember(key, response, result, 0);
+    return result;
+  }
 
   const blob = await fetchImpl(`${config.api}/repos/${config.owner}/${config.repo}/git/blobs/${sha}`, {
     headers: headers(config, "application/vnd.github.raw"),
@@ -120,7 +191,9 @@ export async function readFile(
   if (!blob.ok) {
     throw new Error(`GitHub blob read failed (${blob.status}): ${await blob.text()}`);
   }
-  return { bytes: Buffer.from(await blob.arrayBuffer()), sha };
+  const result = { bytes: Buffer.from(await blob.arrayBuffer()), sha };
+  remember(key, response, result, result.bytes.length);
+  return result;
 }
 
 /**
@@ -181,17 +254,26 @@ export async function listDir(
   fetchImpl: Fetcher = fetch
 ): Promise<{ name: string; path: string; sha: string }[]> {
   const url = `${config.api}/repos/${config.owner}/${config.repo}/contents/${urlPath(path)}?ref=${encodeURIComponent(config.branch)}`;
+  const accept = "application/vnd.github+json";
+  const key = `${accept} ${url}`;
   const response = await fetchImpl(url, {
-    headers: headers(config, "application/vnd.github+json"),
+    headers: conditional(config, accept, key),
     cache: "no-store",
   });
-  if (response.status === 404) return [];
+  if (response.status === 304) return unchanged(key);
+  if (response.status === 404) {
+    forget(key);
+    return [];
+  }
   if (!response.ok) {
     throw new Error(`GitHub list failed (${response.status}): ${await response.text()}`);
   }
   const entries = (await response.json()) as { name: string; path: string; sha: string; type: string }[];
-  if (!Array.isArray(entries)) return [];
-  return entries.filter((entry) => entry.type === "file").map(({ name, path, sha }) => ({ name, path, sha }));
+  const files = Array.isArray(entries)
+    ? entries.filter((entry) => entry.type === "file").map(({ name, path, sha }) => ({ name, path, sha }))
+    : [];
+  remember(key, response, files, files.length * 160);
+  return files;
 }
 
 /** Remove one file. Deleting something already gone is not an error. */
