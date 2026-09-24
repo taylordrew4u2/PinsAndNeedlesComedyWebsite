@@ -6,6 +6,8 @@ import { modeQuery, type Space } from "@/lib/space";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
+/** After a tap there is no pointer to hide, so the controls stay long enough to reach. */
+const TOUCH_IDLE_MS = 5_000;
 
 export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolean; space?: Space }) {
   const [question, setQuestion] = useState<string | null>(null);
@@ -78,13 +80,20 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   // projected screen, and comes back the moment the mouse moves.
   useEffect(() => {
     let timer = setTimeout(() => setPointerIdle(true), POINTER_IDLE_MS);
-    const moved = () => {
+    // A mouse moving, or a finger tapping (an iPad has no pointer to move),
+    // brings the controls back.
+    const moved = (event: PointerEvent) => {
       setPointerIdle(false);
       clearTimeout(timer);
-      timer = setTimeout(() => setPointerIdle(true), POINTER_IDLE_MS);
+      timer = setTimeout(() => setPointerIdle(true), event.pointerType === "mouse" ? POINTER_IDLE_MS : TOUCH_IDLE_MS);
     };
     window.addEventListener("pointermove", moved);
-    return () => { clearTimeout(timer); window.removeEventListener("pointermove", moved); };
+    window.addEventListener("pointerdown", moved);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", moved);
+      window.removeEventListener("pointerdown", moved);
+    };
   }, []);
 
   // Full screen three ways: the button (shown while the mouse moves), the F

@@ -7,6 +7,11 @@ import LiveDisplay from "./LiveDisplay";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Bad Decisions Live", robots: { index: false, follow: false }, referrer: "no-referrer",
+  // Added to an iPad or iPhone home screen, the live screen opens without
+  // Safari's bars: full screen even where the browser's full-screen call is missing.
+  appleWebApp: { capable: true, title: "Bad Decisions Live", statusBarStyle: "black-translucent" },
+  // Next writes the newer tag; older iPads only read the apple- one.
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 /** `?mode=rehearsal` is the dress rehearsal's own screen, separate from the show's. */
