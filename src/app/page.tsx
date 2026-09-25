@@ -1,4 +1,3 @@
-import BrandAccents from "@/components/BrandAccents";
 import type { Metadata } from "next";
 import HallOfFameLink from "@/components/HallOfFameLink";
 import PageHeader from "@/components/PageHeader";
@@ -75,10 +74,6 @@ export default async function HomePage() {
         settings={content.blogSettings}
         fallbackImage={site.logoUrl}
       />
-      </div>
-      <div className={styles.signoff}>
-        <BrandAccents names={["flash-signpost", "flash-smiley"]} />
-        <p>You don’t need tattoos.<br /><span>Questionable choices will do.</span></p>
       </div>
     </main>
   );

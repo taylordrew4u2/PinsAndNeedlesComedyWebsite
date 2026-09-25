@@ -70,18 +70,6 @@
 .newsBar a { color: #bcb7a9; min-height: 24px; }
 .newsBar a:hover { color: #ff5151; }
 .newsBar span { margin-left: 12px; color: #ff3434; }
-.signoff {
-  max-width: 1120px;
-  margin: auto;
-  padding: 24px 0;
-  position: relative;
-  display: grid;
-  align-items: center;
-}
-.signoff > div { grid-area: 1/1; width: 100%; max-width: none; padding: 0; margin: 0; justify-content: space-between; }
-.signoff img { width: 100px; height: 110px; }
-.signoff p { grid-area: 1/1; text-align: center; margin: 0 120px; font: 700 23px/1.25 var(--font-poster), sans-serif; text-transform: uppercase; color: #f2eddc; }
-.signoff p span { color: #bcb7a9; }
 @media (max-width: 760px) {
   .landing { display: flex; flex-direction: column; gap: 22px; padding: 28px 24px 24px; text-align: center; }
   .artwork { width: 240px; max-width: 70vw; max-height: 240px; }
@@ -90,9 +78,6 @@
   .actions { justify-content: center; gap: 26px; margin-top: 10px; }
   .button { font-size: 12px; padding: 16px 22px; }
   .newsBar { padding: 12px 20px; }
-  .signoff { padding: 20px; }
-  .signoff img { width: 60px; height: 80px; }
-  .signoff p { margin: 0 65px; font-size: 17px; }
 }
 
 /* Keep intrinsic text and the star inside the available content column. */
@@ -101,12 +86,6 @@
 .actions { flex-wrap: wrap; gap: 20px 28px; margin-top: 28px; }
 .actions > * { flex-shrink: 0; }
 .button { white-space: nowrap; }
-.signoff { grid-template-columns: 100px minmax(0, 1fr) 100px; gap: 24px; padding: 24px 20px; }
-.signoff > div { display: contents; }
-.signoff img { grid-row: 1; max-width: 100%; }
-.signoff img:first-child { grid-column: 1; }
-.signoff img:last-child { grid-column: 3; }
-.signoff p { grid-row: 1; grid-column: 2; margin: 0; }
 @media (max-width: 900px) and (min-width: 761px) {
   .landing { gap: 32px; }
   .landing h1 { font-size: 48px; }
@@ -114,7 +93,4 @@
 @media (max-width: 760px) {
   .landing h1 { font-size: clamp(36px, 10.5vw, 65px); margin-inline: auto; }
   .actions { margin-top: 28px; }
-  .signoff { grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 12px; }
-  .signoff img { width: 52px; height: 76px; }
-  .signoff p { margin: 0; font-size: 16px; }
 }
