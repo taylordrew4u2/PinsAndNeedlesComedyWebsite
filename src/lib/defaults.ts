@@ -154,7 +154,7 @@ export const defaultContent: Content = {
     seo: seo({
       title: "Pins & Needles Comedy | Original NYC Stand-Up Shows",
       description:
-        "Comedy about the things that leave a mark. Original NYC stand-up shows about choices, vulnerability and what stays with us. You don’t need tattoos.",
+        "Comedy about the things that leave a mark. Original NYC stand-up shows about choices, vulnerability and what stays with us.",
       keywords: [
         "pins and needles comedy",
         "nyc stand-up comedy shows",
