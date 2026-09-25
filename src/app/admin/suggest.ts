@@ -191,10 +191,6 @@ export function suggestFor(
         fallbackImage,
         [
           taylorFaq(content.about.producers, brand),
-          {
-            q: `Do I need tattoos to enjoy ${brand}?`,
-            a: "No. Tattoos are part of our roots, but they aren’t the whole story. You don’t need tattoos. Questionable choices will do.",
-          },
         ]
       );
     case "weekly": {
