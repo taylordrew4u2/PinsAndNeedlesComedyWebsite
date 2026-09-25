@@ -6,7 +6,6 @@ export const homeDesignDefaults = {
   emphasis: "leave a mark.",
   description:
     "Honest stories. Questionable choices. A room full of people who get it.",
-  note: "You don’t need tattoos. Questionable choices will do.",
 };
 export type HomeDesign = typeof homeDesignDefaults;
 

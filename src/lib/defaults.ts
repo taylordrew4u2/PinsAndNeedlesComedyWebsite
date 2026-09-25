@@ -116,10 +116,6 @@ export const defaultContent: Content = {
           q: "Where does Pins & Needles Comedy perform?",
           a: "The show runs in New York City bars, theaters and alternative art spaces, and has also played the Edinburgh Festival Fringe.",
         },
-        {
-          q: "Do I need tattoos to enjoy Pins & Needles Comedy?",
-          a: "No. Tattoos are part of our roots, but they aren’t the whole story. You don’t need tattoos. Questionable choices will do.",
-        },
         taylorFaq(PRODUCERS, "Pins & Needles Comedy"),
         {
           q: "How do comedians submit to perform?",
@@ -283,9 +279,7 @@ Vulnerability doesn’t have to mean a serious confession. Sometimes it’s admi
 
 Tattoos are part of our roots, but they aren’t the whole story. They’re one expression of a bigger idea: making a choice and carrying it with you. That might be something on your skin, a relationship you stayed in, a belief you outgrew, or a sentence you wish you could pull back into your mouth. Some things are permanent. Others just feel permanent when you remember them at three in the morning.
 
-From our original tattoo-focused show to **Bad Decisions**, our formats approach that idea differently. What connects them is a willingness to be seen without editing out every unflattering part—and to find the comedy there.
-
-**You don’t need tattoos. Questionable choices will do.**`,
+From our original tattoo-focused show to **Bad Decisions**, our formats approach that idea differently. What connects them is a willingness to be seen without editing out every unflattering part—and to find the comedy there.`,
     logosHeading: "The marks",
     logos: [
       { id: "logo-primary", url: "/brand/logo-white.svg", alt: "Pins & Needles Comedy primary logo", caption: "Primary" },
@@ -313,7 +307,7 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
         taylorFaq(PRODUCERS, "Pins & Needles Comedy"),
         {
           q: "What connects the different Pins & Needles Comedy shows?",
-          a: "From the original tattoo-focused show to Bad Decisions, our formats find comedy in choices, vulnerability and being seen without editing out every unflattering part. You don’t need tattoos.",
+          a: "From the original tattoo-focused show to Bad Decisions, our formats find comedy in choices, vulnerability and being seen without editing out every unflattering part.",
         },
       ],
     }),
