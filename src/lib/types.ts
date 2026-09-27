@@ -310,6 +310,8 @@ export type Submission = {
   createdAt: string;
   status: SubmissionStatus;
   drawnAt: string;
+  /** Set the first time the host puts it on the live screen; empty until then. */
+  shownAt?: string;
 };
 
 export type ShowsPage = {

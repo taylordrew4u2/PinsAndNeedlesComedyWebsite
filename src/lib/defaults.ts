@@ -371,7 +371,7 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
     placeholder: "Quit my job. Texted my ex. Might get the dog. Tell us as much as you want.",
     namePrompt: "Put my name on it.",
     formNote:
-      "Say as much as you want. A few get pulled at random at the end of the show — anonymous unless you put your name on it.",
+      "Say as much as you want. A few get pulled at random at the end of the show — put your name on it and own it.",
     submitLabel: "Send it",
     thanksText: "Got it — it's in the pile. Doors at 8, show at 9.",
     openMinutesBefore: 60,

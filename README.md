@@ -80,8 +80,8 @@ secret scoped to one endpoint, and a
 - **Display:** `/bad-decisions/live` is a separate public URL for the projector.
   It shows the selected question and a small audience submission QR in the bottom
   corner. A question stays up until the host shows another or taps Clear screen;
-  new submissions, Draw one and reloads never change it. Every submission stays in
-  Run Show. Clearing the question keeps the QR visible. The sender's name shows
+  new submissions, Draw one and reloads never change it. Once a question has been
+  on screen it leaves the Run Show list; it stays in the main admin. Clearing the question keeps the QR visible. The sender's name shows
   under the question only when they ticked "Put my name on it"; other
   submissions and admin controls never appear on this screen.
 

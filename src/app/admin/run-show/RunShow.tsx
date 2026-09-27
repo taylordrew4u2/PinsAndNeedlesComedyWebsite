@@ -75,7 +75,12 @@ export default function RunShow() {
   };
 
   const select = (submissionId: string | null) =>
-    change({ submissionId }, (data) => setState((current) => current ? { ...current, selected: data.selected ?? null } : current));
+    change({ submissionId }, (data) => setState((current) => current ? {
+      ...current,
+      selected: data.selected ?? null,
+      // Shown questions leave the list for good.
+      submissions: submissionId ? current.submissions.filter((item) => item.id !== submissionId) : current.submissions,
+    } : current));
 
   const setManualOpen = (manualOpen: boolean) =>
     change({ manualOpen }, (data) => {
@@ -123,7 +128,7 @@ export default function RunShow() {
           <button type="button" onClick={() => void refresh()} disabled={busy} className="px-3 py-2 text-sm underline disabled:opacity-40">Refresh</button>
         </div>
         {state?.truncated ? <p className="mb-3 text-sm text-amber-200">Showing the newest available questions. Older entries can be managed in the main admin.</p> : null}
-        {!state ? <p role="status" className="text-neutral-400">Loading questions…</p> : state.submissions.length === 0 ? <p className="text-neutral-400">No questions yet. New submissions appear here automatically.</p> : (
+        {!state ? <p role="status" className="text-neutral-400">Loading questions…</p> : state.submissions.length === 0 ? <p className="text-neutral-400">No questions waiting. New submissions appear here automatically.</p> : (
           <ul className="space-y-3">
             {state.submissions.map((item) => {
               const selected = state.selected?.submissionId === item.id;

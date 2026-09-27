@@ -138,6 +138,7 @@ function parse(bytes: string | Buffer): Submission | null {
       createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
       status: value.status === "drawn" || value.status === "archived" ? value.status : "open",
       drawnAt: typeof value.drawnAt === "string" ? value.drawnAt : "",
+      shownAt: typeof value.shownAt === "string" ? value.shownAt : "",
     };
   } catch {
     return null;
@@ -315,6 +316,16 @@ async function writeStatus(
     drawnAt: status === "drawn" ? new Date().toISOString() : submission.drawnAt,
   };
   // Drop it before the write: what is in memory is about to be a version behind.
+  caches[space].delete(submission.id);
+  await write(next, sha, space);
+  return next;
+}
+
+/** Record that a submission has been on the live screen, so Run Show stops offering it. */
+export async function markShown(id: string, space: Space = "live"): Promise<Submission | null> {
+  const { submission, sha } = await readOne(id, space);
+  if (!submission || submission.shownAt) return submission;
+  const next: Submission = { ...submission, shownAt: new Date().toISOString() };
   caches[space].delete(submission.id);
   await write(next, sha, space);
   return next;

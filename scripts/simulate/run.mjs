@@ -302,6 +302,13 @@ async function simulate() {
       expect(!(await projectorText()).includes("—"), "a name appeared on an anonymous question");
       await shoot(projector, "projector-live", "Projector during the show");
     });
+    await check("a question that has been on screen leaves the Run Show list, even after a reload", async () => {
+      await runShow.reload({ waitUntil: "networkidle" });
+      await runShow.getByText("On screen", { exact: true }).waitFor();
+      for (const text of ["propose at a comedy show", "text my ex"]) {
+        expect(await runShow.locator("li", { hasText: text }).count() === 0, `"${text}" is still offered`);
+      }
+    });
     await check("reloading the projector keeps the question", async () => {
       await projector.reload({ waitUntil: "networkidle" });
       await until(async () => (await projectorText()).includes("text my ex"), 8_000, "question lost on reload");
@@ -360,11 +367,11 @@ async function simulate() {
       expect((await projectorText()).includes("text my ex"), "the screen changed without the host");
       return "3 new questions + a draw + 8 s: still showing";
     });
-    await check("every submission stays in Run Show, including the one on screen", async () => {
+    await check("Run Show offers only questions that have not been on screen yet", async () => {
       await runShow.getByRole("button", { name: "Refresh" }).click();
-      await runShow.getByText("Questions (44)").waitFor({ timeout: 10_000 });
-      expect(await runShow.locator("li", { hasText: "text my ex" }).count() === 1, "the on-screen question left the list");
-      return "44 listed";
+      await runShow.getByText("Questions (42)").waitFor({ timeout: 10_000 });
+      expect(await runShow.locator("li", { hasText: "text my ex" }).count() === 0, "the on-screen question is still offered");
+      return "42 waiting, 2 already shown";
     });
 
     section("6. After the show");
