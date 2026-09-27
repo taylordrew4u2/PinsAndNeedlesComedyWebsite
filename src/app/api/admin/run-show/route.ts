@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getContentStrict, patchContent } from "@/lib/store";
 import { submissionWindow } from "@/lib/decisions";
 import { isAuthed } from "@/lib/auth";
-import { getSubmission, listPile } from "@/lib/submissions";
+import { getSubmission, listPile, markShown } from "@/lib/submissions";
 import { readLiveSelection, writeLiveSelection } from "@/lib/live-store";
 import { selectionFor } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
@@ -22,7 +22,8 @@ export async function GET(request: Request) {
   try {
     const [pile, selected, content] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict()]);
     return NextResponse.json({
-      submissions: pile.submissions.filter((item) => item.status !== "archived"),
+      // Once a question has been on screen it is done: it stays in the main admin, not here.
+      submissions: pile.submissions.filter((item) => item.status !== "archived" && !item.shownAt && item.id !== selected?.submissionId),
       truncated: pile.truncated,
       selected,
       questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
@@ -74,6 +75,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "That question is no longer available." }, { status: 404, headers });
     }
     await writeLiveSelection(selected, space);
+    if (submission) {
+      // The screen already changed; a failed mark only leaves it in the list.
+      await markShown(submission.id, space).catch((error) => console.error("[run-show] mark shown failed", error));
+    }
     return NextResponse.json({ selected }, { headers });
   } catch (error) {
     console.error("[run-show] selection failed", error);

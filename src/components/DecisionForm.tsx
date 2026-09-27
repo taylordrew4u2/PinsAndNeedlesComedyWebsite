@@ -270,9 +270,13 @@ export default function DecisionForm({
         />
         <span className="text-[15px] leading-snug">
           {namePrompt}
-          <span className="mt-1 block text-[13px] text-[var(--pnc-muted)]">
-            {named ? "We'll read your name out with it." : "You'll stay anonymous."}
-          </span>
+          {named ? (
+            <span className="mt-1 block text-[13px] text-[var(--pnc-muted)]">We&apos;ll put your name up with it.</span>
+          ) : (
+            <span className="mt-1 block text-[13px] font-semibold text-[var(--pnc-accent)]">
+              Don&apos;t go anonymous. Own it. Put your name on it so the room knows who to blame.
+            </span>
+          )}
         </span>
       </label>
 
