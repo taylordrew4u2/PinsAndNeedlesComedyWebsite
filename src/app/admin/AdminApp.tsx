@@ -234,7 +234,7 @@ export default function AdminApp({
                 href="/admin/run-show"
                 className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-white px-3.5 text-[14px] font-semibold text-black hover:bg-neutral-200"
               >
-                🎲 Run show
+                🎛️ Control center
               </a>
               <a
                 href="/"
