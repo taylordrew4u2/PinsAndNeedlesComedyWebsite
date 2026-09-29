@@ -144,6 +144,8 @@ function watchErrors(page, bucket, label) {
 const bodyText = async (page) => (await page.locator("body").innerText()).replace(/\s+/g, " ");
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 const projectorSize = { viewport: { width: 1920, height: 1080 } };
+/** The host's laptop, where the control center is usually open. */
+const laptop = { viewport: { width: 1400, height: 1000 } };
 
 // ── full simulation ─────────────────────────────────────────────────────────
 async function simulate() {
@@ -184,9 +186,15 @@ async function simulate() {
     const guestContext = await browser.newContext(phone);
     const hostContext = await browser.newContext(phone);
     const projectorContext = await browser.newContext(projectorSize);
+    const laptopContext = await browser.newContext(laptop);
     const guest = watchErrors(await guestContext.newPage(), errors, "guest");
     const runShow = watchErrors(await hostContext.newPage(), errors, "Run Show");
     const projector = watchErrors(await projectorContext.newPage(), errors, "projector");
+    const desk = watchErrors(await laptopContext.newPage(), errors, "control center");
+    // Delete and Archive ask "are you sure?"; the host on the laptop says yes.
+    desk.on("dialog", (dialog) => dialog.accept());
+    const mirrorText = async () => (await desk.frameLocator('iframe[title="Live screen mirror"]').locator("main").innerText()).trim();
+    const waiting = async () => Number((await desk.locator("h2").innerText()).match(/Questions \((\d+)\)/)?.[1] ?? -1);
     let key = "";
     const entry = () => `${base}/bad-decisions?qr=${key}`;
     const projectorText = async () => (await projector.locator("main").innerText()).trim();
@@ -374,17 +382,88 @@ async function simulate() {
       return "42 waiting, 2 already shown";
     });
 
-    section("6. After the show");
-    await check("Archive everything empties the pile and blanks the projector", async () => {
-      let archived = 0;
-      for (let round = 0; round < 10; round++) {
-        const result = await adminAction({ action: "archive-all" });
-        expect(result.ok, JSON.stringify(result).slice(0, 80));
-        archived += result.archived;
-        if (!result.remaining) break;
-      }
+    section("6. The control center on the host's laptop");
+    await check("the control center shows the same night: the pile, the shown list and a mirror of the projector", async () => {
+      await desk.goto(`${base}/admin/run-show`, { waitUntil: "networkidle" });
+      await desk.locator("input[type=password]").fill(password);
+      await desk.locator("button[type=submit]:not([disabled])").click();
+      await desk.getByText("Questions (42)").waitFor({ timeout: 10_000 });
+      await desk.locator("summary", { hasText: "Already shown tonight (2)" }).waitFor();
+      await until(async () => (await mirrorText()).includes("text my ex"), 10_000, "the mirror does not show the projector's question");
+      expect((await mirrorText()) === (await projectorText()), "mirror and projector differ");
+      await shoot(desk, "control-center", "The control center on the host's laptop during the show");
+      return "42 waiting, 2 shown, mirror matches the projector";
+    });
+    await check("a new question pops up flagged as new, and the tab title counts it", async () => {
+      const status = await guest.evaluate(async (k) => fetch("/api/decisions", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Decisions-QR": k },
+        body: JSON.stringify({ decision: "Should I get bangs tonight?", name: "Sam", anonymous: false }),
+      }).then((response) => response.status), key);
+      expect(status === 200, `send: ${status}`);
+      await desk.getByText("1 new question since you last looked").waitFor({ timeout: 15_000 });
+      expect((await desk.getByText("New", { exact: true }).count()) === 1, "no New pill");
+      expect(/^\(1\) Control Center/.test(await desk.title()), `tab title: ${await desk.title()}`);
+      await desk.getByRole("button", { name: "Got it" }).click();
+      expect((await desk.getByText("New", { exact: true }).count()) === 0, "New pill stayed after Got it");
+      expect((await waiting()) === 43, `${await waiting()} waiting`);
+      return "New pill, banner, “(1)” in the tab title";
+    });
+    await check("Draw one from the page puts a random question on the mirror and the projector", async () => {
+      await desk.getByRole("button", { name: "Draw one" }).click();
+      await desk.getByText(/^Drawn:/).waitFor({ timeout: 10_000 });
+      const drawn = await until(async () => {
+        const text = await mirrorText();
+        return text && !text.includes("text my ex") ? text : "";
+      }, 10_000, "the mirror kept the old question");
+      await until(async () => (await projectorText()) === drawn, 8_000, "projector and mirror differ");
+      await desk.locator("summary", { hasText: "Already shown tonight (3)" }).waitFor();
+      expect((await waiting()) === 42, `${await waiting()} waiting`);
+      return `“${drawn.split("\n")[0]}”`;
+    });
+    await check("Put it back returns a shown question to the pile", async () => {
+      await desk.locator("summary", { hasText: "Already shown tonight (3)" }).click();
+      await desk.getByText("on screen now").waitFor();
+      expect((await desk.getByRole("button", { name: "Put it back" }).count()) === 2, "the on-screen question offered Put it back");
+      await desk.locator('[role="listitem"]', { hasText: "text my ex" }).getByRole("button", { name: "Put it back" }).click();
+      await desk.getByText("Questions (43)").waitFor({ timeout: 10_000 });
+      await desk.locator("summary", { hasText: "Already shown tonight (2)" }).waitFor();
+      expect((await desk.locator("li", { hasText: "text my ex" }).count()) === 1, "not back in the pile");
+    });
+    await check("deleting the question on screen clears the projector", async () => {
+      await desk.locator('[role="listitem"]', { hasText: "on screen now" }).getByRole("button", { name: "Delete" }).click();
+      await desk.getByText("Screen cleared", { exact: true }).waitFor({ timeout: 10_000 });
+      await until(async () => (await projectorText()) === "" && (await mirrorText()) === "", 10_000, "projector or mirror not blank");
+      await desk.locator("summary", { hasText: "Already shown tonight (1)" }).waitFor();
+    });
+    await check("Show on screen then Clear screen, from the laptop", async () => {
+      await desk.locator("li", { hasText: "bangs tonight" }).getByRole("button", { name: "Show on screen" }).click();
+      await desk.getByText("On screen", { exact: true }).waitFor();
+      await until(async () => (await projectorText()).includes("— Sam"), 8_000, "name not on the projector");
+      await desk.getByRole("button", { name: "Clear screen" }).click();
+      await desk.getByText("Screen cleared", { exact: true }).waitFor();
+      expect(await desk.getByRole("button", { name: "Clear screen" }).isDisabled(), "Clear screen still enabled");
+      await until(async () => (await projectorText()) === "", 8_000, "projector not blank");
+      expect((await waiting()) === 42, `${await waiting()} waiting`);
+    });
+    await check("the ping switch and the lists survive a reload", async () => {
+      await desk.getByLabel("Ping when one arrives").check();
+      await desk.reload({ waitUntil: "networkidle" });
+      await desk.getByText("Questions (42)").waitFor({ timeout: 10_000 });
+      expect(await desk.getByLabel("Ping when one arrives").isChecked(), "ping switch forgot");
+      await desk.locator("summary", { hasText: "Already shown tonight (2)" }).waitFor();
+      expect((await desk.getByText("New", { exact: true }).count()) === 0, "old questions flagged as new after a reload");
+    });
+
+    section("7. After the show");
+    await check("Archive everything from the control center empties the pile and blanks the projector", async () => {
+      await desk.locator("summary", { hasText: "End of the night" }).click();
+      await desk.getByRole("button", { name: /Archive everything/ }).click();
+      await desk.getByText("Questions (0)").waitFor({ timeout: 30_000 });
+      await desk.locator("summary", { hasText: "Already shown tonight (0)" }).waitFor();
+      const archived = Number((await desk.getByText(/^Archived \(\d+\)/).innerText()).match(/\d+/)?.[0]);
       expect(archived === 44, `archived ${archived}`);
       await until(async () => (await projectorText()) === "", 8_000, "projector not blank");
+      await shoot(desk, "control-center-archived", "End of the night: everything archived, the screen clear");
       return `${archived} archived`;
     });
     await check("no storage write conflicts all night", async () => {

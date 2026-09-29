@@ -113,9 +113,12 @@ removed; existing practice data is left untouched and separate from live data.
 
 **Show simulator.** `npm run build && npm run simulate` plays a whole show
 night on a stand-in copy of the site: the production build on a fake GitHub
-content store, with a guest's phone, the host's phone, the control center and the
-projector. It covers opening questions manually without changing the live screen, scheduled hours, a rush of 40 guests on one wifi, a dropped connection on the
-projector, Draw one and Archive, and nothing real is touched. `npm run simulate -- --live` only reads the real site: pages, the
+content store, with a guest's phone, the host's phone, the control center on a
+laptop and the projector. It covers opening questions manually without changing the live screen, scheduled hours, a rush of 40 guests on one wifi, a dropped connection on the
+projector, and then the whole control center: a question popping up flagged as
+new, Draw one, Put it back, deleting the question on screen, Show and Clear, the
+ping switch surviving a reload, the mirror matching the projector throughout, and
+Archive everything from the page. Nothing real is touched. `npm run simulate -- --live` only reads the real site: pages, the
 projector's QR, where it leads, and whether the form is open. Both write
 `simulator-report/index.html` with screenshots. From a phone, run it in GitHub
 under Actions → Show simulator → Run workflow; the report is attached to the
