@@ -74,7 +74,7 @@ export default function ReelsTab({
       <Section
         icon="🎬"
         title={`Reels (${content.reels.length})`}
-        hint="The top of this list is the top of the grid on the site. Tap a reel to open it."
+        hint="The site shows every live reel, newest first. Reels with a video file autoplay silently; a tap turns the sound on."
       >
         <Card title="➕ Add reels by pasting Instagram links" subtitle="One link per line — as many as you like">
           <Area
