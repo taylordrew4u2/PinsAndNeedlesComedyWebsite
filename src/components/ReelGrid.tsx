@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Reel } from "@/lib/types";
-import { instagramCode } from "@/lib/render";
 
 /** Only one reel plays sound at a time; unmuting one mutes the rest. */
 const UNMUTE_EVENT = "reel-grid:unmute";
@@ -83,26 +82,6 @@ function VideoTile({ reel, label, eager }: { reel: Reel; label: string; eager: b
 }
 
 /**
- * A reel that only has its Instagram link plays through Instagram's public
- * embed. Instagram draws its own header and footer inside that frame, so
- * this is only a stand-in until the reel has a video file.
- */
-function EmbedTile({ code, label }: { code: string; label: string }) {
-  return (
-    <div className="reel-embed">
-      <iframe
-        src={`https://www.instagram.com/reel/${code}/embed/`}
-        title={label}
-        loading="lazy"
-        scrolling="no"
-        allow="autoplay; encrypted-media; picture-in-picture; clipboard-write"
-        allowFullScreen
-      />
-    </div>
-  );
-}
-
-/**
  * Newest first by Instagram's publish time. Reels without one (pasted links)
  * come after, in admin order, so the ordering stays consistent.
  */
@@ -114,20 +93,8 @@ function newestFirst(a: Reel, b: Reel): number {
 }
 
 export default function ReelGrid({ reels }: { reels: Reel[] }) {
-  // Instagram's embed plays inside its own frame; when a visitor taps into
-  // one, mute the video tiles so only one reel ever has sound.
-  useEffect(() => {
-    const onBlur = () => {
-      if (document.activeElement?.closest(".reel-embed")) {
-        window.dispatchEvent(new CustomEvent(UNMUTE_EVENT, { detail: "" }));
-      }
-    };
-    window.addEventListener("blur", onBlur);
-    return () => window.removeEventListener("blur", onBlur);
-  }, []);
-
   const visible = reels
-    .filter((reel) => reel.published && (reel.videoUrl || instagramCode(reel.instagramUrl)))
+    .filter((reel) => reel.published && reel.videoUrl)
     .sort(newestFirst);
 
   if (visible.length === 0) return null;
@@ -137,11 +104,7 @@ export default function ReelGrid({ reels }: { reels: Reel[] }) {
       <div className="reel-grid">
         {visible.map((reel, index) => {
           const label = reel.caption || `Instagram reel ${index + 1} from Pins & Needles Comedy`;
-          return reel.videoUrl ? (
-            <VideoTile key={reel.id} reel={reel} label={label} eager={index < 2} />
-          ) : (
-            <EmbedTile key={reel.id} code={instagramCode(reel.instagramUrl)!} label={label} />
-          );
+          return <VideoTile key={reel.id} reel={reel} label={label} eager={index < 2} />;
         })}
       </div>
       <style>{`
@@ -153,8 +116,6 @@ export default function ReelGrid({ reels }: { reels: Reel[] }) {
         .reel-tile{position:relative;display:block;width:100%;aspect-ratio:9/16;margin:0;padding:0;border:0;background:#000;cursor:pointer;overflow:hidden}
         .reel-tile video{display:block;width:100%;height:100%;object-fit:cover}
         .reel-sound{position:absolute;right:10px;bottom:10px;font-size:16px;line-height:1;opacity:.75;pointer-events:none}
-        .reel-embed{position:relative;width:100%;aspect-ratio:9/16;overflow:hidden;background:#000}
-        .reel-embed iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
       `}</style>
     </section>
   );

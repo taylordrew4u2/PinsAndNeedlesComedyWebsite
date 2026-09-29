@@ -8,7 +8,6 @@ import styles from "./home.module.css";
 import { homeDesignDefaults, homeArtworkOptions } from "@/lib/home-design";
 import NewsMarquee from "@/components/NewsMarquee";
 import ReelGrid from "@/components/ReelGrid";
-import { seedReels } from "@/lib/reels.seed";
 import { autoSyncInstagram } from "@/lib/instagram-sync";
 import JsonLd from "@/components/JsonLd";
 import { getContent } from "@/lib/store";
@@ -82,7 +81,15 @@ export default async function HomePage() {
         fallbackImage={site.logoUrl}
       />
       </div>
-      <ReelGrid reels={content.reels.some((reel) => reel.published) ? content.reels : seedReels} />
+      {content.reels.some((reel) => reel.published && reel.videoUrl) ? (
+        <ReelGrid reels={content.reels} />
+      ) : (
+        <div className={styles.newsBar}>
+          <a href="https://www.instagram.com/pinsandneedlescomedy/reels/" target="_blank" rel="noopener noreferrer">
+            Reels <span aria-hidden="true">/</span>
+          </a>
+        </div>
+      )}
     </main>
   );
 }
