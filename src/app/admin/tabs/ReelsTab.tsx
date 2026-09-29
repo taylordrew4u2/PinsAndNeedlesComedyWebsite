@@ -53,10 +53,11 @@ export default function ReelsTab({
       .filter((entry) => /instagram\.com/i.test(entry));
     if (!urls.length) return;
     update((draft) => {
-      for (const url of urls) {
-        if (draft.reels.some((reel) => reel.instagramUrl === url)) continue;
-        draft.reels.push(newReel(url));
-      }
+      const fresh = urls
+        .filter((url, index) => urls.indexOf(url) === index)
+        .filter((url) => !draft.reels.some((reel) => reel.instagramUrl === url))
+        .map((url) => newReel(url));
+      draft.reels.unshift(...fresh);
       draft.reels.forEach((reel, index) => (reel.order = index));
     });
     setBulk("");
@@ -88,7 +89,16 @@ export default function ReelsTab({
             <Button tone="primary" onClick={addBulk} disabled={!bulk.trim()}>
               Add these reels
             </Button>
-            <Button onClick={() => update((d) => void d.reels.push(newReel()))}>Add one blank reel</Button>
+            <Button
+              onClick={() =>
+                update((d) => {
+                  d.reels.unshift(newReel());
+                  d.reels.forEach((reel, index) => (reel.order = index));
+                })
+              }
+            >
+              Add one blank reel
+            </Button>
           </Actions>
         </Card>
 
