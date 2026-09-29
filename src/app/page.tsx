@@ -6,6 +6,7 @@ import Link from "next/link";
 import styles from "./home.module.css";
 import { homeDesignDefaults, homeArtworkOptions } from "@/lib/home-design";
 import NewsMarquee from "@/components/NewsMarquee";
+import ReelGrid from "@/components/ReelGrid";
 import JsonLd from "@/components/JsonLd";
 import { getContent } from "@/lib/store";
 import { toMetadata } from "@/lib/meta";
@@ -75,6 +76,7 @@ export default async function HomePage() {
         fallbackImage={site.logoUrl}
       />
       </div>
+      <ReelGrid reels={content.reels} />
     </main>
   );
 }
