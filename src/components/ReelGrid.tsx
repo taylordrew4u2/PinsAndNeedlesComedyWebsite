@@ -1,54 +1,81 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Reel } from "@/lib/types";
 import { instagramCode } from "@/lib/render";
 
-const INSTAGRAM_PROFILE = "https://www.instagram.com/pinsandneedlescomedy/reels/";
+/** Only one reel plays sound at a time; unmuting one mutes the rest. */
+const UNMUTE_EVENT = "reel-grid:unmute";
 
-/** A reel with its own uploaded video: muted, looping, plays only while on screen. */
+/**
+ * A reel with its own video file: plays silently on its own while on screen,
+ * and a tap turns the sound on (tap again to mute). No Instagram chrome.
+ */
 function VideoTile({ reel, label }: { reel: Reel; label: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [muted, setMuted] = useState(true);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const observer = new IntersectionObserver(
       ([entry]) => (entry.isIntersecting ? void video.play().catch(() => {}) : video.pause()),
-      { rootMargin: "200% 0px" }
+      { rootMargin: "100% 0px" }
     );
     observer.observe(video);
-    return () => observer.disconnect();
-  }, []);
+
+    const onOtherUnmuted = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== reel.id) setMuted(true);
+    };
+    window.addEventListener(UNMUTE_EVENT, onOtherUnmuted);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener(UNMUTE_EVENT, onOtherUnmuted);
+    };
+  }, [reel.id]);
+
+  const toggleSound = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const next = !muted;
+    setMuted(next);
+    if (!next) {
+      window.dispatchEvent(new CustomEvent(UNMUTE_EVENT, { detail: reel.id }));
+      void video.play().catch(() => {});
+    }
+  };
 
   return (
-    <a
-      href={reel.instagramUrl || INSTAGRAM_PROFILE}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`${label} — open on Instagram`}
-      style={{ display: "block", aspectRatio: "9 / 16", overflow: "hidden", background: "#000" }}
+    <button
+      type="button"
+      onClick={toggleSound}
+      aria-label={`${label} — ${muted ? "tap for sound" : "tap to mute"}`}
+      aria-pressed={!muted}
+      className="reel-tile"
     >
       <video
         ref={videoRef}
         src={reel.videoUrl}
         poster={reel.posterUrl || undefined}
-        muted
+        muted={muted}
+        autoPlay
         loop
         playsInline
         preload="metadata"
         disablePictureInPicture
-        tabIndex={-1}
         aria-hidden="true"
-        style={{ width: "100%", height: "100%", objectFit: "cover" }}
       />
-    </a>
+      <span className="reel-sound" aria-hidden="true">
+        {muted ? "🔇" : "🔊"}
+      </span>
+    </button>
   );
 }
 
 /**
- * Anything else plays through Instagram's own public embed, which needs no
- * API token and no uploaded file — just the reel's link.
+ * A reel that only has its Instagram link plays through Instagram's public
+ * embed. Instagram draws its own header and footer inside that frame, so
+ * this is only a stand-in until the reel has a video file.
  */
 function EmbedTile({ code, label }: { code: string; label: string }) {
   return (
@@ -59,46 +86,48 @@ function EmbedTile({ code, label }: { code: string; label: string }) {
       scrolling="no"
       allow="autoplay; encrypted-media; picture-in-picture; clipboard-write"
       allowFullScreen
-      style={{ display: "block", width: "100%", height: 620, border: 0, background: "#fff", borderRadius: 8 }}
+      className="reel-embed"
     />
   );
 }
 
-export default function ReelGrid({ reels, limit = 12 }: { reels: Reel[]; limit?: number }) {
+/** Newest first: Instagram's publish time when known, else the admin order. */
+function newestFirst(a: Reel, b: Reel): number {
+  if (a.igTimestamp && b.igTimestamp && a.igTimestamp !== b.igTimestamp) {
+    return a.igTimestamp < b.igTimestamp ? 1 : -1;
+  }
+  return a.order - b.order;
+}
+
+export default function ReelGrid({ reels }: { reels: Reel[] }) {
   const visible = reels
     .filter((reel) => reel.published && (reel.videoUrl || instagramCode(reel.instagramUrl)))
-    .sort((a, b) => a.order - b.order)
-    .slice(0, limit);
+    .sort(newestFirst);
 
   if (visible.length === 0) return null;
 
   return (
     <section aria-label="Instagram reels" className="reel-wall">
-      <div className="reel-wall-head">
-        <h2>Reels</h2>
-        <a href={INSTAGRAM_PROFILE} target="_blank" rel="noopener noreferrer">
-          All reels <span aria-hidden="true">/</span>
-        </a>
-      </div>
       <div className="reel-grid">
         {visible.map((reel, index) => {
           const label = reel.caption || `Instagram reel ${index + 1} from Pins & Needles Comedy`;
-          const code = instagramCode(reel.instagramUrl);
-          return (
-            <div key={reel.id}>
-              {reel.videoUrl ? <VideoTile reel={reel} label={label} /> : <EmbedTile code={code!} label={label} />}
-            </div>
+          return reel.videoUrl ? (
+            <VideoTile key={reel.id} reel={reel} label={label} />
+          ) : (
+            <EmbedTile key={reel.id} code={instagramCode(reel.instagramUrl)!} label={label} />
           );
         })}
       </div>
       <style>{`
-        .reel-wall{padding:32px 16px;max-width:1400px;margin:0 auto}
-        .reel-wall-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px}
-        .reel-wall-head h2{margin:0}
-        .reel-grid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+        .reel-wall{width:100%}
+        .reel-grid{display:grid;gap:0;grid-template-columns:minmax(0,1fr)}
         @media (min-width:700px){.reel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media (min-width:1050px){.reel-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (min-width:1400px){.reel-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+        .reel-tile{position:relative;display:block;width:100%;aspect-ratio:9/16;margin:0;padding:0;border:0;background:#000;cursor:pointer;overflow:hidden}
+        .reel-tile video{display:block;width:100%;height:100%;object-fit:cover}
+        .reel-sound{position:absolute;right:10px;bottom:10px;font-size:16px;line-height:1;opacity:.75;pointer-events:none}
+        .reel-embed{display:block;width:100%;height:620px;border:0;background:#fff}
       `}</style>
     </section>
   );
