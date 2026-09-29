@@ -31,7 +31,7 @@ It is worth a look because the constraints are real rather than illustrative:
 the people editing it are comedians on a phone, the audience hits it forty at a
 time during one bar hour, and it has to cost nothing to run.
 
-### The show page, and the panel that runs the show
+### The show page, and the control center that runs the show
 
 <table>
 <tr>
@@ -40,8 +40,8 @@ time during one bar hour, and it has to cost nothing to run.
 <br><em>The QR entry shows only a countdown, then switches to the submission prompt during the configured opening window.</em>
 </td>
 <td width="50%" valign="top">
-<img src="docs/images/admin.png" alt="The admin's Bad Decisions tab: an Open the control center button and the page-is-live switch. The page's own settings wait under More options." width="100%">
-<br><em>The tab holds the page's settings. Show night itself runs from the control center, a separate page only the admin can open.</em>
+<img src="docs/images/control-center.png" alt="The control center on a laptop: a scaled mirror of the live screen showing the chosen question and the QR corner, Draw one and Clear screen buttons, the questions-open controls, and on the right the list of waiting questions with a New pill on the one that just arrived and a Show on screen button on each." width="100%">
+<br><em>The control center, only reachable signed in. Questions land on the right as they arrive; the mirror on the left is the real live page scaled down, so it shows exactly what the room sees.</em>
 </td>
 </tr>
 </table>
