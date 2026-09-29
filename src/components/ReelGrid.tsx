@@ -10,8 +10,10 @@ const UNMUTE_EVENT = "reel-grid:unmute";
 /**
  * A reel with its own video file: plays silently on its own while on screen,
  * and a tap turns the sound on (tap again to mute). No Instagram chrome.
+ * Playback is started by the observer rather than the autoplay attribute,
+ * which would make browsers download every video on the page up front.
  */
-function VideoTile({ reel, label }: { reel: Reel; label: string }) {
+function VideoTile({ reel, label, eager }: { reel: Reel; label: string; eager: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [muted, setMuted] = useState(true);
 
@@ -19,29 +21,38 @@ function VideoTile({ reel, label }: { reel: Reel; label: string }) {
     const video = videoRef.current;
     if (!video) return;
     const observer = new IntersectionObserver(
-      ([entry]) => (entry.isIntersecting ? void video.play().catch(() => {}) : video.pause()),
-      { rootMargin: "100% 0px" }
+      (entries) => {
+        const latest = entries[entries.length - 1];
+        if (latest.isIntersecting) void video.play().catch(() => {});
+        else video.pause();
+      },
+      { rootMargin: "50% 0px" }
     );
     observer.observe(video);
 
-    const onOtherUnmuted = (event: Event) => {
-      if ((event as CustomEvent<string>).detail !== reel.id) setMuted(true);
+    // The element is the source of truth: the OS can pause or mute it too.
+    const syncMuted = () => setMuted(video.muted);
+    const muteForOther = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== reel.id) video.muted = true;
     };
-    window.addEventListener(UNMUTE_EVENT, onOtherUnmuted);
+    video.addEventListener("volumechange", syncMuted);
+    window.addEventListener(UNMUTE_EVENT, muteForOther);
     return () => {
       observer.disconnect();
-      window.removeEventListener(UNMUTE_EVENT, onOtherUnmuted);
+      video.removeEventListener("volumechange", syncMuted);
+      window.removeEventListener(UNMUTE_EVENT, muteForOther);
     };
   }, [reel.id]);
 
   const toggleSound = () => {
     const video = videoRef.current;
     if (!video) return;
-    const next = !muted;
-    setMuted(next);
-    if (!next) {
-      window.dispatchEvent(new CustomEvent(UNMUTE_EVENT, { detail: reel.id }));
-      void video.play().catch(() => {});
+    video.muted = !video.muted;
+    if (!video.muted) window.dispatchEvent(new CustomEvent(UNMUTE_EVENT, { detail: reel.id }));
+    if (video.paused) {
+      void video.play().catch(() => {
+        video.muted = true;
+      });
     }
   };
 
@@ -49,7 +60,7 @@ function VideoTile({ reel, label }: { reel: Reel; label: string }) {
     <button
       type="button"
       onClick={toggleSound}
-      aria-label={`${label} — ${muted ? "tap for sound" : "tap to mute"}`}
+      aria-label={`${label}, sound`}
       aria-pressed={!muted}
       className="reel-tile"
     >
@@ -57,11 +68,10 @@ function VideoTile({ reel, label }: { reel: Reel; label: string }) {
         ref={videoRef}
         src={reel.videoUrl}
         poster={reel.posterUrl || undefined}
-        muted={muted}
-        autoPlay
+        muted
         loop
         playsInline
-        preload="metadata"
+        preload={eager ? "auto" : "none"}
         disablePictureInPicture
         aria-hidden="true"
       />
@@ -79,27 +89,43 @@ function VideoTile({ reel, label }: { reel: Reel; label: string }) {
  */
 function EmbedTile({ code, label }: { code: string; label: string }) {
   return (
-    <iframe
-      src={`https://www.instagram.com/reel/${code}/embed/`}
-      title={label}
-      loading="lazy"
-      scrolling="no"
-      allow="autoplay; encrypted-media; picture-in-picture; clipboard-write"
-      allowFullScreen
-      className="reel-embed"
-    />
+    <div className="reel-embed">
+      <iframe
+        src={`https://www.instagram.com/reel/${code}/embed/`}
+        title={label}
+        loading="lazy"
+        scrolling="no"
+        allow="autoplay; encrypted-media; picture-in-picture; clipboard-write"
+        allowFullScreen
+      />
+    </div>
   );
 }
 
-/** Newest first: Instagram's publish time when known, else the admin order. */
+/**
+ * Newest first by Instagram's publish time. Reels without one (pasted links)
+ * come after, in admin order, so the ordering stays consistent.
+ */
 function newestFirst(a: Reel, b: Reel): number {
-  if (a.igTimestamp && b.igTimestamp && a.igTimestamp !== b.igTimestamp) {
-    return a.igTimestamp < b.igTimestamp ? 1 : -1;
-  }
+  const ta = a.igTimestamp || "";
+  const tb = b.igTimestamp || "";
+  if (ta !== tb) return ta < tb ? 1 : -1;
   return a.order - b.order;
 }
 
 export default function ReelGrid({ reels }: { reels: Reel[] }) {
+  // Instagram's embed plays inside its own frame; when a visitor taps into
+  // one, mute the video tiles so only one reel ever has sound.
+  useEffect(() => {
+    const onBlur = () => {
+      if (document.activeElement?.closest(".reel-embed")) {
+        window.dispatchEvent(new CustomEvent(UNMUTE_EVENT, { detail: "" }));
+      }
+    };
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, []);
+
   const visible = reels
     .filter((reel) => reel.published && (reel.videoUrl || instagramCode(reel.instagramUrl)))
     .sort(newestFirst);
@@ -112,7 +138,7 @@ export default function ReelGrid({ reels }: { reels: Reel[] }) {
         {visible.map((reel, index) => {
           const label = reel.caption || `Instagram reel ${index + 1} from Pins & Needles Comedy`;
           return reel.videoUrl ? (
-            <VideoTile key={reel.id} reel={reel} label={label} />
+            <VideoTile key={reel.id} reel={reel} label={label} eager={index < 2} />
           ) : (
             <EmbedTile key={reel.id} code={instagramCode(reel.instagramUrl)!} label={label} />
           );
@@ -127,7 +153,8 @@ export default function ReelGrid({ reels }: { reels: Reel[] }) {
         .reel-tile{position:relative;display:block;width:100%;aspect-ratio:9/16;margin:0;padding:0;border:0;background:#000;cursor:pointer;overflow:hidden}
         .reel-tile video{display:block;width:100%;height:100%;object-fit:cover}
         .reel-sound{position:absolute;right:10px;bottom:10px;font-size:16px;line-height:1;opacity:.75;pointer-events:none}
-        .reel-embed{display:block;width:100%;height:620px;border:0;background:#fff}
+        .reel-embed{position:relative;width:100%;aspect-ratio:9/16;overflow:hidden;background:#000}
+        .reel-embed iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
       `}</style>
     </section>
   );
