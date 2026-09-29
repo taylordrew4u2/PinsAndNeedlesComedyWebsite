@@ -30,3 +30,11 @@ export function parseSelection(raw: unknown): LiveSelection | null {
 export function publicSelection(selection: LiveSelection | null): { question: string | null; name: string | null } {
   return { question: selection?.question ?? null, name: selection?.name || null };
 }
+
+/**
+ * What "Draw one" may pick from: waiting questions that have never been on
+ * screen. The one on screen now is excluded even if its mark did not land.
+ */
+export function drawable(list: Submission[], onScreenId: string | null | undefined): Submission[] {
+  return list.filter((item) => item.status !== "archived" && !item.shownAt && item.id !== onScreenId);
+}

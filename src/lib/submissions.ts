@@ -331,6 +331,20 @@ export async function markShown(id: string, space: Space = "live"): Promise<Subm
   return next;
 }
 
+/**
+ * Offer a question again after it has been on screen: back in the pile, off
+ * the control center's "already shown" list. The projector is not touched.
+ */
+export async function putBack(id: string, space: Space = "live"): Promise<Submission | null> {
+  const { submission, sha } = await readOne(id, space);
+  if (!submission) return null;
+  const next: Submission = { ...submission, status: "open" };
+  delete next.shownAt;
+  caches[space].delete(submission.id);
+  await write(next, sha, space);
+  return next;
+}
+
 export async function deleteSubmission(id: string, space: Space = "live"): Promise<void> {
   const key = fileFor(id, space);
   await clearLiveSelection(id, space);

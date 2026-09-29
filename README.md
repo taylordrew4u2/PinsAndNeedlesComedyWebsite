@@ -40,8 +40,8 @@ time during one bar hour, and it has to cost nothing to run.
 <br><em>The QR entry shows only a countdown, then switches to the submission prompt during the configured opening window.</em>
 </td>
 <td width="50%" valign="top">
-<img src="docs/images/admin.png" alt="The admin's Bad Decisions tab: a Run tonight's show button, the page-is-live switch, and the Tonight's pile panel with a live count and a Draw one button. The page's own settings wait under More options." width="100%">
-<br><em>What the host has open on stage. Draw one picks at random on the server, so two phones can never pull the same submission.</em>
+<img src="docs/images/admin.png" alt="The admin's Bad Decisions tab: an Open the control center button and the page-is-live switch. The page's own settings wait under More options." width="100%">
+<br><em>The tab holds the page's settings. Show night itself runs from the control center, a separate page only the admin can open.</em>
 </td>
 </tr>
 </table>
@@ -63,8 +63,9 @@ flowchart LR
   Gate -->|no| Closed["Refused, and told when it opens"]
   Gate -->|yes| Store[("One file per submission")]
 
-  Store --> Panel["Admin, Tonight panel"]
-  Panel --> Draw["Draw one at random"]
+  Store --> Panel["Control center (admin only)"]
+  Panel --> Draw["Draw one, or Show on screen"]
+  Draw --> Screen["Live screen"]
 ```
 Every way in enforces the same window and the same sanitising, because the
 server checks the submission window independently of the form. The web page
@@ -72,29 +73,38 @@ and its GET/POST submission API also require the signed QR entry key. Texting in
 secret scoped to one endpoint, and a
 [small relay script](docs/relay/gmail-apps-script.gs) posts to it.
 
-### Run Show
+### Control Center
 
 - **Audience:** scan the existing signed QR to open the submission countdown/form.
-- **Host:** `/admin/run-show` uses the existing admin password and shows only the
-  question list, the current selection, and controls to show or clear a question.
+- **Host:** `/admin/run-show` is the control center. It is a separate page that
+  uses the admin password and is only linked from the admin. It shows the
+  questions as they arrive, a mirror of the live screen, and every control for
+  the night: Show on screen, Draw one, Clear screen, Open questions now, the QR
+  code for the tables, Put it back, Delete, and Archive everything.
 - **Display:** `/bad-decisions/live` is a separate public URL for the projector.
   It shows the selected question and a small audience submission QR in the bottom
   corner. A question stays up until the host shows another or taps Clear screen;
-  new submissions, Draw one and reloads never change it. Once a question has been
-  on screen it leaves the Run Show list; it stays in the main admin. Clearing the question keeps the QR visible. The sender's name shows
-  under the question only when they ticked "Put my name on it"; other
-  submissions and admin controls never appear on this screen.
+  new submissions and reloads never change it. Once a question has been on
+  screen it leaves the waiting list and moves to "Already shown tonight", where
+  Put it back returns it to the pile. Clearing the question keeps the QR visible.
+  The sender's name shows under the question only when they ticked "Put my name
+  on it"; other submissions and admin controls never appear on this screen.
 
-Open **Run Show** from admin, then **Open live screen** on the display computer.
-Press **Full screen** (bottom-left when the mouse moves), the F key, or
+Open **Control center** from admin, then **Open live screen** on the display
+computer. Press **Full screen** (bottom-left when the mouse moves), the F key, or
 double-click the live screen for full screen. It keeps the display awake, hides an
 idle mouse pointer, and holds the current question through a dropped connection.
-Choose **Show on screen** for any question. The live display checks for changes
-about every two seconds; the admin question list refreshes every ten seconds.
-Use **Clear screen** when finished. Deleting the selected submission or archiving
-the pile also clears the display. No selection produces a blank screen with the QR.
+Choose **Show on screen** for any question, or **Draw one** to put a random
+waiting question up. The live display checks for changes about every two
+seconds; the control center checks for new questions every four seconds, marks
+each new one, counts them in the tab title, and can play a short ping when one
+arrives (a switch on the page, remembered per device). The mirror on the page is
+the real live page loaded at projector size and scaled down, so it shows exactly
+what the room sees. Use **Clear screen** when finished. Deleting the selected
+submission or archiving the pile also clears the display. No selection produces
+a blank screen with the QR.
 
-**Open questions any time.** In Run Show, tap **Open questions now** to accept
+**Open questions any time.** In the control center, tap **Open questions now** to accept
 questions immediately, regardless of the scheduled hours. They stay open until
 you tap **Use scheduled hours**. This does not clear the selected question or
 change any other screen's live setting. The live screen URL stays
@@ -103,7 +113,7 @@ removed; existing practice data is left untouched and separate from live data.
 
 **Show simulator.** `npm run build && npm run simulate` plays a whole show
 night on a stand-in copy of the site: the production build on a fake GitHub
-content store, with a guest's phone, the host's phone, Run Show and the
+content store, with a guest's phone, the host's phone, the control center and the
 projector. It covers opening questions manually without changing the live screen, scheduled hours, a rush of 40 guests on one wifi, a dropped connection on the
 projector, Draw one and Archive, and nothing real is touched. `npm run simulate -- --live` only reads the real site: pages, the
 projector's QR, where it leads, and whether the form is open. Both write

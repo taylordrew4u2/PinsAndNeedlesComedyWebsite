@@ -137,7 +137,7 @@ export default function StartTab({
             hint="Upload the poster and the details get typed in for you"
             onClick={() => go("shows", "flyer")}
           />
-          <Job icon="🎲" title="Run tonight's show" hint="Pick decisions and put them on the big screen" href="/admin/run-show" />
+          <Job icon="🎛️" title="Run tonight's show" hint="The control center: questions as they arrive, the live screen, Draw one" href="/admin/run-show" />
           <Job
             icon="✍️"
             title="Write a news post"

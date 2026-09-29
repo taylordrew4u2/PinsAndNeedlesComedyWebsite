@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseSelection, publicSelection, selectionFor } from "../src/lib/live-selection.ts";
+import { drawable, parseSelection, publicSelection, selectionFor } from "../src/lib/live-selection.ts";
 import type { Submission } from "../src/lib/types.ts";
 
 const submission: Submission = {
@@ -39,4 +39,18 @@ test("stored selection is allowlisted and malformed state displays nothing", () 
   for (const value of [null, [], {}, { submissionId: "../secret", question: "No" }, { submissionId: submission.id, question: " " }]) {
     assert.equal(parseSelection(value), null);
   }
+});
+
+test("Draw one only picks from questions that have not been on screen", () => {
+  const list: Submission[] = [
+    submission,
+    { ...submission, id: "20260911210100000-shown", shownAt: "2026-09-11T21:05:00Z" },
+    { ...submission, id: "20260911210200000-archived", status: "archived" },
+    { ...submission, id: "20260911210300000-onscreen" },
+    { ...submission, id: "20260911210400000-drawn", status: "drawn" },
+  ];
+  assert.deepEqual(drawable(list, "20260911210300000-onscreen").map((item) => item.id), [
+    submission.id, "20260911210400000-drawn",
+  ]);
+  assert.equal(drawable([], null).length, 0);
 });
