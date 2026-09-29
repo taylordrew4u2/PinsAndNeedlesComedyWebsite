@@ -191,6 +191,13 @@ URI to `<NEXT_PUBLIC_SITE_URL>/api/admin/instagram/callback`. Then set
 The token is stored in `content.json` and refreshes itself before its ~60-day
 expiry — which is why the content repository must be private.
 
+Once connected, new reels arrive on their own: every homepage view checks
+Instagram in the background (at most once every ten minutes), and a daily cron
+in `vercel.json` hits `/api/cron/instagram` for days nobody visits. Set
+`CRON_SECRET` to lock that route to Vercel's scheduler. Until Instagram is
+connected, the homepage shows a fixed set of the account's reels from
+`src/lib/reels.seed.ts` through Instagram's public embed.
+
 ## 6. Texting a decision in (optional, free)
 
 Some people will never scan a QR code. This gets their texts into the same

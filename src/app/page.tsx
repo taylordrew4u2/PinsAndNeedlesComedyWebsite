@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
 import HallOfFameLink from "@/components/HallOfFameLink";
 import PageHeader from "@/components/PageHeader";
 import Image from "next/image";
@@ -7,12 +8,15 @@ import styles from "./home.module.css";
 import { homeDesignDefaults, homeArtworkOptions } from "@/lib/home-design";
 import NewsMarquee from "@/components/NewsMarquee";
 import ReelGrid from "@/components/ReelGrid";
+import { seedReels } from "@/lib/reels.seed";
+import { autoSyncInstagram } from "@/lib/instagram-sync";
 import JsonLd from "@/components/JsonLd";
 import { getContent } from "@/lib/store";
 import { toMetadata } from "@/lib/meta";
 import { faqSchema, organizationSchema, websiteSchema } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
   const { site, home } = await getContent();
@@ -22,6 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const content = await getContent();
   const { site, home } = content;
+  // Pull any newly posted reels in the background; they show on the next view.
+  after(() => autoSyncInstagram().catch((error) => console.error("[instagram autosync]", error)));
   const editorial = { ...homeDesignDefaults, ...home.hero.editorial };
   const artwork =
     homeArtworkOptions.find((option) => option.value === editorial.artwork) ||
@@ -76,7 +82,7 @@ export default async function HomePage() {
         fallbackImage={site.logoUrl}
       />
       </div>
-      <ReelGrid reels={content.reels} />
+      <ReelGrid reels={content.reels.some((reel) => reel.published) ? content.reels : seedReels} />
     </main>
   );
 }
