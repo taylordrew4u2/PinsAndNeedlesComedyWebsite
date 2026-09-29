@@ -166,7 +166,7 @@ cannot outrank the real site.
 
 ## Testing
 
-194 tests on the Node test runner with `--experimental-strip-types`. No test
+279 tests on the Node test runner with `--experimental-strip-types`. No test
 framework, no transpile step, no watch process.
 
 That is possible because the logic worth testing lives in plain modules — dates,

@@ -16,7 +16,7 @@ and film shoots while they are happening.
 
 ## The code in this repository
 
-[![CI](https://github.com/taylordrew4u2/taylordrew4u2/actions/workflows/ci.yml/badge.svg)](https://github.com/taylordrew4u2/taylordrew4u2/actions/workflows/ci.yml)
+[![CI](https://github.com/taylordrew4u2/PinsAndNeedlesComedyWebsite/actions/workflows/ci.yml/badge.svg)](https://github.com/taylordrew4u2/PinsAndNeedlesComedyWebsite/actions/workflows/ci.yml)
 
 This repo is both my profile and a working product:
 **[pinsandneedlescomedy.com](https://pinsandneedlescomedy.com)**, the site for a
@@ -131,7 +131,8 @@ the live display, without publishing the question list.
 
 ### Printing the submission QR
 
-Download the QR from **Admin → Bad Decisions** after deploying this version.
+Download the QR from the control center (**Admin → Control center → QR code
+for the tables**) after deploying this version.
 Older QR codes that contain only `/bad-decisions` now return 404. The new code
 contains a stable entry key derived from `ADMIN_SECRET`; keep that secret stable
 or reprint the QR after rotating it. Missing configuration fails closed.
@@ -151,18 +152,20 @@ that a URL was opened by a camera scan.
 - **Audience submissions are one file each.** Forty people scanning the same QR
   code in the same minute would lose writes against a shared array, so there is
   nothing to contend over.
-- **Reads are driven by what a listing already tells you.** The admin polls
-  every fifteen seconds for the length of a show; re-reading every file was
-  measured at **14,640 GitHub API requests an hour against a 5,000 limit**, so
-  the panel would have started failing mid-show. Each listing entry carries a
-  content hash, so only files that actually changed are read — **240 an hour**,
-  at any pile size.
+- **Reads are driven by what a listing already tells you.** The control
+  center polls every four seconds for the length of a show. Re-reading every
+  file on each poll was measured at **14,640 GitHub API requests an hour
+  against a 5,000 limit**, back when the panel polled every fifteen seconds,
+  so it would have started failing mid-show. Each listing entry carries a
+  content hash, so only files that actually changed are read, and a poll that
+  finds nothing changed gets a 304 that GitHub does not count. The simulator
+  checks this every run: idle polling costs zero counted requests.
 - **Show times are New York wall-clock**, resolved against the zone's real
   offset for the date, so the DST changeover needs no maintenance.
 - **The admin fails closed.** Credential policy lives in a module with no
   framework imports — so it is tested directly — and without both secrets set in
   production, every login is refused and every cookie stops verifying.
-- **194 tests on the Node test runner.** No test framework and no transpile
+- **279 tests on the Node test runner.** No test framework and no transpile
   step, because the logic worth testing lives in plain modules. CI runs lint,
   typecheck, tests and a production build on every pull request.
 

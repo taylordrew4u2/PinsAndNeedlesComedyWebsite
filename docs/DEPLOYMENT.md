@@ -261,8 +261,8 @@ filters on that, before anything is posted.
    `INBOX_IMAP_HOST` defaults to Gmail's; set it for any other provider
    (Zoho's is `imappro.zoho.com`, port 993). Redeploy afterwards — a running
    deployment does not pick up new variables.
-5. Put the number in **Admin → Bad Decisions → Text-in number** so it appears
-   on the page.
+5. Put the number in **Admin → Bad Decisions → Words on the submission form →
+   A number people can text instead** so it appears on the page.
 
 Note that a free mail plan usually does not include IMAP. Zoho's free plan
 opens neither IMAP nor POP —
@@ -277,14 +277,14 @@ never reach the stage. Long texts are hard-wrapped by Voice at about 75
 characters; those breaks are rejoined, and only a blank line starts a new
 paragraph. Both ways in share that parsing.
 
-**When the mailbox reader runs.** The admin's *Tonight* panel checks the
-mailbox each time it polls, which is every fifteen seconds while it is open —
-the hour of the show, and no other time. That is deliberate: a scheduler is the
+**When the mailbox reader runs.** The control center checks the mailbox
+about every thirty seconds while it is open — the hour of the show, and no
+other time. That is deliberate: a scheduler is the
 part that costs money, since Vercel's hobby plan allows a cron job once a day,
 which is no use to a live show. The delivery endpoint has no such constraint,
 since the relay pushes rather than being polled.
 
-The panel says whether the mailbox is answering. Mail that does not look like a
+The control center says whether the mailbox is answering. Mail that does not look like a
 forwarded text is left alone, every message is marked read so nothing is added
 twice, and texts outside the open window are skipped like any other late
 submission.
