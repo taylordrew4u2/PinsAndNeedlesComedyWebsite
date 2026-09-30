@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DecisionForm from "@/components/DecisionForm";
 import { getContent } from "@/lib/store";
-import { validDecisionQrKey } from "@/lib/decision-access";
+import { isValidDecisionQr } from "@/lib/decision-qr-lock";
 import { closedMessage, windowFor } from "@/lib/decisions";
 import { spaceOf } from "@/lib/space";
 
@@ -21,7 +21,7 @@ export default async function WeeklyPage({ searchParams }: {
   searchParams: Promise<{ qr?: string | string[]; mode?: string | string[] }>;
 }) {
   const { qr, mode } = await searchParams;
-  if (!validDecisionQrKey(qr)) notFound();
+  if (typeof qr !== "string" || !(await isValidDecisionQr(qr))) notFound();
   const space = spaceOf(mode);
   const { weekly, shows } = await getContent();
   if (!weekly.enabled && space === "live") notFound();
