@@ -1,4 +1,4 @@
-import { validDecisionQrKey } from "@/lib/decision-access";
+import { isValidDecisionQr } from "@/lib/decision-qr-lock";
 import { NextResponse } from "next/server";
 import { closedMessage, sanitizeSubmission, windowFor } from "@/lib/decisions";
 import { spaceOf, type Space } from "@/lib/space";
@@ -56,7 +56,7 @@ async function roomCount(since: string, space: Space): Promise<number | null> {
  * the window opens, without anyone reloading.
  */
 export async function GET(request: Request) {
-  if (!validDecisionQrKey(request.headers.get("X-Decisions-QR"))) {
+  if (!(await isValidDecisionQr(request.headers.get("X-Decisions-QR")))) {
     return NextResponse.json({ ok: false, error: "Scan the show QR code to enter." }, { status: 403 });
   }
   const space = spaceFrom(request);
@@ -81,7 +81,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!validDecisionQrKey(request.headers.get("X-Decisions-QR"))) {
+  if (!(await isValidDecisionQr(request.headers.get("X-Decisions-QR")))) {
     return NextResponse.json({ ok: false, error: "Scan the show QR code to enter." }, { status: 403 });
   }
   const space = spaceFrom(request);
