@@ -38,7 +38,8 @@ export async function GET(request: Request) {
     const current = currentOnly(pile.submissions, content.shows, space);
     // A question left on the projector from a past show comes down too.
     let selected = onScreen;
-    if (selected && !current.some((item) => item.id === selected?.submissionId)) {
+    const onScreenItem = selected && pile.submissions.find((item) => item.id === selected?.submissionId);
+    if (selected && onScreenItem && !current.includes(onScreenItem)) {
       await clearLiveSelection(selected.submissionId, space).catch((error) => console.error("[run-show] clear stale screen failed", error));
       selected = null;
     }
