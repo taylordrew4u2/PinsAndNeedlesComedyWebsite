@@ -108,6 +108,32 @@ export function sortSubmissions(list: Submission[]): Submission[] {
   return [...list].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
 }
 
+/**
+ * The date of the most recent show that has already happened — a New York
+ * calendar date before today — or "" if none has. Cancelled and postponed
+ * nights don't count: nobody read those questions out.
+ */
+export function lastPastShowDate(shows: Show[], now: Date = new Date()): string {
+  const today = nyToday(now);
+  let latest = "";
+  for (const show of shows) {
+    if (show.status === "cancelled" || show.status === "postponed") continue;
+    if (show.date && show.date < today && show.date > latest) latest = show.date;
+  }
+  return latest;
+}
+
+/**
+ * True for a question sent on or before a show that has since passed, so the
+ * control center starts fresh the day after every show without anyone
+ * pressing archive.
+ */
+export function isFromPastShow(submission: Submission, lastPast: string): boolean {
+  if (!lastPast) return false;
+  const sent = new Date(submission.createdAt);
+  return !Number.isNaN(sent.getTime()) && nyToday(sent) <= lastPast;
+}
+
 /** One random open submission, or null when the pile is empty. */
 export function pickRandom<T>(list: T[], random: () => number = Math.random): T | null {
   if (!list.length) return null;
