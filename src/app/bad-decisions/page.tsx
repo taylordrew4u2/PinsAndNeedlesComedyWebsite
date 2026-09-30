@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DecisionForm from "@/components/DecisionForm";
 import { getContent } from "@/lib/store";
-import { validDecisionQrKey } from "@/lib/decision-access";
+import { decisionQrKey, validDecisionQrKey } from "@/lib/decision-access";
 import { closedMessage, windowFor } from "@/lib/decisions";
 import { spaceOf } from "@/lib/space";
 
@@ -13,7 +13,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * The private QR opens a countdown, then a standalone prompt. With
+ * The audience's fixed address: the show screen's QR and anyone typing
+ * /bad-decisions land here. The form is only open during the show window.
+ * Older QRs that carry `?qr=` still work. With
  * `mode=rehearsal` it opens the dress rehearsal's practice form instead:
  * always open, saved to the practice pile, never the real one.
  */
@@ -21,7 +23,8 @@ export default async function WeeklyPage({ searchParams }: {
   searchParams: Promise<{ qr?: string | string[]; mode?: string | string[] }>;
 }) {
   const { qr, mode } = await searchParams;
-  if (!validDecisionQrKey(qr)) notFound();
+  const qrKey = validDecisionQrKey(qr) ? qr : decisionQrKey();
+  if (!qrKey) notFound();
   const space = spaceOf(mode);
   const { weekly, shows } = await getContent();
   if (!weekly.enabled && space === "live") notFound();
@@ -38,7 +41,7 @@ export default async function WeeklyPage({ searchParams }: {
         ) : null}
         <DecisionForm
           space={space}
-          qrKey={qr}
+          qrKey={qrKey}
           question={weekly.question}
           placeholder={weekly.placeholder}
           namePrompt={weekly.namePrompt}
