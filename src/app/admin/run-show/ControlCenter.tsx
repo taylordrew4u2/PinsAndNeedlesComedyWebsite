@@ -11,12 +11,14 @@ type State = {
   shown: Submission[];
   archived: Submission[];
   selected: LiveSelection | null;
+  /** The drink menu is up on the live screen, over any question. */
+  menu: boolean;
   truncated: boolean;
   questionsOpen: boolean;
   manualOpen: boolean;
   pageLive: boolean;
 };
-type Change = Partial<Pick<State, "selected" | "questionsOpen" | "manualOpen" | "pageLive">> & { drawn?: Submission; submission?: Submission };
+type Change = Partial<Pick<State, "selected" | "menu" | "questionsOpen" | "manualOpen" | "pageLive">> & { drawn?: Submission; submission?: Submission };
 
 const API = "/api/admin/run-show";
 const PILE_API = "/api/admin/decisions";
@@ -145,6 +147,7 @@ export default function ControlCenter() {
     return {
       ...current,
       selected,
+      menu: selected ? false : current.menu,
       submissions: current.submissions.filter((entry) => entry.id !== id),
       shown: item ? [{ ...item, shownAt: new Date().toISOString() }, ...current.shown] : current.shown,
     };
@@ -166,6 +169,11 @@ export default function ControlCenter() {
       setState((current) => current ? moveToShown(current, drawn.id, data.selected ?? null) : current);
       setNotice(`Drawn: “${drawn.decision.slice(0, 60)}${drawn.decision.length > 60 ? "…" : ""}” is on screen.`);
     }, "Could not draw a question.");
+
+  const setMenu = (menu: boolean) =>
+    change(API, { menu }, (data) => {
+      setState((current) => current ? { ...current, menu: Boolean(data.menu) } : current);
+    }, "Could not update the drink menu.");
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -249,9 +257,18 @@ export default function ControlCenter() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
-                <p className="text-sm">{!state ? "Connecting…" : state.selected ? "On screen" : "Screen cleared"}</p>
+                <p className="text-sm">{!state ? "Connecting…" : state.menu ? "Drink menu on screen" : state.selected ? "On screen" : "Screen cleared"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void setMenu(!state?.menu)}
+                  disabled={busy || !state}
+                  aria-pressed={Boolean(state?.menu)}
+                  className={`rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50 ${state?.menu ? "bg-amber-300 text-black" : "border border-amber-300/70 text-amber-200"}`}
+                >
+                  {state?.menu ? "Hide drink menu" : "Show drink menu"}
+                </button>
                 <button type="button" onClick={() => void draw()} disabled={busy || !waiting.length} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
                 <button type="button" onClick={() => void select(null)} disabled={busy || !state?.selected} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
               </div>

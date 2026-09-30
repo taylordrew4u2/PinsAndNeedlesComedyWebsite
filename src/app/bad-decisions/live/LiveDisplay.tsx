@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { modeQuery, type Space } from "@/lib/space";
+import DrinkMenu from "@/components/DrinkMenu";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
@@ -12,6 +13,8 @@ const TOUCH_IDLE_MS = 5_000;
 export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolean; space?: Space }) {
   const [question, setQuestion] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
+  // The control center can put the drink menu up over everything, between sets.
+  const [menu, setMenu] = useState(false);
   const [pointerIdle, setPointerIdle] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   // Known only in the browser; the server renders without the button.
@@ -39,7 +42,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     let active = true;
     void document.fonts.ready.then(() => { if (active) fit(); });
     return () => { active = false; observer.disconnect(); };
-  }, [question, name]);
+  }, [question, name, menu]);
   useEffect(() => {
     let disposed = false;
     let pending = false;
@@ -58,6 +61,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         const next = typeof data?.question === "string" ? data.question : null;
         setQuestion(next);
         setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
+        setMenu(data?.menu === true);
       } catch {
         // Offline or aborted: leave the screen as it is.
       } finally { pending = false; }
@@ -117,8 +121,15 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     };
   }, []);
 
+  const qrSrc = `/api/decisions/live/qr${modeQuery(space)}`;
+
   return (
     <>
+    {menu ? (
+      <main className={`select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
+        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} />
+      </main>
+    ) : (
     <main
       className={`flex h-svh select-none items-center justify-center bg-black px-6 pb-40 pt-10 text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
       aria-label="Live show"
@@ -143,10 +154,11 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       {showQr ? (
         <div className="fixed bottom-3 right-3 bg-white p-3 sm:bottom-4 sm:right-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/decisions/live/qr${modeQuery(space)}`} alt="Scan to submit your question" width={160} height={160} className="h-24 w-24 sm:h-40 sm:w-40" />
+          <img src={qrSrc} alt="Scan to submit your question" width={160} height={160} className="h-24 w-24 sm:h-40 sm:w-40" />
         </div>
       ) : null}
     </main>
+    )}
     {/* Outside <main>, so it is not read out with the question. */}
     {canGoFullscreen && !(fullscreen && pointerIdle) ? (
       <button
