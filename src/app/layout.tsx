@@ -15,7 +15,8 @@ const archivo = Archivo_Black({
 });
 
 const poster = Barlow_Condensed({
-  weight: "700",
+  // 500 and 600 are for the live screen's drink menu.
+  weight: ["500", "600", "700"],
   subsets: ["latin"],
   variable: "--font-poster",
   display: "swap",

@@ -3,7 +3,7 @@ import { getContentStrict, patchContent } from "@/lib/store";
 import { isFromPastShow, lastPastShowDate, pickRandom, submissionWindow } from "@/lib/decisions";
 import { isAuthed } from "@/lib/auth";
 import { getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
-import { clearLiveSelection, readLiveSelection, writeLiveSelection } from "@/lib/live-store";
+import { clearLiveSelection, readLiveSelection, readMenuOn, writeLiveSelection, writeMenuOn } from "@/lib/live-store";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
 import type { Show, Submission } from "@/lib/types";
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
   if (!(await isAuthed())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
   const space = spaceFrom(request);
   try {
-    const [pile, onScreen, content] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict()]);
+    const [pile, onScreen, content, menu] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict(), readMenuOn(space)]);
     const current = currentOnly(pile.submissions, content.shows, space);
     // A question left on the projector from a past show comes down too.
     let selected = onScreen;
@@ -51,6 +51,7 @@ export async function GET(request: Request) {
       archived: current.filter((item) => item.status === "archived"),
       truncated: pile.truncated,
       selected,
+      menu,
       questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
       manualOpen: content.weekly.enabled && content.weekly.alwaysOpen,
       pageLive: content.weekly.enabled,
@@ -61,10 +62,16 @@ export async function GET(request: Request) {
   }
 }
 
-/** Put one question on the projector and record that it has been shown. */
+/**
+ * Put one question on the projector and record that it has been shown. A
+ * question going up takes the drink menu down, so it is actually seen.
+ */
 async function show(submission: Submission | null, space: Space): Promise<LiveSelection | null> {
   const selected = submission ? selectionFor(submission) : null;
   await writeLiveSelection(selected, space);
+  if (selected) {
+    await writeMenuOn(false, space).catch((error) => console.error("[run-show] menu off failed", error));
+  }
   if (submission) {
     // The screen already changed; a failed mark only leaves it in the list.
     await markShown(submission.id, space).catch((error) => console.error("[run-show] mark shown failed", error));
@@ -81,6 +88,19 @@ export async function POST(request: Request) {
   }
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Choose a question or clear the screen." }, { status: 400, headers });
+  }
+  if ("menu" in body) {
+    if (typeof body.menu !== "boolean") {
+      return NextResponse.json({ error: "Invalid menu setting" }, { status: 400, headers });
+    }
+    try {
+      // Only the menu flag: the question underneath stays and returns when the menu comes down.
+      await writeMenuOn(body.menu, space);
+      return NextResponse.json({ menu: body.menu }, { headers });
+    } catch (error) {
+      console.error("[run-show] menu failed", error);
+      return NextResponse.json({ error: "Could not update the drink menu. Try again." }, { status: 503, headers });
+    }
   }
   if ("manualOpen" in body) {
     if (typeof body.manualOpen !== "boolean") {
