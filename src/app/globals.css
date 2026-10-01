@@ -107,10 +107,32 @@
 
 /* Live screen: a new question or the drink menu fades in instead of snapping on. */
 @keyframes pnc-screen-in {
-  from { opacity: 0; }
+  from { opacity: 0; transform: scale(0.96); filter: blur(10px); }
 }
 .pnc-screen-in {
-  animation: pnc-screen-in 0.45s ease-out;
+  animation: pnc-screen-in 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Live screen: the switch between screens. A black panel trailing a red edge sweeps off to the right, revealing what is next. */
+.pnc-wipe {
+  position: fixed;
+  inset: 0 0 0 -3vw;
+  z-index: 50;
+  pointer-events: none;
+  background: linear-gradient(90deg, #ff2e4d 0 3vw, #000 3vw);
+  animation: pnc-wipe 0.75s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+}
+@keyframes pnc-wipe {
+  from { transform: translateX(0); }
+  to { transform: translateX(105%); }
+}
+
+/* Live screen: big lines snap together from wide-spaced and blurred. */
+.pnc-snap-in {
+  animation: pnc-snap-in 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes pnc-snap-in {
+  from { opacity: 0; letter-spacing: 0.4em; filter: blur(12px); }
 }
 
 /*

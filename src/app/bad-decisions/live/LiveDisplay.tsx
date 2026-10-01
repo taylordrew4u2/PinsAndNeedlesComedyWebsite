@@ -5,6 +5,9 @@ import { useWakeLock } from "@/lib/use-wake-lock";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
+import { playIntroSound } from "@/lib/intro-sound";
+import Explainer from "@/components/Explainer";
+import { EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
@@ -16,11 +19,23 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [name, setName] = useState<string | null>(null);
   // The control center can put the drink menu up over everything, between sets.
   const [menu, setMenu] = useState(false);
+  // Bumped whenever the screen switches (menu on/off, screen cleared, the Intro starting or ending): plays the wipe.
+  const [wipe, setWipe] = useState(0);
+  const menuSeen = useRef<boolean | undefined>(undefined);
   const [marquee, setMarquee] = useState<string | null>(null);
   // A newly picked question gets a drum roll first; the screen opening on one does not.
   const [intro, setIntro] = useState(false);
   const shown = useRef<string | null | undefined>(undefined);
   const introTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Browsers only allow sound after someone taps or clicks the page once; until then the button below asks for it.
+  const audio = useRef<AudioContext | null>(null);
+  // The host's "Intro" explainer: which step is up, and the start time last acted on (undefined until the first poll).
+  const [explainer, setExplainer] = useState<ExplainerStep | null>(null);
+  const explainerSeen = useRef<string | null | undefined>(undefined);
+  const explainerTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [soundOn, setSoundOn] = useState(false);
+  // The Control Center's mirror is this page in a frame: it stays silent so the host's laptop does not echo the room.
+  const [mirrored, setMirrored] = useState(true);
   const [pointerIdle, setPointerIdle] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   // Known only in the browser; the server renders without the button.
@@ -54,6 +69,24 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     let disposed = false;
     let pending = false;
     const controller = new AbortController();
+    /** Steps through the explainer on timers, playing the sting with its intro step. */
+    const runExplainer = () => {
+      explainerTimers.current.forEach(clearTimeout);
+      explainerTimers.current = [];
+      setWipe((count) => count + 1);
+      let delay = 0;
+      for (const { step, ms } of EXPLAINER_STEPS) {
+        explainerTimers.current.push(setTimeout(() => {
+          setExplainer(step);
+          if (step === "intro" && audio.current?.state === "running") playIntroSound(audio.current);
+        }, delay));
+        delay += ms;
+      }
+      explainerTimers.current.push(setTimeout(() => {
+        setExplainer(null);
+        setWipe((count) => count + 1);
+      }, delay));
+    };
     const refresh = async () => {
       if (pending) return;
       pending = true;
@@ -71,14 +104,28 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         if (next !== previous) {
           // A changed screen ends any intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
-          const play = previous !== undefined && next !== null && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          const fresh = previous !== undefined && next !== null;
+          if (fresh && audio.current?.state === "running") playIntroSound(audio.current);
+          const play = fresh && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           setIntro(play);
+          // A cleared screen wipes; a new question has its own intro.
+          if (previous && next === null) setWipe((count) => count + 1);
           if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
         }
         setQuestion(next);
         setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
-        setMenu(data?.menu === true);
+        const nextMenu = data?.menu === true;
+        if (menuSeen.current !== undefined && nextMenu !== menuSeen.current) setWipe((count) => count + 1);
+        menuSeen.current = nextMenu;
+        setMenu(nextMenu);
         setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
+        const explainerAt = typeof data?.explainer === "string" ? data.explainer : null;
+        if (explainerAt !== explainerSeen.current) {
+          // One that was already running when this screen opened is not replayed.
+          const opening = explainerSeen.current === undefined;
+          explainerSeen.current = explainerAt;
+          if (explainerAt && !opening) runExplainer();
+        }
       } catch {
         // Offline or aborted: leave the screen as it is.
       } finally { pending = false; }
@@ -92,11 +139,35 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       disposed = true;
       controller.abort();
       clearTimeout(introTimer.current);
+      explainerTimers.current.forEach(clearTimeout);
       clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
     };
   }, [space]);
+
+  // The first tap, click or key press anywhere turns the sound on.
+  useEffect(() => {
+    const framed = window.self !== window.top;
+    // Known only in the browser; the server renders as the mirror (silent, no button).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMirrored(framed);
+    if (framed) return;
+    const unlock = () => {
+      const Context = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Context) return;
+      audio.current ??= new Context();
+      void audio.current.resume().then(() => setSoundOn(audio.current?.state === "running"));
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+      void audio.current?.close();
+      audio.current = null;
+    };
+  }, []);
 
   // The pointer vanishes when the mouse is still, so it never sits on the
   // projected screen, and comes back the moment the mouse moves.
@@ -149,7 +220,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       </main>
     ) : (
     <main
-      className={`flex h-svh select-none items-center justify-center bg-black px-6 pb-40 pt-10 text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
+      className={`pnc-screen-in flex h-svh select-none items-center justify-center bg-black px-6 pb-40 pt-10 text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
       aria-label="Live show"
       aria-live="polite"
       aria-atomic="true"
@@ -177,8 +248,19 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       ) : null}
     </main>
     )}
-    {intro && !menu ? <BadDecisionIntro /> : null}
+    {intro && !menu && !explainer ? <BadDecisionIntro /> : null}
+    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} /> : null}
+    {wipe ? <div key={wipe} className="pnc-wipe" aria-hidden="true" /> : null}
     {/* Outside <main>, so it is not read out with the question. */}
+    {!mirrored && !soundOn ? (
+      <button
+        type="button"
+        onDoubleClick={(event) => event.stopPropagation()}
+        className={`fixed bottom-16 left-3 z-30 rounded-md border border-[#ff2e4d] bg-black/80 px-4 py-2 text-sm font-semibold text-white transition-opacity sm:bottom-[4.5rem] sm:left-4 ${pointerIdle ? "pointer-events-none opacity-0" : "opacity-100"}`}
+      >
+        Turn sound on
+      </button>
+    ) : null}
     {canGoFullscreen && !(fullscreen && pointerIdle) ? (
       <button
         type="button"

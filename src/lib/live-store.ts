@@ -6,6 +6,7 @@ import { driver, requireGithub } from "./store";
 import { readFile as githubRead, writeFile as githubWrite } from "./github-store";
 import { parseSelection, type LiveSelection } from "./live-selection";
 import { parseMenuState, type MenuState } from "./drink-menu";
+import { parseExplainer } from "./explainer";
 import { storagePrefix, type Space } from "./space";
 
 /** live-show/selection.json for the show; rehearsal/live-show/… for practice. */
@@ -96,4 +97,19 @@ export async function writeMenu(change: Partial<MenuState>, space: Space = "live
   const message = "marquee" in change ? "Update the drink menu marquee" : next.on ? "Put the drink menu on screen" : "Take the drink menu off screen";
   await writeRecord(menuKeyOf(space), next, message);
   return next;
+}
+
+/** live-show/explainer.json: when the host last started the "Intro" explainer. */
+function explainerKeyOf(space: Space): string {
+  return `${storagePrefix(space)}live-show/explainer.json`;
+}
+
+export async function readExplainer(space: Space = "live"): Promise<string | null> {
+  return parseExplainer(await readRecord(explainerKeyOf(space)));
+}
+
+export async function startExplainer(space: Space = "live"): Promise<string> {
+  const at = new Date().toISOString();
+  await writeRecord(explainerKeyOf(space), { at }, "Play the Bad Decisions intro");
+  return at;
 }
