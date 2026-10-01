@@ -3,7 +3,8 @@ import { getContentStrict, patchContent } from "@/lib/store";
 import { isFromPastShow, lastPastShowDate, pickRandom, submissionWindow } from "@/lib/decisions";
 import { isAuthed } from "@/lib/auth";
 import { getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
-import { clearLiveSelection, readLiveSelection, readMenuOn, writeLiveSelection, writeMenuOn } from "@/lib/live-store";
+import { clearLiveSelection, readLiveSelection, readMenu, writeLiveSelection, writeMenu } from "@/lib/live-store";
+import { cleanMarquee } from "@/lib/drink-menu";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
 import type { Show, Submission } from "@/lib/types";
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
   if (!(await isAuthed())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
   const space = spaceFrom(request);
   try {
-    const [pile, onScreen, content, menu] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict(), readMenuOn(space)]);
+    const [pile, onScreen, content, menu] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict(), readMenu(space)]);
     const current = currentOnly(pile.submissions, content.shows, space);
     // A question left on the projector from a past show comes down too.
     let selected = onScreen;
@@ -51,7 +52,8 @@ export async function GET(request: Request) {
       archived: current.filter((item) => item.status === "archived"),
       truncated: pile.truncated,
       selected,
-      menu,
+      menu: menu.on,
+      marquee: menu.marquee,
       questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
       manualOpen: content.weekly.enabled && content.weekly.alwaysOpen,
       pageLive: content.weekly.enabled,
@@ -70,7 +72,7 @@ async function show(submission: Submission | null, space: Space): Promise<LiveSe
   const selected = submission ? selectionFor(submission) : null;
   await writeLiveSelection(selected, space);
   if (selected) {
-    await writeMenuOn(false, space).catch((error) => console.error("[run-show] menu off failed", error));
+    await writeMenu({ on: false }, space).catch((error) => console.error("[run-show] menu off failed", error));
   }
   if (submission) {
     // The screen already changed; a failed mark only leaves it in the list.
@@ -95,11 +97,24 @@ export async function POST(request: Request) {
     }
     try {
       // Only the menu flag: the question underneath stays and returns when the menu comes down.
-      await writeMenuOn(body.menu, space);
-      return NextResponse.json({ menu: body.menu }, { headers });
+      const menu = await writeMenu({ on: body.menu }, space);
+      return NextResponse.json({ menu: menu.on, marquee: menu.marquee }, { headers });
     } catch (error) {
       console.error("[run-show] menu failed", error);
       return NextResponse.json({ error: "Could not update the drink menu. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("marquee" in body) {
+    if (typeof body.marquee !== "string") {
+      return NextResponse.json({ error: "Invalid marquee" }, { status: 400, headers });
+    }
+    try {
+      // Saved whether or not the menu is up; it only runs while the menu is on screen.
+      const menu = await writeMenu({ marquee: cleanMarquee(body.marquee) }, space);
+      return NextResponse.json({ menu: menu.on, marquee: menu.marquee }, { headers });
+    } catch (error) {
+      console.error("[run-show] marquee failed", error);
+      return NextResponse.json({ error: "Could not update the marquee. Try again." }, { status: 503, headers });
     }
   }
   if ("manualOpen" in body) {

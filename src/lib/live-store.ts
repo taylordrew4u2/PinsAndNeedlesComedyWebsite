@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { driver, requireGithub } from "./store";
 import { readFile as githubRead, writeFile as githubWrite } from "./github-store";
 import { parseSelection, type LiveSelection } from "./live-selection";
-import { parseMenuFlag } from "./drink-menu";
+import { parseMenuState, type MenuState } from "./drink-menu";
 import { storagePrefix, type Space } from "./space";
 
 /** live-show/selection.json for the show; rehearsal/live-show/… for practice. */
@@ -81,15 +81,19 @@ export async function clearLiveSelection(submissionId?: string, space: Space = "
   }
 }
 
-/** live-show/menu.json: whether the drink menu is up on the live screen. */
+/** live-show/menu.json: whether the drink menu is up, and its marquee. */
 function menuKeyOf(space: Space): string {
   return `${storagePrefix(space)}live-show/menu.json`;
 }
 
-export async function readMenuOn(space: Space = "live"): Promise<boolean> {
-  return parseMenuFlag(await readRecord(menuKeyOf(space)));
+export async function readMenu(space: Space = "live"): Promise<MenuState> {
+  return parseMenuState(await readRecord(menuKeyOf(space)));
 }
 
-export async function writeMenuOn(on: boolean, space: Space = "live"): Promise<void> {
-  await writeRecord(menuKeyOf(space), { on }, on ? "Put the drink menu on screen" : "Take the drink menu off screen");
+/** Change one part of the menu record and keep the other, so the marquee outlives the menu going down. */
+export async function writeMenu(change: Partial<MenuState>, space: Space = "live"): Promise<MenuState> {
+  const next = parseMenuState({ ...(await readMenu(space)), ...change });
+  const message = "marquee" in change ? "Update the drink menu marquee" : next.on ? "Put the drink menu on screen" : "Take the drink menu off screen";
+  await writeRecord(menuKeyOf(space), next, message);
+  return next;
 }

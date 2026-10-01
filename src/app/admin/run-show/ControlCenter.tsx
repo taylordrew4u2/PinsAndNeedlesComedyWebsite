@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
+import { MARQUEE_MAX } from "@/lib/drink-menu";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import LiveMirror from "./LiveMirror";
 
@@ -13,12 +14,14 @@ type State = {
   selected: LiveSelection | null;
   /** The drink menu is up on the live screen, over any question. */
   menu: boolean;
+  /** Text running around the edge while the drink menu is up; empty for none. */
+  marquee: string;
   truncated: boolean;
   questionsOpen: boolean;
   manualOpen: boolean;
   pageLive: boolean;
 };
-type Change = Partial<Pick<State, "selected" | "menu" | "questionsOpen" | "manualOpen" | "pageLive">> & { drawn?: Submission; submission?: Submission };
+type Change = Partial<Pick<State, "selected" | "menu" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive">> & { drawn?: Submission; submission?: Submission };
 
 const API = "/api/admin/run-show";
 const PILE_API = "/api/admin/decisions";
@@ -42,6 +45,8 @@ export default function ControlCenter() {
   // Ids that arrived while this page was open and have not been looked at yet.
   const [fresh, setFresh] = useState<Set<string>>(() => new Set());
   const [texting, setTexting] = useState<{ on: boolean; error: string }>({ on: false, error: "" });
+  // What the host is typing; null until they type, so the saved marquee shows.
+  const [marqueeDraft, setMarqueeDraft] = useState<string | null>(null);
   const ping = useSyncExternalStore(subscribePing, readPing, () => false);
   useWakeLock();
   const revision = useRef(0);
@@ -170,6 +175,14 @@ export default function ControlCenter() {
       setNotice(`Drawn: “${drawn.decision.slice(0, 60)}${drawn.decision.length > 60 ? "…" : ""}” is on screen.`);
     }, "Could not draw a question.");
 
+  const saveMarquee = (marquee: string) =>
+    change(API, { marquee }, (data) => {
+      const saved = typeof data.marquee === "string" ? data.marquee : "";
+      setState((current) => current ? { ...current, marquee: saved } : current);
+      setMarqueeDraft(null);
+      setNotice(saved ? "Marquee saved. It runs around the drink menu." : "Marquee cleared.");
+    }, "Could not update the marquee.");
+
   const setMenu = (menu: boolean) =>
     change(API, { menu }, (data) => {
       setState((current) => current ? { ...current, menu: Boolean(data.menu) } : current);
@@ -284,6 +297,31 @@ export default function ControlCenter() {
                 {state.selected.name ? <p className="mt-1 text-sm text-neutral-300">— {state.selected.name} (shown on screen)</p> : null}
               </div>
             ) : null}
+
+            <form
+              className="mt-6 rounded-lg border border-amber-300/40 p-4"
+              onSubmit={(event) => { event.preventDefault(); void saveMarquee(marqueeDraft ?? state?.marquee ?? ""); }}
+            >
+              <label htmlFor="menu-marquee" className="text-sm">Drink menu marquee</label>
+              <p className="mt-1 text-sm text-neutral-400">Runs around the edge of the screen, only while the drink menu is up.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <input
+                  id="menu-marquee"
+                  type="text"
+                  value={marqueeDraft ?? state?.marquee ?? ""}
+                  onChange={(event) => setMarqueeDraft(event.target.value)}
+                  maxLength={MARQUEE_MAX}
+                  placeholder="Happy hour till 9 · Tip your bartenders"
+                  disabled={!state}
+                  className="min-w-0 flex-1 basis-64 rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+                />
+                <button type="submit" disabled={busy || !state || marqueeDraft === null || marqueeDraft.trim() === (state?.marquee ?? "")} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
+                <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear</button>
+              </div>
+              <p className="mt-2 text-xs text-neutral-500">
+                {state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show the drink menu.`) : "No marquee set."}
+              </p>
+            </form>
 
             <div className="mt-6 rounded-lg border border-white/20 p-4">
               <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : "Questions are closed"}</p>
