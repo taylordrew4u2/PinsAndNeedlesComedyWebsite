@@ -126,7 +126,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   return (
     <>
     {menu ? (
-      <main className={`select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
+      <main className={`pnc-screen-in select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
         <DrinkMenu qrSrc={showQr ? qrSrc : undefined} />
       </main>
     ) : (
@@ -140,7 +140,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
         {question ? (
           // Sized together, so a long question and its name both fit above the QR.
-          <div ref={text} className="w-full text-center">
+          <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
             {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">— {name}</p> : null}
           </div>
