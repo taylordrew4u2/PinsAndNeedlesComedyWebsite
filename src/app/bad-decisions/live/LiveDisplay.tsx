@@ -69,6 +69,13 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     let disposed = false;
     let pending = false;
     const controller = new AbortController();
+    /** Plays the sting if sound is on. A context the browser paused is asked to resume first; if it cannot, the beat passes silently. */
+    const sting = () => {
+      const context = audio.current;
+      if (!context) return;
+      if (context.state === "running") playIntroSound(context);
+      else context.resume().then(() => { if (context.state === "running") playIntroSound(context); }, () => {});
+    };
     /** Steps through the explainer on timers, playing the sting with its intro step. */
     const runExplainer = () => {
       explainerTimers.current.forEach(clearTimeout);
@@ -78,7 +85,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       for (const { step, ms } of EXPLAINER_STEPS) {
         explainerTimers.current.push(setTimeout(() => {
           setExplainer(step);
-          if (step === "intro" && audio.current?.state === "running") playIntroSound(audio.current);
+          if (step === "intro") sting();
         }, delay));
         delay += ms;
       }
@@ -105,7 +112,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
           // A changed screen ends any intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
           const fresh = previous !== undefined && next !== null;
-          if (fresh && audio.current?.state === "running") playIntroSound(audio.current);
+          if (fresh) sting();
           const play = fresh && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           setIntro(play);
           // A cleared screen wipes; a new question has its own intro.
@@ -156,8 +163,13 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     const unlock = () => {
       const Context = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Context) return;
-      audio.current ??= new Context();
-      void audio.current.resume().then(() => setSoundOn(audio.current?.state === "running"));
+      if (!audio.current) {
+        const context = new Context();
+        // Safari and iPads pause audio when the screen locks or the tab is hidden: the button comes back to say so.
+        context.onstatechange = () => setSoundOn(context.state === "running");
+        audio.current = context;
+      }
+      audio.current.resume().then(() => setSoundOn(audio.current?.state === "running"), () => setSoundOn(false));
     };
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);
