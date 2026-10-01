@@ -5,6 +5,7 @@ import { useWakeLock } from "@/lib/use-wake-lock";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
+import { playIntroSound } from "@/lib/intro-sound";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
@@ -21,6 +22,11 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [intro, setIntro] = useState(false);
   const shown = useRef<string | null | undefined>(undefined);
   const introTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Browsers only allow sound after someone taps or clicks the page once; until then the button below asks for it.
+  const audio = useRef<AudioContext | null>(null);
+  const [soundOn, setSoundOn] = useState(false);
+  // The Control Center's mirror is this page in a frame: it stays silent so the host's laptop does not echo the room.
+  const [mirrored, setMirrored] = useState(true);
   const [pointerIdle, setPointerIdle] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   // Known only in the browser; the server renders without the button.
@@ -71,7 +77,9 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         if (next !== previous) {
           // A changed screen ends any intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
-          const play = previous !== undefined && next !== null && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          const fresh = previous !== undefined && next !== null;
+          if (fresh && audio.current?.state === "running") playIntroSound(audio.current);
+          const play = fresh && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           setIntro(play);
           if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
         }
@@ -97,6 +105,29 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       window.removeEventListener("online", resume);
     };
   }, [space]);
+
+  // The first tap, click or key press anywhere turns the sound on.
+  useEffect(() => {
+    const framed = window.self !== window.top;
+    // Known only in the browser; the server renders as the mirror (silent, no button).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMirrored(framed);
+    if (framed) return;
+    const unlock = () => {
+      const Context = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Context) return;
+      audio.current ??= new Context();
+      void audio.current.resume().then(() => setSoundOn(audio.current?.state === "running"));
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+      void audio.current?.close();
+      audio.current = null;
+    };
+  }, []);
 
   // The pointer vanishes when the mouse is still, so it never sits on the
   // projected screen, and comes back the moment the mouse moves.
@@ -179,6 +210,15 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     )}
     {intro && !menu ? <BadDecisionIntro /> : null}
     {/* Outside <main>, so it is not read out with the question. */}
+    {!mirrored && !soundOn ? (
+      <button
+        type="button"
+        onDoubleClick={(event) => event.stopPropagation()}
+        className={`fixed bottom-16 left-3 z-30 rounded-md border border-[#ff2e4d] bg-black/80 px-4 py-2 text-sm font-semibold text-white transition-opacity sm:bottom-[4.5rem] sm:left-4 ${pointerIdle ? "pointer-events-none opacity-0" : "opacity-100"}`}
+      >
+        Turn sound on
+      </button>
+    ) : null}
     {canGoFullscreen && !(fullscreen && pointerIdle) ? (
       <button
         type="button"
