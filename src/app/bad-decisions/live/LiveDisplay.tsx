@@ -19,6 +19,9 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [name, setName] = useState<string | null>(null);
   // The control center can put the drink menu up over everything, between sets.
   const [menu, setMenu] = useState(false);
+  // Bumped whenever the screen switches (menu on/off, screen cleared, the Intro starting or ending): plays the wipe.
+  const [wipe, setWipe] = useState(0);
+  const menuSeen = useRef<boolean | undefined>(undefined);
   const [marquee, setMarquee] = useState<string | null>(null);
   // A newly picked question gets a drum roll first; the screen opening on one does not.
   const [intro, setIntro] = useState(false);
@@ -70,6 +73,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     const runExplainer = () => {
       explainerTimers.current.forEach(clearTimeout);
       explainerTimers.current = [];
+      setWipe((count) => count + 1);
       let delay = 0;
       for (const { step, ms } of EXPLAINER_STEPS) {
         explainerTimers.current.push(setTimeout(() => {
@@ -78,7 +82,10 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         }, delay));
         delay += ms;
       }
-      explainerTimers.current.push(setTimeout(() => setExplainer(null), delay));
+      explainerTimers.current.push(setTimeout(() => {
+        setExplainer(null);
+        setWipe((count) => count + 1);
+      }, delay));
     };
     const refresh = async () => {
       if (pending) return;
@@ -97,16 +104,20 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         if (next !== previous) {
           // A changed screen ends any intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
-      explainerTimers.current.forEach(clearTimeout);
           const fresh = previous !== undefined && next !== null;
           if (fresh && audio.current?.state === "running") playIntroSound(audio.current);
           const play = fresh && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           setIntro(play);
+          // A cleared screen wipes; a new question has its own intro.
+          if (previous && next === null) setWipe((count) => count + 1);
           if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
         }
         setQuestion(next);
         setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
-        setMenu(data?.menu === true);
+        const nextMenu = data?.menu === true;
+        if (menuSeen.current !== undefined && nextMenu !== menuSeen.current) setWipe((count) => count + 1);
+        menuSeen.current = nextMenu;
+        setMenu(nextMenu);
         setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
         const explainerAt = typeof data?.explainer === "string" ? data.explainer : null;
         if (explainerAt !== explainerSeen.current) {
@@ -128,6 +139,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       disposed = true;
       controller.abort();
       clearTimeout(introTimer.current);
+      explainerTimers.current.forEach(clearTimeout);
       clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
@@ -208,7 +220,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       </main>
     ) : (
     <main
-      className={`flex h-svh select-none items-center justify-center bg-black px-6 pb-40 pt-10 text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
+      className={`pnc-screen-in flex h-svh select-none items-center justify-center bg-black px-6 pb-40 pt-10 text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
       aria-label="Live show"
       aria-live="polite"
       aria-atomic="true"
@@ -238,6 +250,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     )}
     {intro && !menu && !explainer ? <BadDecisionIntro /> : null}
     {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} /> : null}
+    {wipe ? <div key={wipe} className="pnc-wipe" aria-hidden="true" /> : null}
     {/* Outside <main>, so it is not read out with the question. */}
     {!mirrored && !soundOn ? (
       <button

@@ -28,7 +28,7 @@ export default function Explainer({ step, qrSrc }: { step: ExplainerStep; qrSrc?
             {qrSrc ? <Qr src={qrSrc} /> : null}
           </>
         ) : step === "listen" ? (
-          <p className={`${HEADING} text-center text-[min(8vw,14vmin)] text-[#ff2e4d]`}>When you hear this…</p>
+          <p className={`pnc-snap-in ${HEADING} text-center text-[min(8vw,14vmin)] text-[#ff2e4d]`}>When you hear this…</p>
         ) : step === "example" ? (
           <div className="flex flex-col items-center gap-[4vmin] text-center">
             <p className="rounded bg-[#ff2e4d] px-[2vmin] py-[0.6vmin] text-[min(2.4vw,4vmin)] font-bold uppercase tracking-[0.3em] text-black">Example</p>
