@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
 import { DEFAULT_MARQUEE, MARQUEE_MAX } from "@/lib/drink-menu";
+import { EXPLAINER_MS } from "@/lib/explainer";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import LiveMirror from "./LiveMirror";
 
@@ -47,6 +48,8 @@ export default function ControlCenter() {
   const [texting, setTexting] = useState<{ on: boolean; error: string }>({ on: false, error: "" });
   // What the host is typing; null until they type, so the saved marquee shows.
   const [marqueeDraft, setMarqueeDraft] = useState<string | null>(null);
+  // While the explainer is on the live screen, its button waits.
+  const [explaining, setExplaining] = useState(false);
   const ping = useSyncExternalStore(subscribePing, readPing, () => false);
   useWakeLock();
   const revision = useRef(0);
@@ -183,6 +186,13 @@ export default function ControlCenter() {
       setNotice(saved ? "Marquee saved. It runs around the drink menu." : `Marquee back to “${DEFAULT_MARQUEE}”.`);
     }, "Could not update the marquee.");
 
+  const playExplainer = () =>
+    change(API, { explainer: true }, () => {
+      setExplaining(true);
+      setTimeout(() => setExplaining(false), EXPLAINER_MS);
+      setNotice(`The intro is playing on the live screen (about ${Math.round(EXPLAINER_MS / 1000)} seconds), then it goes back to what was up.`);
+    }, "Could not start the intro.");
+
   const setMenu = (menu: boolean) =>
     change(API, { menu }, (data) => {
       setState((current) => current ? { ...current, menu: Boolean(data.menu) } : current);
@@ -273,6 +283,15 @@ export default function ControlCenter() {
                 <p className="text-sm">{!state ? "Connecting…" : state.menu ? "Drink menu on screen" : state.selected ? "On screen" : "Screen cleared"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void playExplainer()}
+                  disabled={busy || !state || explaining}
+                  title="Explains Bad Decisions to the room and plays an example with the sound"
+                  className="rounded-md border border-[#ff2e4d] px-4 py-2 text-sm font-semibold text-[#ff8a9c] disabled:opacity-50"
+                >
+                  {explaining ? "Intro playing…" : "Intro"}
+                </button>
                 <button
                   type="button"
                   onClick={() => void setMenu(!state?.menu)}

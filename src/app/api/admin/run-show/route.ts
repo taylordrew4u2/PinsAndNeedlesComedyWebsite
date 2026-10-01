@@ -3,7 +3,7 @@ import { getContentStrict, patchContent } from "@/lib/store";
 import { isFromPastShow, lastPastShowDate, pickRandom, submissionWindow } from "@/lib/decisions";
 import { isAuthed } from "@/lib/auth";
 import { getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
-import { clearLiveSelection, readLiveSelection, readMenu, writeLiveSelection, writeMenu } from "@/lib/live-store";
+import { clearLiveSelection, readLiveSelection, readMenu, startExplainer, writeLiveSelection, writeMenu } from "@/lib/live-store";
 import { cleanMarquee } from "@/lib/drink-menu";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
@@ -90,6 +90,18 @@ export async function POST(request: Request) {
   }
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Choose a question or clear the screen." }, { status: 400, headers });
+  }
+  if ("explainer" in body) {
+    if (body.explainer !== true) {
+      return NextResponse.json({ error: "Invalid intro request" }, { status: 400, headers });
+    }
+    try {
+      // A one-shot: the live screen plays it once and goes back to what was up.
+      return NextResponse.json({ explainer: await startExplainer(space) }, { headers });
+    } catch (error) {
+      console.error("[run-show] explainer failed", error);
+      return NextResponse.json({ error: "Could not start the intro. Try again." }, { status: 503, headers });
+    }
   }
   if ("menu" in body) {
     if (typeof body.menu !== "boolean") {

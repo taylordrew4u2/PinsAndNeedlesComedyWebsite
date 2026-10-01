@@ -6,6 +6,8 @@ import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { playIntroSound } from "@/lib/intro-sound";
+import Explainer from "@/components/Explainer";
+import { EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
@@ -24,6 +26,10 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const introTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Browsers only allow sound after someone taps or clicks the page once; until then the button below asks for it.
   const audio = useRef<AudioContext | null>(null);
+  // The host's "Intro" explainer: which step is up, and the start time last acted on (undefined until the first poll).
+  const [explainer, setExplainer] = useState<ExplainerStep | null>(null);
+  const explainerSeen = useRef<string | null | undefined>(undefined);
+  const explainerTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [soundOn, setSoundOn] = useState(false);
   // The Control Center's mirror is this page in a frame: it stays silent so the host's laptop does not echo the room.
   const [mirrored, setMirrored] = useState(true);
@@ -60,6 +66,20 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     let disposed = false;
     let pending = false;
     const controller = new AbortController();
+    /** Steps through the explainer on timers, playing the sting with its intro step. */
+    const runExplainer = () => {
+      explainerTimers.current.forEach(clearTimeout);
+      explainerTimers.current = [];
+      let delay = 0;
+      for (const { step, ms } of EXPLAINER_STEPS) {
+        explainerTimers.current.push(setTimeout(() => {
+          setExplainer(step);
+          if (step === "intro" && audio.current?.state === "running") playIntroSound(audio.current);
+        }, delay));
+        delay += ms;
+      }
+      explainerTimers.current.push(setTimeout(() => setExplainer(null), delay));
+    };
     const refresh = async () => {
       if (pending) return;
       pending = true;
@@ -77,6 +97,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         if (next !== previous) {
           // A changed screen ends any intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
+      explainerTimers.current.forEach(clearTimeout);
           const fresh = previous !== undefined && next !== null;
           if (fresh && audio.current?.state === "running") playIntroSound(audio.current);
           const play = fresh && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -87,6 +108,13 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
         setMenu(data?.menu === true);
         setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
+        const explainerAt = typeof data?.explainer === "string" ? data.explainer : null;
+        if (explainerAt !== explainerSeen.current) {
+          // One that was already running when this screen opened is not replayed.
+          const opening = explainerSeen.current === undefined;
+          explainerSeen.current = explainerAt;
+          if (explainerAt && !opening) runExplainer();
+        }
       } catch {
         // Offline or aborted: leave the screen as it is.
       } finally { pending = false; }
@@ -208,7 +236,8 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       ) : null}
     </main>
     )}
-    {intro && !menu ? <BadDecisionIntro /> : null}
+    {intro && !menu && !explainer ? <BadDecisionIntro /> : null}
+    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} /> : null}
     {/* Outside <main>, so it is not read out with the question. */}
     {!mirrored && !soundOn ? (
       <button
