@@ -153,7 +153,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     };
   }, [space]);
 
-  // The first tap, click or key press anywhere turns the sound on.
+  // Sound starts by itself where the browser allows autoplay for this site; otherwise the first tap, click or key press turns it on.
   useEffect(() => {
     const framed = window.self !== window.top;
     // Known only in the browser; the server renders as the mirror (silent, no button).
@@ -166,18 +166,26 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       if (!audio.current) {
         const context = new Context();
         // Safari and iPads pause audio when the screen locks or the tab is hidden: the button comes back to say so.
-        context.onstatechange = () => setSoundOn(context.state === "running");
+        // Only the current context reports: a replaced or closed one must not flip the button back on.
+        context.onstatechange = () => { if (audio.current === context) setSoundOn(context.state === "running"); };
         audio.current = context;
       }
-      audio.current.resume().then(() => setSoundOn(audio.current?.state === "running"), () => setSoundOn(false));
+      const context = audio.current;
+      context.resume().then(
+        () => { if (audio.current === context) setSoundOn(context.state === "running"); },
+        () => { if (audio.current === context) setSoundOn(false); },
+      );
     };
+    // Try at once: a browser set to allow autoplay here starts sound with no tap. A blocked one just waits for the first tap.
+    unlock();
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);
     return () => {
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
-      void audio.current?.close();
+      const context = audio.current;
       audio.current = null;
+      void context?.close();
     };
   }, []);
 
@@ -268,9 +276,9 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       <button
         type="button"
         onDoubleClick={(event) => event.stopPropagation()}
-        className={`fixed bottom-16 left-3 z-30 rounded-md border border-[#ff2e4d] bg-black/80 px-4 py-2 text-sm font-semibold text-white transition-opacity sm:bottom-[4.5rem] sm:left-4 ${pointerIdle ? "pointer-events-none opacity-0" : "opacity-100"}`}
+        className={`fixed bottom-16 left-3 z-30 rounded-md border border-[#ff2e4d] bg-black/80 px-4 py-2 text-sm font-semibold text-white sm:bottom-[4.5rem] sm:left-4`}
       >
-        Turn sound on
+        Sound is off. Tap to turn it on
       </button>
     ) : null}
     {canGoFullscreen && !(fullscreen && pointerIdle) ? (
