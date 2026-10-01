@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { MARQUEE_MAX } from "@/lib/drink-menu";
+import { DEFAULT_MARQUEE, MARQUEE_MAX } from "@/lib/drink-menu";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import LiveMirror from "./LiveMirror";
 
@@ -180,7 +180,7 @@ export default function ControlCenter() {
       const saved = typeof data.marquee === "string" ? data.marquee : "";
       setState((current) => current ? { ...current, marquee: saved } : current);
       setMarqueeDraft(null);
-      setNotice(saved ? "Marquee saved. It runs around the drink menu." : "Marquee cleared.");
+      setNotice(saved ? "Marquee saved. It runs around the drink menu." : `Marquee back to “${DEFAULT_MARQUEE}”.`);
     }, "Could not update the marquee.");
 
   const setMenu = (menu: boolean) =>
@@ -311,15 +311,15 @@ export default function ControlCenter() {
                   value={marqueeDraft ?? state?.marquee ?? ""}
                   onChange={(event) => setMarqueeDraft(event.target.value)}
                   maxLength={MARQUEE_MAX}
-                  placeholder="Happy hour till 9 · Tip your bartenders"
+                  placeholder={DEFAULT_MARQUEE}
                   disabled={!state}
                   className="min-w-0 flex-1 basis-64 rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
                 />
                 <button type="submit" disabled={busy || !state || marqueeDraft === null || marqueeDraft.trim() === (state?.marquee ?? "")} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
-                <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear</button>
+                <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Use default</button>
               </div>
               <p className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-neutral-500">
-                <span>{state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show the drink menu.`) : "No marquee set."}</span>
+                <span>{state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show the drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}</span>
                 <span aria-live="polite">{(marqueeDraft ?? state?.marquee ?? "").length}/{MARQUEE_MAX}</span>
               </p>
             </form>

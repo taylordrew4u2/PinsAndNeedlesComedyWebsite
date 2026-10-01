@@ -72,6 +72,9 @@ export const DRINK_MENU: DrinkSection[][] = [
   ],
 ];
 
+/** What runs around the drink menu when the host has not set a marquee of their own. */
+export const DEFAULT_MARQUEE = "Pins & Needles Comedy";
+
 /** Longest marquee the Control Center accepts; long enough for a plug, short enough to read. */
 export const MARQUEE_MAX = 140;
 
