@@ -318,8 +318,9 @@ export default function ControlCenter() {
                 <button type="submit" disabled={busy || !state || marqueeDraft === null || marqueeDraft.trim() === (state?.marquee ?? "")} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
                 <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear</button>
               </div>
-              <p className="mt-2 text-xs text-neutral-500">
-                {state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show the drink menu.`) : "No marquee set."}
+              <p className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-neutral-500">
+                <span>{state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show the drink menu.`) : "No marquee set."}</span>
+                <span aria-live="polite">{(marqueeDraft ?? state?.marquee ?? "").length}/{MARQUEE_MAX}</span>
               </p>
             </form>
 

@@ -16,6 +16,9 @@ const BAND = 64;
 const FRAME_SCALE = (HEIGHT - 2 * BAND) / (HEIGHT - 2 * 28);
 /** Marquee speed, in board pixels per second. */
 const MARQUEE_SPEED = 90;
+/** The brand red, for the marquee's separators. */
+const ACCENT = "#FF2E4D";
+const SEPARATOR = "\u2003\u2726\u2003";
 
 /**
  * The between-sets screen: the venue's drink menu on black, with the Bad
@@ -112,60 +115,80 @@ function Section({ section }: { section: DrinkSection }) {
 
 /**
  * The marquee: the text, repeated, crawling clockwise along a rounded track
- * in the black band around the menu. It loops by exactly one copy's length,
- * so the seam never shows. Still under reduced motion.
+ * in the black band around the menu. The copies are spaced to fill the track
+ * exactly, and a second run follows the first one lap behind, so every glyph
+ * is drawn once and the loop has no seam. Still under reduced motion.
  */
 function Marquee({ text }: { text: string }) {
   const id = useId();
   const track = useRef<SVGPathElement>(null);
   const probe = useRef<SVGTextElement>(null);
-  const runner = useRef<SVGTextPathElement>(null);
-  const [size, setSize] = useState({ track: 0, chunk: 0 });
-  const chunk = `${text.toUpperCase()}\u2003\u2022\u2003`;
+  const runners = useRef<(SVGTextPathElement | null)[]>([]);
+  const [size, setSize] = useState({ track: 0, copies: 0 });
+  const words = text.toUpperCase();
   const inset = BAND / 2;
-  const radius = 28;
+  const radius = 44;
   const right = WIDTH - inset;
   const bottom = HEIGHT - inset;
   const path = `M ${inset + radius} ${inset} H ${right - radius} A ${radius} ${radius} 0 0 1 ${right} ${inset + radius}`
     + ` V ${bottom - radius} A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom} H ${inset + radius}`
     + ` A ${radius} ${radius} 0 0 1 ${inset} ${bottom - radius} V ${inset + radius} A ${radius} ${radius} 0 0 1 ${inset + radius} ${inset} Z`;
 
-  // Measure once the font is in, so the loop length matches what is drawn.
+  // Measure once the font is in: how many copies fit the track at their natural width.
   useLayoutEffect(() => {
     let active = true;
     const measure = () => {
       if (!active || !track.current || !probe.current) return;
-      setSize({ track: track.current.getTotalLength(), chunk: probe.current.getComputedTextLength() });
+      const length = track.current.getTotalLength();
+      const chunk = probe.current.getComputedTextLength();
+      if (chunk > 0) setSize({ track: length, copies: Math.max(1, Math.round(length / chunk)) });
     };
     measure();
     void document.fonts.ready.then(measure);
     return () => { active = false; };
-  }, [chunk]);
+  }, [words]);
 
   useEffect(() => {
-    const node = runner.current;
-    if (!node || !size.chunk || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const [lead, follow] = runners.current;
+    if (!lead || !follow || !size.copies || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const step = size.track / size.copies;
     let frame = 0;
     const started = performance.now();
-    const step = (now: number) => {
-      node.setAttribute("startOffset", String(-(((now - started) / 1000) * MARQUEE_SPEED % size.chunk)));
-      frame = requestAnimationFrame(step);
+    const tick = (now: number) => {
+      const offset = -(((now - started) / 1000) * MARQUEE_SPEED % step);
+      lead.setAttribute("startOffset", String(offset));
+      follow.setAttribute("startOffset", String(offset + size.track));
+      frame = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(step);
+    frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [size]);
 
-  // Enough copies to cover the whole track plus the one that scrolls off.
-  const copies = size.chunk ? Math.ceil(size.track / size.chunk) + 2 : 0;
   const type = { fontFamily: FONT, fontSize: 28, fontWeight: 700, letterSpacing: "0.12em", whiteSpace: "pre" } as const;
+  const run = (key: string) => Array.from({ length: size.copies }, (_, index) => (
+    <tspan key={`${key}-${index}`}>
+      {words}<tspan fill={ACCENT}>{SEPARATOR}</tspan>
+    </tspan>
+  ));
 
   return (
     <svg aria-label={text} role="img" width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
       <path id={id} ref={track} d={path} fill="none" />
-      <text ref={probe} style={{ ...type, visibility: "hidden" }}>{chunk}</text>
-      {copies ? (
+      <text ref={probe} style={{ ...type, visibility: "hidden" }}>{words}{SEPARATOR}</text>
+      {size.copies ? (
         <text fill="#fff" dominantBaseline="central" style={type}>
-          <textPath ref={runner} href={`#${id}`} startOffset="0">{chunk.repeat(copies)}</textPath>
+          {["lead", "follow"].map((key, index) => (
+            <textPath
+              key={key}
+              ref={(node) => { runners.current[index] = node; }}
+              href={`#${id}`}
+              startOffset={index ? size.track : 0}
+              textLength={size.track}
+              lengthAdjust="spacing"
+            >
+              {run(key)}
+            </textPath>
+          ))}
         </text>
       ) : null}
     </svg>
