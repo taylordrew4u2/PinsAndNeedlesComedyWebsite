@@ -72,7 +72,24 @@ export const DRINK_MENU: DrinkSection[][] = [
   ],
 ];
 
-/** Stored flag for "the drink menu is on the live screen". Anything malformed reads as off. */
-export function parseMenuFlag(raw: unknown): boolean {
-  return Boolean(raw && typeof raw === "object" && (raw as { on?: unknown }).on === true);
+/** What runs around the drink menu when the host has not set a marquee of their own. */
+export const DEFAULT_MARQUEE = "Pins & Needles Comedy";
+
+/** Longest marquee the Control Center accepts; long enough for a plug, short enough to read. */
+export const MARQUEE_MAX = 140;
+
+/** Whether the drink menu is up, and the marquee that runs around it (empty for none). */
+export type MenuState = { on: boolean; marquee: string };
+
+/** One line of plain text, trimmed and capped. Anything that is not a string is no marquee. */
+export function cleanMarquee(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/\s+/g, " ").trim().slice(0, MARQUEE_MAX).trim();
+}
+
+/** The stored menu record. Anything malformed reads as off with no marquee. */
+export function parseMenuState(raw: unknown): MenuState {
+  if (!raw || typeof raw !== "object") return { on: false, marquee: "" };
+  const value = raw as { on?: unknown; marquee?: unknown };
+  return { on: value.on === true, marquee: cleanMarquee(value.marquee) };
 }

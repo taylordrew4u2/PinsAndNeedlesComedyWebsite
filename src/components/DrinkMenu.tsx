@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { DRINK_MENU, type DrinkSection } from "@/lib/drink-menu";
 
 /** Designed at TV size and scaled as one piece, so every screen matches. */
@@ -10,11 +10,22 @@ const MUTED = "#BDBDBD";
 const RULE = "#6E6E6E";
 const FONT = "var(--font-poster), 'Barlow Condensed', 'Arial Narrow', sans-serif";
 
+/** With a marquee, the menu shrinks to leave this much black band around it for the text. */
+const BAND = 64;
+/** The menu's frame sits inside the board's 28px padding; with a marquee it scales to clear the band. */
+const FRAME_SCALE = (HEIGHT - 2 * BAND) / (HEIGHT - 2 * 28);
+/** Marquee speed, in board pixels per second. */
+const MARQUEE_SPEED = 90;
+/** The brand red, for the marquee's separators. */
+const ACCENT = "#FF2E4D";
+const SEPARATOR = "\u2003\u2726\u2003";
+
 /**
  * The between-sets screen: the venue's drink menu on black, with the Bad
- * Decisions QR in the left panel when `qrSrc` is given.
+ * Decisions QR in the left panel when `qrSrc` is given, and `marquee` text
+ * running around the edge when there is one.
  */
-export default function DrinkMenu({ qrSrc }: { qrSrc?: string }) {
+export default function DrinkMenu({ qrSrc, marquee }: { qrSrc?: string; marquee?: string | null }) {
   const frame = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
@@ -34,10 +45,14 @@ export default function DrinkMenu({ qrSrc }: { qrSrc?: string }) {
         aria-label="Drink menu"
         style={{
           width: WIDTH, height: HEIGHT, flexShrink: 0, transform: `scale(${scale})`, transformOrigin: "center",
-          boxSizing: "border-box", padding: 28, background: "#000", color: "#fff", fontFamily: FONT,
+          boxSizing: "border-box", padding: 28, background: "#000", color: "#fff", fontFamily: FONT, position: "relative",
         }}
       >
-        <div style={{ width: "100%", height: "100%", boxSizing: "border-box", border: "1px solid #fff", outline: `1px solid ${RULE}`, outlineOffset: -9, display: "flex" }}>
+        {marquee ? <Marquee text={marquee} /> : null}
+        <div style={{
+          width: "100%", height: "100%", boxSizing: "border-box", border: "1px solid #fff", outline: `1px solid ${RULE}`, outlineOffset: -9, display: "flex",
+          transform: marquee ? `scale(${FRAME_SCALE})` : undefined, transformOrigin: "center",
+        }}>
           <div style={{ width: 380, flexShrink: 0, boxSizing: "border-box", borderRight: "1px solid #fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "64px 40px" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/pixelated-records-logo.png" alt="Pixelated Records" width={310} height={158} style={{ width: 310, height: "auto", display: "block" }} />
@@ -95,5 +110,87 @@ function Section({ section }: { section: DrinkSection }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * The marquee: the text, repeated, crawling clockwise along a rounded track
+ * in the black band around the menu. The copies are spaced to fill the track
+ * exactly, and a second run follows the first one lap behind, so every glyph
+ * is drawn once and the loop has no seam. Still under reduced motion.
+ */
+function Marquee({ text }: { text: string }) {
+  const id = useId();
+  const track = useRef<SVGPathElement>(null);
+  const probe = useRef<SVGTextElement>(null);
+  const runners = useRef<(SVGTextPathElement | null)[]>([]);
+  const [size, setSize] = useState({ track: 0, copies: 0 });
+  const words = text.toUpperCase();
+  const inset = BAND / 2;
+  const radius = 44;
+  const right = WIDTH - inset;
+  const bottom = HEIGHT - inset;
+  const path = `M ${inset + radius} ${inset} H ${right - radius} A ${radius} ${radius} 0 0 1 ${right} ${inset + radius}`
+    + ` V ${bottom - radius} A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom} H ${inset + radius}`
+    + ` A ${radius} ${radius} 0 0 1 ${inset} ${bottom - radius} V ${inset + radius} A ${radius} ${radius} 0 0 1 ${inset + radius} ${inset} Z`;
+
+  // Measure once the font is in: how many copies fit the track at their natural width.
+  useLayoutEffect(() => {
+    let active = true;
+    const measure = () => {
+      if (!active || !track.current || !probe.current) return;
+      const length = track.current.getTotalLength();
+      const chunk = probe.current.getComputedTextLength();
+      if (chunk > 0) setSize({ track: length, copies: Math.max(1, Math.round(length / chunk)) });
+    };
+    measure();
+    void document.fonts.ready.then(measure);
+    return () => { active = false; };
+  }, [words]);
+
+  useEffect(() => {
+    const [lead, follow] = runners.current;
+    if (!lead || !follow || !size.copies || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const step = size.track / size.copies;
+    let frame = 0;
+    const started = performance.now();
+    const tick = (now: number) => {
+      const offset = -(((now - started) / 1000) * MARQUEE_SPEED % step);
+      lead.setAttribute("startOffset", String(offset));
+      follow.setAttribute("startOffset", String(offset + size.track));
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [size]);
+
+  const type = { fontFamily: FONT, fontSize: 28, fontWeight: 700, letterSpacing: "0.12em", whiteSpace: "pre" } as const;
+  const run = (key: string) => Array.from({ length: size.copies }, (_, index) => (
+    <tspan key={`${key}-${index}`}>
+      {words}<tspan fill={ACCENT}>{SEPARATOR}</tspan>
+    </tspan>
+  ));
+
+  return (
+    <svg aria-label={text} role="img" width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      <path id={id} ref={track} d={path} fill="none" />
+      <text ref={probe} style={{ ...type, visibility: "hidden" }}>{words}{SEPARATOR}</text>
+      {size.copies ? (
+        <text fill="#fff" dominantBaseline="central" style={type}>
+          {["lead", "follow"].map((key, index) => (
+            <textPath
+              key={key}
+              ref={(node) => { runners.current[index] = node; }}
+              href={`#${id}`}
+              startOffset={index ? size.track : 0}
+              textLength={size.track}
+              lengthAdjust="spacing"
+            >
+              {run(key)}
+            </textPath>
+          ))}
+        </text>
+      ) : null}
+    </svg>
   );
 }

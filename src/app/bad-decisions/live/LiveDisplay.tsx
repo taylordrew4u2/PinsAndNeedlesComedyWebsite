@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
+import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
@@ -15,6 +16,11 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [name, setName] = useState<string | null>(null);
   // The control center can put the drink menu up over everything, between sets.
   const [menu, setMenu] = useState(false);
+  const [marquee, setMarquee] = useState<string | null>(null);
+  // A newly picked question gets a drum roll first; the screen opening on one does not.
+  const [intro, setIntro] = useState(false);
+  const shown = useRef<string | null | undefined>(undefined);
+  const introTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [pointerIdle, setPointerIdle] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   // Known only in the browser; the server renders without the button.
@@ -42,7 +48,8 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     let active = true;
     void document.fonts.ready.then(() => { if (active) fit(); });
     return () => { active = false; observer.disconnect(); };
-  }, [question, name, menu]);
+  }, [question, name, menu, intro]);
+
   useEffect(() => {
     let disposed = false;
     let pending = false;
@@ -59,9 +66,19 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         const data = await response.json();
         if (disposed) return;
         const next = typeof data?.question === "string" ? data.question : null;
+        const previous = shown.current;
+        shown.current = next;
+        if (next !== previous) {
+          // A changed screen ends any intro; a newly picked question (not the one up when the screen opened) starts one.
+          clearTimeout(introTimer.current);
+          const play = previous !== undefined && next !== null && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          setIntro(play);
+          if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
+        }
         setQuestion(next);
         setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
         setMenu(data?.menu === true);
+        setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
       } catch {
         // Offline or aborted: leave the screen as it is.
       } finally { pending = false; }
@@ -74,6 +91,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     return () => {
       disposed = true;
       controller.abort();
+      clearTimeout(introTimer.current);
       clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
@@ -127,7 +145,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     <>
     {menu ? (
       <main className={`pnc-screen-in select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
-        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} />
+        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} marquee={marquee} />
       </main>
     ) : (
     <main
@@ -138,7 +156,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       onDoubleClick={toggleFullscreen}
     >
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
-        {question ? (
+        {question && !intro ? (
           // Sized together, so a long question and its name both fit above the QR.
           <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
@@ -159,6 +177,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       ) : null}
     </main>
     )}
+    {intro && !menu ? <BadDecisionIntro /> : null}
     {/* Outside <main>, so it is not read out with the question. */}
     {canGoFullscreen && !(fullscreen && pointerIdle) ? (
       <button
