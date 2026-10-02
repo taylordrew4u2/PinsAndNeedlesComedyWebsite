@@ -362,6 +362,28 @@ export default function ControlCenter() {
             </div>
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
+              <summary className="cursor-pointer text-sm">🔊 Sound on the live screen</summary>
+              <div className="mt-3 space-y-3 text-sm text-neutral-300">
+                <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“Sound is off. Tap to turn it on”</strong> button in the corner. No button means sound is on.</p>
+                <p className="font-semibold text-white">Every show (works on any browser)</p>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>Open the live screen on the TV laptop.</li>
+                  <li>Click anywhere on it once, or press <kbd className="rounded border border-white/30 px-1">F</kbd> to go full screen. Either one turns sound on.</li>
+                  <li>Press <strong>Intro</strong> here to hear it play.</li>
+                </ol>
+                <p className="font-semibold text-white">Set it once so sound starts by itself</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li><strong>Microsoft Edge:</strong> on the live screen, click the lock icon in the address bar → Permissions for this site → Media autoplay → Allow. Reload.</li>
+                  <li><strong>Firefox:</strong> click the permissions icon in the address bar → Autoplay → Allow Audio and Video. Reload.</li>
+                  <li><strong>Safari (Mac):</strong> Safari menu → Settings for pinsandneedlescomedy.com → Auto-Play → Allow All Auto-Play. Reload.</li>
+                  <li><strong>Chrome:</strong> Chrome has no autoplay setting. Quit Chrome fully, then start it with autoplay allowed. Mac: run <code className="rounded bg-white/10 px-1">open -a &quot;Google Chrome&quot; --args --autoplay-policy=no-user-gesture-required</code> in Terminal. Windows: add <code className="rounded bg-white/10 px-1">--autoplay-policy=no-user-gesture-required</code> to the end of the Chrome shortcut’s Target. Or use the every-show click above.</li>
+                  <li><strong>iPad or iPhone:</strong> there is no setting. Tap the screen once before the show, and keep the screen from locking.</li>
+                </ul>
+                <p>If the red button is still there after reloading, the setting didn’t take: just click the screen once.</p>
+              </div>
+            </details>
+
+            <details className="mt-4 rounded-lg border border-white/20 p-4">
               <summary className="cursor-pointer text-sm">📱 QR code for the tables</summary>
               <QrCode />
             </details>
