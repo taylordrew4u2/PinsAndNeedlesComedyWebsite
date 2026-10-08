@@ -13,6 +13,9 @@ import { EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
 const POINTER_IDLE_MS = 2_500;
 /** After a tap there is no pointer to hide, so the controls stay long enough to reach. */
 const TOUCH_IDLE_MS = 5_000;
+/** A silent 3, 2, 1 before a newly picked question, so the room sees it coming. */
+const COUNTDOWN_FROM = 3;
+const COUNTDOWN_STEP_MS = 1_000;
 
 export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolean; space?: Space }) {
   const [question, setQuestion] = useState<string | null>(null);
@@ -27,6 +30,9 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [intro, setIntro] = useState(false);
   const shown = useRef<string | null | undefined>(undefined);
   const introTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The number up during the countdown before a new question; null when none is running.
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Browsers only allow sound after someone taps or clicks the page once; until then the button below asks for it.
   const audio = useRef<AudioContext | null>(null);
   // The host's "Intro" explainer: which step is up, and the start time last acted on (undefined until the first poll).
@@ -109,15 +115,28 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         const previous = shown.current;
         shown.current = next;
         if (next !== previous) {
-          // A changed screen ends any intro; a newly picked question (not the one up when the screen opened) starts one.
+          // A changed screen ends any countdown or intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
+          countdownTimers.current.forEach(clearTimeout);
+          countdownTimers.current = [];
+          setIntro(false);
           const fresh = previous !== undefined && next !== null;
-          if (fresh) sting();
-          const play = fresh && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-          setIntro(play);
-          // A cleared screen wipes; a new question has its own intro.
+          setCountdown(fresh ? COUNTDOWN_FROM : null);
+          if (fresh) {
+            // Silent 3, 2, 1; the sting and the drum roll come in on the beat after "1".
+            for (let n = COUNTDOWN_FROM - 1; n >= 1; n -= 1) {
+              countdownTimers.current.push(setTimeout(() => setCountdown(n), (COUNTDOWN_FROM - n) * COUNTDOWN_STEP_MS));
+            }
+            countdownTimers.current.push(setTimeout(() => {
+              setCountdown(null);
+              sting();
+              const play = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+              setIntro(play);
+              if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
+            }, COUNTDOWN_FROM * COUNTDOWN_STEP_MS));
+          }
+          // A cleared screen wipes; a new question has its own countdown and intro.
           if (previous && next === null) setWipe((count) => count + 1);
-          if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
         }
         setQuestion(next);
         setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
@@ -146,6 +165,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       disposed = true;
       controller.abort();
       clearTimeout(introTimer.current);
+      countdownTimers.current.forEach(clearTimeout);
       explainerTimers.current.forEach(clearTimeout);
       clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
@@ -247,7 +267,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       onDoubleClick={toggleFullscreen}
     >
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
-        {question && !intro ? (
+        {question && !intro && countdown === null ? (
           // Sized together, so a long question and its name both fit above the QR.
           <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
@@ -268,6 +288,11 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       ) : null}
     </main>
     )}
+    {countdown !== null && !menu && !explainer ? (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black text-white" aria-hidden="true">
+        <span key={countdown} className="pnc-countdown font-[family-name:var(--pnc-heading)] font-bold tabular-nums leading-none">{countdown}</span>
+      </div>
+    ) : null}
     {intro && !menu && !explainer ? <BadDecisionIntro /> : null}
     {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} /> : null}
     {wipe ? <div key={wipe} className="pnc-wipe" aria-hidden="true" /> : null}
