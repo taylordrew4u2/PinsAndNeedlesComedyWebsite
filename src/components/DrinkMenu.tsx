@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { DRINK_MENU, type DrinkSection } from "@/lib/drink-menu";
+import { DRINK_MENU, type CustomLook, type DrinkSection } from "@/lib/drink-menu";
 
 /** Designed at TV size and scaled as one piece, so every screen matches. */
 const WIDTH = 1920;
@@ -26,17 +26,19 @@ const SEPARATOR = "\u2003\u2726\u2003";
  * running around the edge when there is one.
  *
  * `custom` makes it the custom menu: the same board, its text in the host's
- * colour, with their line above the QR code (and so only when there is one). `contained` fills the nearest
+ * colour, with their line above the QR code (and so only when there is one),
+ * and their note, in its own colour, in the space under the first two columns. `contained` fills the nearest
  * positioned box instead of the whole window, for a preview.
  */
 export default function DrinkMenu({ qrSrc, marquee, custom, contained }: {
   qrSrc?: string;
   marquee?: string | null;
-  custom?: { color: string; headline: string } | null;
+  custom?: CustomLook | null;
   contained?: boolean;
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const note = custom?.note.trim() || "";
 
   useLayoutEffect(() => {
     const box = frame.current;
@@ -90,10 +92,20 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained }: {
 
           <div style={{ flexGrow: 1, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", columnGap: 56, padding: 64, alignContent: "center", alignItems: "start", overflow: "hidden" }}>
             {DRINK_MENU.map((column, index) => (
-              <div key={index} style={{ display: "flex", flexDirection: "column", gap: 34, minWidth: 0 }}>
+              // With a note, the last (longest) column runs down both rows and the note sits under the others.
+              <div key={index} style={{ display: "flex", flexDirection: "column", gap: 34, minWidth: 0, ...(note ? { gridColumn: index + 1, gridRow: index === DRINK_MENU.length - 1 ? "1 / span 2" : 1 } : {}) }}>
                 {column.map((section) => <Section key={section.title} section={section} />)}
               </div>
             ))}
+            {note ? (
+              <div style={{
+                gridColumn: `1 / span ${DRINK_MENU.length - 1}`, gridRow: 2, marginTop: 40, color: custom?.noteColor,
+                fontSize: note.length <= 32 ? 48 : note.length <= 70 ? 40 : 34, fontWeight: 700, lineHeight: 1.15, letterSpacing: "0.03em",
+                textTransform: "uppercase", textAlign: "center", overflowWrap: "anywhere",
+              }}>
+                {note}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

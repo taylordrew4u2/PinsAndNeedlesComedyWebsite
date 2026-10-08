@@ -5,7 +5,7 @@ import { isAuthed } from "@/lib/auth";
 import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
 import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
 import { MAX_PERFORMERS, SEGMENT_SLOTS, rearrange, segmentScreen, segmentStatus, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
-import { cleanColor, cleanHeadline, cleanMarquee, type MenuState } from "@/lib/drink-menu";
+import { cleanColor, cleanHeadline, cleanMarquee, cleanNote, type MenuState } from "@/lib/drink-menu";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
 import type { Show, Submission } from "@/lib/types";
@@ -32,7 +32,10 @@ function lineupView(lineup: Lineup) {
 
 /** The drink menu as the control center shows it: which one is up, and the saved text and colour ("" for a default). */
 function menuView(menu: MenuState) {
-  return { menu: menu.on, menuStyle: menu.style, marquee: menu.marquee, menuColor: menu.color, menuHeadline: menu.headline };
+  return {
+    menu: menu.on, menuStyle: menu.style, marquee: menu.marquee,
+    menuColor: menu.color, menuHeadline: menu.headline, menuNote: menu.note, menuNoteColor: menu.noteColor,
+  };
 }
 
 function currentOnly(list: Submission[], shows: Show[], space: Space): Submission[] {
@@ -157,14 +160,19 @@ export async function POST(request: Request) {
     }
   }
   if ("customMenu" in body) {
-    const look = body.customMenu as { color?: unknown; headline?: unknown } | null;
-    if (!look || typeof look !== "object" || typeof look.color !== "string" || typeof look.headline !== "string"
-      || (look.color.trim() && !cleanColor(look.color))) {
+    const look = body.customMenu as { color?: unknown; headline?: unknown; note?: unknown; noteColor?: unknown } | null;
+    const badColor = (value: unknown) => typeof value !== "string" || Boolean(value.trim() && !cleanColor(value));
+    if (!look || typeof look !== "object" || typeof look.headline !== "string" || badColor(look.color)
+      || (look.note !== undefined && typeof look.note !== "string") || (look.noteColor !== undefined && badColor(look.noteColor))) {
       return NextResponse.json({ error: "Invalid custom menu" }, { status: 400, headers });
     }
     try {
-      // Saved whether or not it is up; empty text or colour means the default.
-      const menu = await writeMenu({ color: cleanColor(look.color), headline: cleanHeadline(look.headline) }, space);
+      // Saved whether or not it is up; empty text or colour means the default (and an empty note, none).
+      const menu = await writeMenu({
+        color: cleanColor(look.color), headline: cleanHeadline(look.headline),
+        ...(look.note !== undefined ? { note: cleanNote(look.note) } : {}),
+        ...(look.noteColor !== undefined ? { noteColor: cleanColor(look.noteColor) } : {}),
+      }, space);
       return NextResponse.json(menuView(menu), { headers });
     } catch (error) {
       console.error("[run-show] custom menu failed", error);
