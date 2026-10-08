@@ -10,6 +10,7 @@ import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
 import type { Lineup, SegmentStatus } from "@/lib/segment";
 import LineupPanel, { applyDrop, clockFor, firstEmptySlot, type Drag, type LineupInput } from "./LineupPanel";
 import { useWakeLock } from "@/lib/use-wake-lock";
+import { fetchWithin } from "@/lib/fetch-within";
 import LiveMirror from "./LiveMirror";
 
 type State = {
@@ -54,6 +55,8 @@ const POLL_MS = 4_000;
 /** Forwarded texts are collected on the way past, but not on every poll. */
 const INGEST_EVERY_MS = 30_000;
 const PING_KEY = "pnc-control-center-ping";
+/** A poll still unanswered after this is given up, so one stalled request never freezes the page. */
+const POLL_TIMEOUT_MS = 15_000;
 
 /**
  * The show-night control center: the questions as they arrive, a mirror of
@@ -99,9 +102,9 @@ export default function ControlCenter() {
         lastIngest.current = Date.now();
         await collectTexts(setTexting);
       }
-      const response = await fetch(API, { cache: "no-store" });
+      const { response, text } = await fetchWithin(API, { cache: "no-store" }, POLL_TIMEOUT_MS);
       if (response.status === 401) { setAuthLost(true); return; }
-      const data = (await response.json()) as State & { error?: string };
+      const data = JSON.parse(text) as State & { error?: string };
       if (!response.ok) throw new Error(data.error || "Could not load questions.");
       // A poll started before a host's change must not undo that change in the UI.
       if (started !== revision.current || changing.current) return;
@@ -709,8 +712,8 @@ function QrCode() {
  */
 async function collectTexts(setTexting: (value: { on: boolean; error: string }) => void) {
   try {
-    const pull = await fetch("/api/admin/decisions/ingest", { method: "POST", cache: "no-store" });
-    const result = await pull.json().catch(() => ({}));
+    const { text } = await fetchWithin("/api/admin/decisions/ingest", { method: "POST", cache: "no-store" }, POLL_TIMEOUT_MS);
+    const result = (() => { try { return JSON.parse(text); } catch { return {}; } })();
     setTexting(result?.configured ? { on: true, error: result.ok ? "" : String(result.error || "Mailbox unreachable") } : { on: false, error: "" });
   } catch {
     // A failed pull must never stop the pile from loading.

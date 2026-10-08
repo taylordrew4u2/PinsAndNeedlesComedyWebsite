@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
+import { fetchWithin } from "@/lib/fetch-within";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import type { CustomLook } from "@/lib/drink-menu";
@@ -13,6 +14,11 @@ import { EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
+/**
+ * A poll still unanswered after this is given up, so one stalled request can
+ * never stop the screen updating.
+ */
+const POLL_TIMEOUT_MS = 8_000;
 /** After a tap there is no pointer to hide, so the controls stay long enough to reach. */
 const TOUCH_IDLE_MS = 5_000;
 /** A silent 3, 2, 1 before a newly picked question, so the room sees it coming. */
@@ -117,12 +123,12 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       if (pending) return;
       pending = true;
       try {
-        const response = await fetch(`/api/decisions/live${modeQuery(space)}`, { cache: "no-store", signal: controller.signal });
+        const { response, text } = await fetchWithin(`/api/decisions/live${modeQuery(space)}`, { cache: "no-store" }, POLL_TIMEOUT_MS, controller.signal);
         // Only a real answer changes the screen. A failed poll — venue wifi
         // dropping a request, the server briefly busy — keeps what is up, so
         // the question doesn't blink off mid-bit; the next poll catches up.
         if (!response.ok) return;
-        const data = await response.json();
+        const data = JSON.parse(text);
         if (disposed) return;
         const next = typeof data?.question === "string" ? data.question : null;
         const previous = shown.current;
@@ -194,7 +200,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
           if (explainerAt && !opening) runExplainer();
         }
       } catch {
-        // Offline or aborted: leave the screen as it is.
+        // Offline, timed out or aborted: leave the screen as it is.
       } finally { pending = false; }
     };
     void refresh();
