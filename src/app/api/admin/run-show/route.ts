@@ -5,7 +5,7 @@ import { isAuthed } from "@/lib/auth";
 import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
 import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
 import { MAX_PERFORMERS, SEGMENT_SLOTS, rearrange, segmentScreen, segmentStatus, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
-import { cleanMarquee } from "@/lib/drink-menu";
+import { cleanColor, cleanHeadline, cleanMarquee, type MenuState } from "@/lib/drink-menu";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
 import type { Show, Submission } from "@/lib/types";
@@ -28,6 +28,11 @@ function spaceFrom(request: Request): Space {
 /** What the control center needs to draw the lineup: every card, and the set running now. */
 function lineupView(lineup: Lineup) {
   return { lineup, segment: segmentStatus(lineup, Date.now()) };
+}
+
+/** The drink menu as the control center shows it: which one is up, and the saved text and colour ("" for a default). */
+function menuView(menu: MenuState) {
+  return { menu: menu.on, menuStyle: menu.style, marquee: menu.marquee, menuColor: menu.color, menuHeadline: menu.headline };
 }
 
 function currentOnly(list: Submission[], shows: Show[], space: Space): Submission[] {
@@ -74,8 +79,7 @@ export async function GET(request: Request) {
       archived: current.filter((item) => item.status === "archived"),
       truncated: pile.truncated,
       selected,
-      menu: menu.on,
-      marquee: menu.marquee,
+      ...menuView(menu),
       questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
       manualOpen: content.weekly.enabled && content.weekly.alwaysOpen,
       pageLive: content.weekly.enabled,
@@ -126,13 +130,14 @@ export async function POST(request: Request) {
     }
   }
   if ("menu" in body) {
-    if (typeof body.menu !== "boolean") {
+    const style = "style" in body ? body.style : undefined;
+    if (typeof body.menu !== "boolean" || (style !== undefined && style !== "standard" && style !== "custom")) {
       return NextResponse.json({ error: "Invalid menu setting" }, { status: 400, headers });
     }
     try {
-      // Only the menu flag: the question underneath stays and returns when the menu comes down.
-      const menu = await writeMenu({ on: body.menu }, space);
-      return NextResponse.json({ menu: menu.on, marquee: menu.marquee }, { headers });
+      // Only which menu is up: the question underneath stays and returns when the menu comes down.
+      const menu = await writeMenu(style ? { on: body.menu, style } : { on: body.menu }, space);
+      return NextResponse.json(menuView(menu), { headers });
     } catch (error) {
       console.error("[run-show] menu failed", error);
       return NextResponse.json({ error: "Could not update the drink menu. Try again." }, { status: 503, headers });
@@ -145,10 +150,25 @@ export async function POST(request: Request) {
     try {
       // Saved whether or not the menu is up; it only runs while the menu is on screen.
       const menu = await writeMenu({ marquee: cleanMarquee(body.marquee) }, space);
-      return NextResponse.json({ menu: menu.on, marquee: menu.marquee }, { headers });
+      return NextResponse.json(menuView(menu), { headers });
     } catch (error) {
       console.error("[run-show] marquee failed", error);
       return NextResponse.json({ error: "Could not update the marquee. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("customMenu" in body) {
+    const look = body.customMenu as { color?: unknown; headline?: unknown } | null;
+    if (!look || typeof look !== "object" || typeof look.color !== "string" || typeof look.headline !== "string"
+      || (look.color.trim() && !cleanColor(look.color))) {
+      return NextResponse.json({ error: "Invalid custom menu" }, { status: 400, headers });
+    }
+    try {
+      // Saved whether or not it is up; empty text or colour means the default.
+      const menu = await writeMenu({ color: cleanColor(look.color), headline: cleanHeadline(look.headline) }, space);
+      return NextResponse.json(menuView(menu), { headers });
+    } catch (error) {
+      console.error("[run-show] custom menu failed", error);
+      return NextResponse.json({ error: "Could not save the custom menu. Try again." }, { status: 503, headers });
     }
   }
   if ("manualOpen" in body) {

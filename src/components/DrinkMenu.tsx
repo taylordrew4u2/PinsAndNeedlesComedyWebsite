@@ -24,8 +24,17 @@ const SEPARATOR = "\u2003\u2726\u2003";
  * The between-sets screen: the venue's drink menu on black, with the Bad
  * Decisions QR in the left panel when `qrSrc` is given, and `marquee` text
  * running around the edge when there is one.
+ *
+ * `custom` makes it the custom menu: the same board, its text in the host's
+ * colour, with their line above the QR code. `contained` fills the nearest
+ * positioned box instead of the whole window, for a preview.
  */
-export default function DrinkMenu({ qrSrc, marquee }: { qrSrc?: string; marquee?: string | null }) {
+export default function DrinkMenu({ qrSrc, marquee, custom, contained }: {
+  qrSrc?: string;
+  marquee?: string | null;
+  custom?: { color: string; headline: string } | null;
+  contained?: boolean;
+}) {
   const frame = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
@@ -40,15 +49,15 @@ export default function DrinkMenu({ qrSrc, marquee }: { qrSrc?: string; marquee?
   }, []);
 
   return (
-    <div ref={frame} className="fixed inset-0 flex items-center justify-center overflow-hidden bg-black">
+    <div ref={frame} className={`${contained ? "absolute" : "fixed"} inset-0 flex items-center justify-center overflow-hidden bg-black`}>
       <div
         aria-label="Drink menu"
         style={{
           width: WIDTH, height: HEIGHT, flexShrink: 0, transform: `scale(${scale})`, transformOrigin: "center",
-          boxSizing: "border-box", padding: 28, background: "#000", color: "#fff", fontFamily: FONT, position: "relative",
+          boxSizing: "border-box", padding: 28, background: "#000", color: custom?.color ?? "#fff", fontFamily: FONT, position: "relative",
         }}
       >
-        {marquee ? <Marquee text={marquee} /> : null}
+        {marquee ? <Marquee text={marquee} color={custom?.color ?? "#fff"} /> : null}
         <div style={{
           width: "100%", height: "100%", boxSizing: "border-box", border: "1px solid #fff", outline: `1px solid ${RULE}`, outlineOffset: -9, display: "flex",
           transform: marquee ? `scale(${FRAME_SCALE})` : undefined, transformOrigin: "center",
@@ -57,9 +66,14 @@ export default function DrinkMenu({ qrSrc, marquee }: { qrSrc?: string; marquee?
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/pixelated-records-logo.png" alt="Pixelated Records" width={310} height={158} style={{ width: 310, height: "auto", display: "block" }} />
             <div style={{ fontSize: 34, fontWeight: 500, letterSpacing: "0.5em", marginRight: "-0.5em" }}>MENU</div>
+            {custom || qrSrc ? <div style={{ width: 64, height: 1, background: RULE, margin: "20px 0 16px" }} /> : null}
+            {custom ? (
+              <div style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.12, letterSpacing: "0.03em", textTransform: "uppercase", textAlign: "center", overflowWrap: "anywhere", maxWidth: 300 }}>
+                {custom.headline}
+              </div>
+            ) : null}
             {qrSrc ? (
               <>
-                <div style={{ width: 64, height: 1, background: RULE, margin: "20px 0 16px" }} />
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={qrSrc} alt="Scan to submit your bad decision" width={220} height={220} style={{ width: 220, height: 220, display: "block", background: "#fff", padding: 14, borderRadius: 10, boxSizing: "content-box" }} />
@@ -119,7 +133,7 @@ function Section({ section }: { section: DrinkSection }) {
  * exactly, and a second run follows the first one lap behind, so every glyph
  * is drawn once and the loop has no seam. Still under reduced motion.
  */
-function Marquee({ text }: { text: string }) {
+function Marquee({ text, color }: { text: string; color: string }) {
   const id = useId();
   const track = useRef<SVGPathElement>(null);
   const probe = useRef<SVGTextElement>(null);
@@ -176,7 +190,7 @@ function Marquee({ text }: { text: string }) {
       <path id={id} ref={track} d={path} fill="none" />
       <text ref={probe} style={{ ...type, visibility: "hidden" }}>{words}{SEPARATOR}</text>
       {size.copies ? (
-        <text fill="#fff" dominantBaseline="central" style={type}>
+        <text fill={color} dominantBaseline="central" style={type}>
           {["lead", "follow"].map((key, index) => (
             <textPath
               key={key}
