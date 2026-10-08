@@ -1,3 +1,5 @@
+import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont, type MenuFontId, type ScriptFontId } from "./menu-fonts.ts";
+
 /**
  * The venue's drink menu, as the live screen shows it between sets. Copied
  * from Pixelated Records' printed menu; edit here when their list changes.
@@ -84,6 +86,9 @@ export const HEADLINE_MAX = 80;
 /** Longest note the host can put in the empty space under the menu's first two columns. */
 export const NOTE_MAX = 120;
 
+/** Longest bartender name (or names) the custom menu takes. */
+export const BARTENDER_MAX = 40;
+
 /** What the custom menu says above the QR code until the host writes their own. */
 export const DEFAULT_HEADLINE = "Don’t miss the 9 PM show! Scan here for Bad Decisions";
 
@@ -105,10 +110,17 @@ export type MenuStyle = "standard" | "custom";
  * it, and the custom menu's colour, line and note (empty for the defaults;
  * an empty note is no note, and an empty note colour follows the text colour).
  */
-export type MenuState = { on: boolean; style: MenuStyle; marquee: string; color: string; headline: string; note: string; noteColor: string };
+export type MenuState = {
+  on: boolean; style: MenuStyle; marquee: string; color: string; headline: string; note: string; noteColor: string;
+  /** The custom menu's font ("" for the standard one), and tonight's bartender in a script font and colour of their own. */
+  font: string; bartender: string; bartenderFont: string; bartenderColor: string;
+};
 
-/** What the custom menu draws, defaults filled in. */
-export type CustomLook = { color: string; headline: string; note: string; noteColor: string };
+/** What the custom menu draws, defaults filled in. An empty note or bartender is left off. */
+export type CustomLook = {
+  color: string; headline: string; note: string; noteColor: string;
+  font: MenuFontId; bartender: string; bartenderFont: ScriptFontId; bartenderColor: string;
+};
 
 /** One line of plain text, trimmed and capped. Anything that is not a string is no text. */
 function cleanLine(raw: unknown, max: number): string {
@@ -129,6 +141,10 @@ export function cleanNote(raw: unknown): string {
   return cleanLine(raw, NOTE_MAX);
 }
 
+export function cleanBartender(raw: unknown): string {
+  return cleanLine(raw, BARTENDER_MAX);
+}
+
 /** A six-digit hex colour, upper-cased; anything else is no colour (the default). */
 export function cleanColor(raw: unknown): string {
   if (typeof raw !== "string") return "";
@@ -138,8 +154,10 @@ export function cleanColor(raw: unknown): string {
 
 /** The stored menu record. Anything malformed reads as off, standard, with the defaults. */
 export function parseMenuState(raw: unknown): MenuState {
-  if (!raw || typeof raw !== "object") return { on: false, style: "standard", marquee: "", color: "", headline: "", note: "", noteColor: "" };
-  const value = raw as { on?: unknown; style?: unknown; marquee?: unknown; color?: unknown; headline?: unknown; note?: unknown; noteColor?: unknown };
+  if (!raw || typeof raw !== "object") {
+    return { on: false, style: "standard", marquee: "", color: "", headline: "", note: "", noteColor: "", font: "", bartender: "", bartenderFont: "", bartenderColor: "" };
+  }
+  const value = raw as Record<string, unknown>;
   return {
     on: value.on === true,
     style: value.style === "custom" ? "custom" : "standard",
@@ -148,6 +166,10 @@ export function parseMenuState(raw: unknown): MenuState {
     headline: cleanHeadline(value.headline),
     note: cleanNote(value.note),
     noteColor: cleanColor(value.noteColor),
+    font: isMenuFont(value.font) ? value.font : "",
+    bartender: cleanBartender(value.bartender),
+    bartenderFont: isScriptFont(value.bartenderFont) ? value.bartenderFont : "",
+    bartenderColor: cleanColor(value.bartenderColor),
   };
 }
 
@@ -155,5 +177,11 @@ export function parseMenuState(raw: unknown): MenuState {
 export function customLook(state: MenuState): CustomLook | null {
   if (state.style !== "custom") return null;
   const color = state.color || DEFAULT_MENU_COLOR;
-  return { color, headline: state.headline || DEFAULT_HEADLINE, note: state.note, noteColor: state.noteColor || color };
+  return {
+    color, headline: state.headline || DEFAULT_HEADLINE, note: state.note, noteColor: state.noteColor || color,
+    font: isMenuFont(state.font) ? state.font : DEFAULT_MENU_FONT,
+    bartender: state.bartender,
+    bartenderFont: isScriptFont(state.bartenderFont) ? state.bartenderFont : DEFAULT_SCRIPT_FONT,
+    bartenderColor: state.bartenderColor || color,
+  };
 }

@@ -33,6 +33,11 @@ type State = {
   /** The custom menu's note in the empty space ("" for none) and its colour ("" to follow the text colour). */
   menuNote: string;
   menuNoteColor: string;
+  /** The custom menu's font, and tonight's bartender in a script font and colour ("" for the defaults, or no bartender). */
+  menuFont: string;
+  menuBartender: string;
+  menuBartenderFont: string;
+  menuBartenderColor: string;
   /** Text running around the edge while the drink menu is up; empty for none. */
   marquee: string;
   truncated: boolean;
@@ -40,7 +45,7 @@ type State = {
   manualOpen: boolean;
   pageLive: boolean;
 };
-type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
+type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
 
 const API = "/api/admin/run-show";
 const PILE_API = "/api/admin/decisions";
@@ -213,6 +218,10 @@ export default function ControlCenter() {
       menuHeadline: typeof data.menuHeadline === "string" ? data.menuHeadline : current.menuHeadline,
       menuNote: typeof data.menuNote === "string" ? data.menuNote : current.menuNote,
       menuNoteColor: typeof data.menuNoteColor === "string" ? data.menuNoteColor : current.menuNoteColor,
+      menuFont: typeof data.menuFont === "string" ? data.menuFont : current.menuFont,
+      menuBartender: typeof data.menuBartender === "string" ? data.menuBartender : current.menuBartender,
+      menuBartenderFont: typeof data.menuBartenderFont === "string" ? data.menuBartenderFont : current.menuBartenderFont,
+      menuBartenderColor: typeof data.menuBartenderColor === "string" ? data.menuBartenderColor : current.menuBartenderColor,
     } : current);
 
   const saveMarquee = (marquee: string) =>
@@ -480,6 +489,10 @@ export default function ControlCenter() {
                 headline={state.menuHeadline}
                 note={state.menuNote}
                 noteColor={state.menuNoteColor}
+                font={state.menuFont}
+                bartender={state.menuBartender}
+                bartenderFont={state.menuBartenderFont}
+                bartenderColor={state.menuBartenderColor}
                 marquee={state.marquee}
                 live={state.menu && state.menuStyle === "custom"}
                 qr={state.pageLive}

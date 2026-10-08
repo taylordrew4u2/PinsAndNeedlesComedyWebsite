@@ -5,7 +5,8 @@ import { isAuthed } from "@/lib/auth";
 import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
 import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
 import { MAX_PERFORMERS, SEGMENT_SLOTS, rearrange, segmentScreen, segmentStatus, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
-import { cleanColor, cleanHeadline, cleanMarquee, cleanNote, type MenuState } from "@/lib/drink-menu";
+import { cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, type MenuState } from "@/lib/drink-menu";
+import { isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
 import type { Show, Submission } from "@/lib/types";
@@ -35,6 +36,7 @@ function menuView(menu: MenuState) {
   return {
     menu: menu.on, menuStyle: menu.style, marquee: menu.marquee,
     menuColor: menu.color, menuHeadline: menu.headline, menuNote: menu.note, menuNoteColor: menu.noteColor,
+    menuFont: menu.font, menuBartender: menu.bartender, menuBartenderFont: menu.bartenderFont, menuBartenderColor: menu.bartenderColor,
   };
 }
 
@@ -160,10 +162,16 @@ export async function POST(request: Request) {
     }
   }
   if ("customMenu" in body) {
-    const look = body.customMenu as { color?: unknown; headline?: unknown; note?: unknown; noteColor?: unknown } | null;
+    const look = body.customMenu as Record<string, unknown> | null;
     const badColor = (value: unknown) => typeof value !== "string" || Boolean(value.trim() && !cleanColor(value));
+    // Optional fields may be left out (they keep what is saved); a font is "" for the default or a known id.
+    const badOptional = (value: unknown, bad: (value: unknown) => boolean) => value !== undefined && bad(value);
     if (!look || typeof look !== "object" || typeof look.headline !== "string" || badColor(look.color)
-      || (look.note !== undefined && typeof look.note !== "string") || (look.noteColor !== undefined && badColor(look.noteColor))) {
+      || badOptional(look.note, (value) => typeof value !== "string") || badOptional(look.noteColor, badColor)
+      || badOptional(look.font, (value) => value !== "" && !isMenuFont(value))
+      || badOptional(look.bartender, (value) => typeof value !== "string")
+      || badOptional(look.bartenderFont, (value) => value !== "" && !isScriptFont(value))
+      || badOptional(look.bartenderColor, badColor)) {
       return NextResponse.json({ error: "Invalid custom menu" }, { status: 400, headers });
     }
     try {
@@ -172,6 +180,10 @@ export async function POST(request: Request) {
         color: cleanColor(look.color), headline: cleanHeadline(look.headline),
         ...(look.note !== undefined ? { note: cleanNote(look.note) } : {}),
         ...(look.noteColor !== undefined ? { noteColor: cleanColor(look.noteColor) } : {}),
+        ...(look.font !== undefined ? { font: look.font as string } : {}),
+        ...(look.bartender !== undefined ? { bartender: cleanBartender(look.bartender) } : {}),
+        ...(look.bartenderFont !== undefined ? { bartenderFont: look.bartenderFont as string } : {}),
+        ...(look.bartenderColor !== undefined ? { bartenderColor: cleanColor(look.bartenderColor) } : {}),
       }, space);
       return NextResponse.json(menuView(menu), { headers });
     } catch (error) {

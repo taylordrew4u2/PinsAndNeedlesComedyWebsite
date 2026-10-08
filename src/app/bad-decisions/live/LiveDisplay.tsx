@@ -5,6 +5,7 @@ import { useWakeLock } from "@/lib/use-wake-lock";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import type { CustomLook } from "@/lib/drink-menu";
+import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { playIntroSound } from "@/lib/intro-sound";
 import Explainer from "@/components/Explainer";
@@ -164,6 +165,10 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
             color: look.color, headline: look.headline,
             note: typeof look.note === "string" ? look.note : "",
             noteColor: typeof look.noteColor === "string" ? look.noteColor : look.color,
+            font: isMenuFont(look.font) ? look.font : DEFAULT_MENU_FONT,
+            bartender: typeof look.bartender === "string" ? look.bartender : "",
+            bartenderFont: isScriptFont(look.bartenderFont) ? look.bartenderFont : DEFAULT_SCRIPT_FONT,
+            bartenderColor: typeof look.bartenderColor === "string" ? look.bartenderColor : look.color,
           }
           : null;
         const which = nextMenu ? (custom ? "custom" : "standard") : "off";
