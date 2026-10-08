@@ -197,7 +197,10 @@ function Marquee({ text, color, family, fontSize }: { text: string; color: strin
       if (!active || !track.current || !probe.current) return;
       const length = track.current.getTotalLength();
       const chunk = probe.current.getComputedTextLength();
-      if (chunk > 0) setSize({ track: length, copies: Math.max(1, Math.round(length / chunk)) });
+      if (chunk <= 0) return;
+      const copies = Math.max(1, Math.round(length / chunk));
+      // Same measure, same object: a new one would restart the crawl from the top.
+      setSize((current) => (current.track === length && current.copies === copies ? current : { track: length, copies }));
     };
     measure();
     void document.fonts.ready.then(measure);
