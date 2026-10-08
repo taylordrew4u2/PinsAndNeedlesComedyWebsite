@@ -3,7 +3,7 @@ import { readExplainer, readLineup, readLiveSelection, readMenu } from "@/lib/li
 import { segmentScreen, segmentStatus } from "@/lib/segment";
 import { freshExplainer } from "@/lib/explainer";
 import { publicSelection } from "@/lib/live-selection";
-import { DEFAULT_MARQUEE } from "@/lib/drink-menu";
+import { DEFAULT_MARQUEE, customLook } from "@/lib/drink-menu";
 import { spaceOf } from "@/lib/space";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,8 @@ const headers = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollo
 
 /**
  * Deliberately public: only the single question explicitly selected by an
- * admin, whether the drink menu is up, its marquee while it is, and when
+ * admin, whether the drink menu is up (and, for the custom one, its colour
+ * and the line above the QR), its marquee while it is, and when
  * the host last started the "Intro" explainer (only if recent), and the
  * performer on stage and the set clock while a timed set runs. `?mode=rehearsal` reads the
  * rehearsal's own screen instead.
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
       ...publicSelection(selection),
       menu: menu.on,
       marquee: menu.on ? menu.marquee || DEFAULT_MARQUEE : null,
+      menuCustom: menu.on ? customLook(menu) : null,
       explainer: freshExplainer(explainer, now),
       performer: screen?.performer ?? null,
       segment: status.running ? { remainingMs: status.remainingMs, nextSwitchMs: status.nextSwitchMs } : null,

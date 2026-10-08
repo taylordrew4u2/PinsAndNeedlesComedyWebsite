@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { DEFAULT_MARQUEE, MARQUEE_MAX } from "@/lib/drink-menu";
+import { DEFAULT_MARQUEE, MARQUEE_MAX, type MenuStyle } from "@/lib/drink-menu";
+import CustomMenuCard from "./CustomMenuCard";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
 import type { Lineup, SegmentStatus } from "@/lib/segment";
@@ -24,6 +25,11 @@ type State = {
   selected: LiveSelection | null;
   /** The drink menu is up on the live screen, over any question. */
   menu: boolean;
+  /** Which drink menu: the standard one, or the custom one with its colour and line above the QR. */
+  menuStyle: MenuStyle;
+  /** The custom menu's saved text colour and line above the QR; "" for the defaults. */
+  menuColor: string;
+  menuHeadline: string;
   /** Text running around the edge while the drink menu is up; empty for none. */
   marquee: string;
   truncated: boolean;
@@ -31,7 +37,7 @@ type State = {
   manualOpen: boolean;
   pageLive: boolean;
 };
-type Change = Partial<Pick<State, "selected" | "menu" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
+type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
 
 const API = "/api/admin/run-show";
 const PILE_API = "/api/admin/decisions";
@@ -193,10 +199,21 @@ export default function ControlCenter() {
       setNotice(`Drawn: “${drawn.decision.slice(0, 60)}${drawn.decision.length > 60 ? "…" : ""}” is on screen.`);
     }, "Could not draw a question.");
 
+  /** Take the server's word on the whole drink menu record after any change to it. */
+  const takeMenu = (data: Change & Record<string, unknown>) =>
+    setState((current) => current ? {
+      ...current,
+      menu: Boolean(data.menu),
+      menuStyle: data.menuStyle === "custom" ? "custom" : "standard",
+      marquee: typeof data.marquee === "string" ? data.marquee : current.marquee,
+      menuColor: typeof data.menuColor === "string" ? data.menuColor : current.menuColor,
+      menuHeadline: typeof data.menuHeadline === "string" ? data.menuHeadline : current.menuHeadline,
+    } : current);
+
   const saveMarquee = (marquee: string) =>
     change(API, { marquee }, (data) => {
       const saved = typeof data.marquee === "string" ? data.marquee : "";
-      setState((current) => current ? { ...current, marquee: saved } : current);
+      takeMenu(data);
       setMarqueeDraft(null);
       setNotice(saved ? "Marquee saved. It runs around the drink menu." : `Marquee back to “${DEFAULT_MARQUEE}”.`);
     }, "Could not update the marquee.");
@@ -208,10 +225,15 @@ export default function ControlCenter() {
       setNotice(`The intro is playing on the live screen (about ${Math.round(EXPLAINER_MS / 1000)} seconds), then it goes back to what was up.`);
     }, "Could not start the intro.");
 
-  const setMenu = (menu: boolean) =>
-    change(API, { menu }, (data) => {
-      setState((current) => current ? { ...current, menu: Boolean(data.menu) } : current);
-    }, "Could not update the drink menu.");
+  /** Put one of the two menus up (switching straight from the other), or take the menu down. */
+  const setMenu = (style: MenuStyle | null) =>
+    change(API, style ? { menu: true, style } : { menu: false }, takeMenu, "Could not update the drink menu.");
+
+  const saveCustomMenu = (look: { color: string; headline: string }) =>
+    change(API, { customMenu: look }, (data) => {
+      takeMenu(data);
+      setNotice(data.menu && data.menuStyle === "custom" ? "Custom menu saved. The live screen has it now." : "Custom menu saved. It shows when you put the custom menu up.");
+    }, "Could not save the custom menu.");
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -376,7 +398,7 @@ export default function ControlCenter() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
-                <p className="text-sm">{!state ? "Connecting…" : state.menu ? "Drink menu on screen" : state.selected ? "On screen" : "Screen cleared"}</p>
+                <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : state.selected ? "On screen" : "Screen cleared"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -388,15 +410,23 @@ export default function ControlCenter() {
                 >
                   {explaining ? "Intro playing…" : "Intro"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void setMenu(!state?.menu)}
-                  disabled={busy || !state}
-                  aria-pressed={Boolean(state?.menu)}
-                  className={`rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50 ${state?.menu ? "bg-amber-300 text-black" : "border border-amber-300/70 text-amber-200"}`}
-                >
-                  {state?.menu ? "Hide drink menu" : "Show drink menu"}
-                </button>
+                {(["standard", "custom"] as const).map((style) => {
+                  const up = Boolean(state?.menu) && state?.menuStyle === style;
+                  const label = style === "custom" ? "custom menu" : "drink menu";
+                  return (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() => void setMenu(up ? null : style)}
+                      disabled={busy || !state}
+                      aria-pressed={up}
+                      title={style === "custom" ? "The drink menu in your colour, with your line above the QR code" : "The standard drink menu"}
+                      className={`rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50 ${up ? "bg-amber-300 text-black" : "border border-amber-300/70 text-amber-200"}`}
+                    >
+                      {up ? `Hide ${label}` : `Show ${label}`}
+                    </button>
+                  );
+                })}
                 <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.length} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
                 <button type="button" onClick={() => void select(null)} disabled={busy || running || !state?.selected} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
               </div>
@@ -418,7 +448,7 @@ export default function ControlCenter() {
               onSubmit={(event) => { event.preventDefault(); void saveMarquee(marqueeDraft ?? state?.marquee ?? ""); }}
             >
               <label htmlFor="menu-marquee" className="text-sm">Drink menu marquee</label>
-              <p className="mt-1 text-sm text-neutral-400">Runs around the edge of the screen, only while the drink menu is up.</p>
+              <p className="mt-1 text-sm text-neutral-400">Runs around the edge of the screen while either drink menu is up.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <input
                   id="menu-marquee"
@@ -434,10 +464,21 @@ export default function ControlCenter() {
                 <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Use default</button>
               </div>
               <p className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-neutral-500">
-                <span>{state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show the drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}</span>
+                <span>{state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show either drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}</span>
                 <span aria-live="polite">{(marqueeDraft ?? state?.marquee ?? "").length}/{MARQUEE_MAX}</span>
               </p>
             </form>
+
+            {state ? (
+              <CustomMenuCard
+                color={state.menuColor}
+                headline={state.menuHeadline}
+                marquee={state.marquee}
+                live={state.menu && state.menuStyle === "custom"}
+                busy={busy}
+                save={saveCustomMenu}
+              />
+            ) : null}
 
             <div className="mt-6 rounded-lg border border-white/20 p-4">
               <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : "Questions are closed"}</p>
