@@ -96,7 +96,7 @@ export async function readMenu(space: Space = "live"): Promise<MenuState> {
 export async function writeMenu(change: Partial<MenuState>, space: Space = "live"): Promise<MenuState> {
   const next = parseMenuState({ ...(await readMenu(space)), ...change });
   const message = "marquee" in change ? "Update the drink menu marquee"
-    : "color" in change || "headline" in change || "note" in change ? "Update the custom drink menu"
+    : "color" in change || "headline" in change || "note" in change || "font" in change || "bartender" in change ? "Update the custom drink menu"
     : next.on ? `Put the ${next.style} drink menu on screen` : "Take the drink menu off screen";
   await writeRecord(menuKeyOf(space), next, message);
   return next;
