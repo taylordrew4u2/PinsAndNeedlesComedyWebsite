@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
+import type { CustomLook } from "@/lib/drink-menu";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { playIntroSound } from "@/lib/intro-sound";
 import Explainer from "@/components/Explainer";
@@ -28,7 +29,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const menuSeen = useRef<string | undefined>(undefined);
   const [marquee, setMarquee] = useState<string | null>(null);
   // The custom menu's colour and line above the QR; null for the standard menu.
-  const [menuCustom, setMenuCustom] = useState<{ color: string; headline: string } | null>(null);
+  const [menuCustom, setMenuCustom] = useState<CustomLook | null>(null);
   // A newly picked question gets a drum roll first; the screen opening on one does not.
   const [intro, setIntro] = useState(false);
   const shown = useRef<string | null | undefined>(undefined);
@@ -157,13 +158,19 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         performerSeen.current = nextPerformer;
         setPerformer(nextPerformer);
         const nextMenu = data?.menu === true;
-        const custom = nextMenu && data?.menuCustom && typeof data.menuCustom.color === "string" && typeof data.menuCustom.headline === "string"
-          ? { color: data.menuCustom.color as string, headline: data.menuCustom.headline as string }
+        const look = data?.menuCustom;
+        const custom: CustomLook | null = nextMenu && look && typeof look.color === "string" && typeof look.headline === "string"
+          ? {
+            color: look.color, headline: look.headline,
+            note: typeof look.note === "string" ? look.note : "",
+            noteColor: typeof look.noteColor === "string" ? look.noteColor : look.color,
+          }
           : null;
-        const look = nextMenu ? (custom ? "custom" : "standard") : "off";
-        if (menuSeen.current !== undefined && look !== menuSeen.current) setWipe((count) => count + 1);
-        menuSeen.current = look;
-        setMenuCustom((current) => current && custom && current.color === custom.color && current.headline === custom.headline ? current : custom);
+        const which = nextMenu ? (custom ? "custom" : "standard") : "off";
+        if (menuSeen.current !== undefined && which !== menuSeen.current) setWipe((count) => count + 1);
+        menuSeen.current = which;
+        // Keep the same object while nothing changed, so the board does not re-render every poll.
+        setMenuCustom((current) => current && custom && JSON.stringify(current) === JSON.stringify(custom) ? current : custom);
         setMenu(nextMenu);
         setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
         const segment = data?.segment && typeof data.segment.remainingMs === "number" ? data.segment as { remainingMs: number; nextSwitchMs: number } : null;

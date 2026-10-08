@@ -81,6 +81,9 @@ export const MARQUEE_MAX = 140;
 /** Longest line the host can put above the QR code on the custom menu. */
 export const HEADLINE_MAX = 80;
 
+/** Longest note the host can put in the empty space under the menu's first two columns. */
+export const NOTE_MAX = 120;
+
 /** What the custom menu says above the QR code until the host writes their own. */
 export const DEFAULT_HEADLINE = "Don’t miss the 9 PM show! Scan here for Bad Decisions";
 
@@ -91,16 +94,21 @@ export const DEFAULT_MENU_COLOR = "#FF2E4D";
 export const MENU_COLORS = ["#FF2E4D", "#FFC93C", "#3CE0FF", "#7CFF6B", "#FF6BD6", "#FFFFFF"] as const;
 
 /**
- * Two menus, the same in every way but two: the custom one's text is in the
- * host's colour, and it carries a line above the QR code.
+ * Two menus, the same in every way but these: the custom one's text is in the
+ * host's colour, it carries a line above the QR code, and it can carry a note,
+ * in a colour of its own, in the empty space under the first two columns.
  */
 export type MenuStyle = "standard" | "custom";
 
 /**
  * Whether the drink menu is up and which one, the marquee that runs around
- * it, and the custom menu's colour and line (empty for the defaults).
+ * it, and the custom menu's colour, line and note (empty for the defaults;
+ * an empty note is no note, and an empty note colour follows the text colour).
  */
-export type MenuState = { on: boolean; style: MenuStyle; marquee: string; color: string; headline: string };
+export type MenuState = { on: boolean; style: MenuStyle; marquee: string; color: string; headline: string; note: string; noteColor: string };
+
+/** What the custom menu draws, defaults filled in. */
+export type CustomLook = { color: string; headline: string; note: string; noteColor: string };
 
 /** One line of plain text, trimmed and capped. Anything that is not a string is no text. */
 function cleanLine(raw: unknown, max: number): string {
@@ -117,6 +125,10 @@ export function cleanHeadline(raw: unknown): string {
   return cleanLine(raw, HEADLINE_MAX);
 }
 
+export function cleanNote(raw: unknown): string {
+  return cleanLine(raw, NOTE_MAX);
+}
+
 /** A six-digit hex colour, upper-cased; anything else is no colour (the default). */
 export function cleanColor(raw: unknown): string {
   if (typeof raw !== "string") return "";
@@ -126,19 +138,22 @@ export function cleanColor(raw: unknown): string {
 
 /** The stored menu record. Anything malformed reads as off, standard, with the defaults. */
 export function parseMenuState(raw: unknown): MenuState {
-  if (!raw || typeof raw !== "object") return { on: false, style: "standard", marquee: "", color: "", headline: "" };
-  const value = raw as { on?: unknown; style?: unknown; marquee?: unknown; color?: unknown; headline?: unknown };
+  if (!raw || typeof raw !== "object") return { on: false, style: "standard", marquee: "", color: "", headline: "", note: "", noteColor: "" };
+  const value = raw as { on?: unknown; style?: unknown; marquee?: unknown; color?: unknown; headline?: unknown; note?: unknown; noteColor?: unknown };
   return {
     on: value.on === true,
     style: value.style === "custom" ? "custom" : "standard",
     marquee: cleanMarquee(value.marquee),
     color: cleanColor(value.color),
     headline: cleanHeadline(value.headline),
+    note: cleanNote(value.note),
+    noteColor: cleanColor(value.noteColor),
   };
 }
 
 /** What the custom menu shows, defaults filled in; null for the standard menu. */
-export function customLook(state: MenuState): { color: string; headline: string } | null {
+export function customLook(state: MenuState): CustomLook | null {
   if (state.style !== "custom") return null;
-  return { color: state.color || DEFAULT_MENU_COLOR, headline: state.headline || DEFAULT_HEADLINE };
+  const color = state.color || DEFAULT_MENU_COLOR;
+  return { color, headline: state.headline || DEFAULT_HEADLINE, note: state.note, noteColor: state.noteColor || color };
 }
