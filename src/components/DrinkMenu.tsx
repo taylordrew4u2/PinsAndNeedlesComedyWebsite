@@ -26,7 +26,7 @@ const SEPARATOR = "\u2003\u2726\u2003";
  * running around the edge when there is one.
  *
  * `custom` makes it the custom menu: the same board, its text in the host's
- * colour, with their line above the QR code. `contained` fills the nearest
+ * colour, with their line above the QR code (and so only when there is one). `contained` fills the nearest
  * positioned box instead of the whole window, for a preview.
  */
 export default function DrinkMenu({ qrSrc, marquee, custom, contained }: {
@@ -66,8 +66,9 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained }: {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/pixelated-records-logo.png" alt="Pixelated Records" width={310} height={158} style={{ width: 310, height: "auto", display: "block" }} />
             <div style={{ fontSize: 34, fontWeight: 500, letterSpacing: "0.5em", marginRight: "-0.5em" }}>MENU</div>
-            {custom || qrSrc ? <div style={{ width: 64, height: 1, background: RULE, margin: "20px 0 16px" }} /> : null}
-            {custom ? (
+            {qrSrc ? <div style={{ width: 64, height: 1, background: RULE, margin: "20px 0 16px" }} /> : null}
+            {/* The custom line belongs to the QR ("scan here"): no QR, no line. */}
+            {custom && qrSrc ? (
               <div style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.12, letterSpacing: "0.03em", textTransform: "uppercase", textAlign: "center", overflowWrap: "anywhere", maxWidth: 300 }}>
                 {custom.headline}
               </div>

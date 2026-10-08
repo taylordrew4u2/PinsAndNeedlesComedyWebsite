@@ -475,6 +475,7 @@ export default function ControlCenter() {
                 headline={state.menuHeadline}
                 marquee={state.marquee}
                 live={state.menu && state.menuStyle === "custom"}
+                qr={state.pageLive}
                 busy={busy}
                 save={saveCustomMenu}
               />

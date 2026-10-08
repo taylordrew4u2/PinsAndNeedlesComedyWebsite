@@ -12,6 +12,8 @@ type Props = {
   marquee: string;
   /** The custom menu is on the live screen right now. */
   live: boolean;
+  /** The live screen shows the QR (the Bad Decisions page is on), and so the line above it. */
+  qr: boolean;
   busy: boolean;
   save: (look: { color: string; headline: string }) => Promise<boolean>;
 };
@@ -21,7 +23,7 @@ type Props = {
  * of its text, and the line above the QR code. Shows a preview of the board
  * as the edits are typed, before anything is saved.
  */
-export default function CustomMenuCard({ color, headline, marquee, live, busy, save }: Props) {
+export default function CustomMenuCard({ color, headline, marquee, live, qr, busy, save }: Props) {
   // What the host is editing; null until they touch it, so the saved value shows.
   const [colorDraft, setColorDraft] = useState<string | null>(null);
   const [headlineDraft, setHeadlineDraft] = useState<string | null>(null);
@@ -81,9 +83,10 @@ export default function CustomMenuCard({ color, headline, marquee, live, busy, s
         className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
       />
       <p className="mt-1 text-right text-xs text-neutral-500" aria-live="polite">{shownHeadline.length}/{HEADLINE_MAX}</p>
+      {qr ? null : <p className="mt-1 text-xs text-amber-200">The Bad Decisions page is switched off, so the screen has no QR code, and this line stays off with it. Open questions to bring both back.</p>}
 
       <div className="relative mt-2 aspect-video w-full overflow-hidden rounded-md border border-white/15" aria-label="Preview of the custom menu">
-        <DrinkMenu contained qrSrc="/api/decisions/live/qr" marquee={marquee || DEFAULT_MARQUEE} custom={{ color: shownColor, headline: shownHeadline.trim() || DEFAULT_HEADLINE }} />
+        <DrinkMenu contained qrSrc={qr ? "/api/decisions/live/qr" : undefined} marquee={marquee || DEFAULT_MARQUEE} custom={{ color: shownColor, headline: shownHeadline.trim() || DEFAULT_HEADLINE }} />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
