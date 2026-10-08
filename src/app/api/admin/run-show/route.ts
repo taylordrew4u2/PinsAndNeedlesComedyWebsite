@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getContentStrict, patchContent } from "@/lib/store";
-import { isFromPastShow, lastPastShowDate, pickRandom, submissionWindow } from "@/lib/decisions";
+import { isFromPastShow, lastPastShowDate, parsePreload, pickRandom, submissionWindow } from "@/lib/decisions";
 import { isAuthed } from "@/lib/auth";
-import { getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
+import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
 import { clearLiveSelection, readLiveSelection, readMenu, startExplainer, writeLiveSelection, writeMenu } from "@/lib/live-store";
 import { cleanMarquee } from "@/lib/drink-menu";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
@@ -161,6 +161,20 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("[run-show] draw failed", error);
       return NextResponse.json({ error: "Could not draw a question. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("preload" in body) {
+    const clean = parsePreload(body.preload);
+    if (!clean) return NextResponse.json({ error: "Type at least one question." }, { status: 400, headers });
+    try {
+      // Straight into the pile: no QR window, no throttle. One at a time keeps
+      // GitHub-driver commits from racing each other.
+      const added: Submission[] = [];
+      for (const decision of clean.decisions) added.push(await addSubmission(decision, clean.name, space));
+      return NextResponse.json({ added }, { headers });
+    } catch (error) {
+      console.error("[run-show] preload failed", error);
+      return NextResponse.json({ error: "Could not add those questions. Check the list and try again." }, { status: 503, headers });
     }
   }
   if ("putBack" in body) {

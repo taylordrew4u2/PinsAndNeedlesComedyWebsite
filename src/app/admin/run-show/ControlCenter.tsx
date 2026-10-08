@@ -5,6 +5,7 @@ import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
 import { DEFAULT_MARQUEE, MARQUEE_MAX } from "@/lib/drink-menu";
 import { EXPLAINER_MS } from "@/lib/explainer";
+import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import LiveMirror from "./LiveMirror";
 
@@ -50,6 +51,9 @@ export default function ControlCenter() {
   const [marqueeDraft, setMarqueeDraft] = useState<string | null>(null);
   // While the explainer is on the live screen, its button waits.
   const [explaining, setExplaining] = useState(false);
+  // Questions the host is typing in ahead of time, one per line.
+  const [preloadText, setPreloadText] = useState("");
+  const [preloadName, setPreloadName] = useState("");
   const ping = useSyncExternalStore(subscribePing, readPing, () => false);
   useWakeLock();
   const revision = useRef(0);
@@ -207,6 +211,20 @@ export default function ControlCenter() {
         submissions: item ? [item, ...current.submissions] : current.submissions,
       } : current);
     }, "Could not put that question back.");
+
+  const preload = async () => {
+    let added: Submission[] = [];
+    const ok = await change(API, { preload: { text: preloadText, name: preloadName } }, (data) => {
+      added = Array.isArray(data.added) ? (data.added as Submission[]) : [];
+      // The host typed these: they are not "new arrivals" and should not ping.
+      known.current = new Set([...(known.current ?? []), ...added.map((item) => item.id)]);
+      setState((current) => current ? { ...current, submissions: [...current.submissions, ...added] } : current);
+    }, "Could not add those questions.");
+    if (!ok) return;
+    setPreloadText("");
+    setNotice(added.length === 1 ? "1 question added to the pile." : `${added.length} questions added to the pile.`);
+    await refresh();
+  };
 
   const setManualOpen = (manualOpen: boolean) =>
     change(API, { manualOpen }, (data) => {
@@ -428,6 +446,38 @@ export default function ControlCenter() {
             )}
 
             <details className="mt-6 rounded-lg border border-white/20 p-4">
+              <summary className="cursor-pointer text-sm">➕ Preload questions</summary>
+              <form className="mt-3 space-y-3" onSubmit={(event) => { event.preventDefault(); void preload(); }}>
+                <p className="text-sm text-neutral-400">Add your own questions to the pile, alongside the ones that come in from the QR code. One per line. They work the same: show them, draw them, delete them.</p>
+                <label htmlFor="preload-text" className="sr-only">Questions, one per line</label>
+                <textarea
+                  id="preload-text"
+                  value={preloadText}
+                  onChange={(event) => setPreloadText(event.target.value)}
+                  rows={5}
+                  placeholder={"Should I text my ex back?\nShould I quit my job to sell hot sauce?"}
+                  disabled={!state}
+                  className="w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <label htmlFor="preload-name" className="sr-only">Name on screen (optional)</label>
+                  <input
+                    id="preload-name"
+                    type="text"
+                    value={preloadName}
+                    onChange={(event) => setPreloadName(event.target.value)}
+                    maxLength={NAME_MAX}
+                    placeholder="Name on screen (optional)"
+                    disabled={!state}
+                    className="min-w-0 flex-1 basis-48 rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+                  />
+                  <button type="submit" disabled={busy || !state || !preloadText.trim()} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Add to pile</button>
+                </div>
+                <p className="text-xs text-neutral-500">Up to {PRELOAD_MAX} at a time. Leave the name blank to show them as anonymous.</p>
+              </form>
+            </details>
+
+            <details className="mt-4 rounded-lg border border-white/20 p-4">
               <summary className="cursor-pointer text-sm">Already shown tonight{state ? ` (${state.shown.length})` : ""}</summary>
               {state?.shown.length ? (
                 <div role="list" className="mt-3 space-y-2">
