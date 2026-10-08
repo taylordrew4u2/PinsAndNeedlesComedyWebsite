@@ -220,6 +220,19 @@
   50% { opacity: 0; }
 }
 
+/* Live screen: the silent 3, 2, 1 before a new question. Each number pops in, then fades as the next arrives. */
+.pnc-countdown {
+  font-size: min(60vh, 50vw);
+  color: #ff2e4d;
+  animation: pnc-countdown 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes pnc-countdown {
+  0% { opacity: 0; transform: scale(1.6); }
+  25% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; transform: scale(0.95); }
+  100% { opacity: 0.15; transform: scale(0.9); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -13,6 +13,9 @@ import { EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
 const POINTER_IDLE_MS = 2_500;
 /** After a tap there is no pointer to hide, so the controls stay long enough to reach. */
 const TOUCH_IDLE_MS = 5_000;
+/** A silent 3, 2, 1 before a newly picked question, so the room sees it coming. */
+const COUNTDOWN_FROM = 3;
+const COUNTDOWN_STEP_MS = 1_000;
 
 export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolean; space?: Space }) {
   const [question, setQuestion] = useState<string | null>(null);
@@ -27,6 +30,12 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [intro, setIntro] = useState(false);
   const shown = useRef<string | null | undefined>(undefined);
   const introTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The number up during the countdown before a new question; null when none is running.
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // The timed segment's end, on this screen's own clock; null when none is running.
+  const [segmentEnd, setSegmentEnd] = useState<number | null>(null);
+  const [segmentLeft, setSegmentLeft] = useState(0);
   // Browsers only allow sound after someone taps or clicks the page once; until then the button below asks for it.
   const audio = useRef<AudioContext | null>(null);
   // The host's "Intro" explainer: which step is up, and the start time last acted on (undefined until the first poll).
@@ -94,6 +103,8 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         setWipe((count) => count + 1);
       }, delay));
     };
+    // A poll lined up for the moment the next segment slot goes up, so it lands on time rather than up to a poll late.
+    let switchTimer: ReturnType<typeof setTimeout> | undefined;
     const refresh = async () => {
       if (pending) return;
       pending = true;
@@ -109,15 +120,28 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         const previous = shown.current;
         shown.current = next;
         if (next !== previous) {
-          // A changed screen ends any intro; a newly picked question (not the one up when the screen opened) starts one.
+          // A changed screen ends any countdown or intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
+          countdownTimers.current.forEach(clearTimeout);
+          countdownTimers.current = [];
+          setIntro(false);
           const fresh = previous !== undefined && next !== null;
-          if (fresh) sting();
-          const play = fresh && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-          setIntro(play);
-          // A cleared screen wipes; a new question has its own intro.
+          setCountdown(fresh ? COUNTDOWN_FROM : null);
+          if (fresh) {
+            // Silent 3, 2, 1; the sting and the drum roll come in on the beat after "1".
+            for (let n = COUNTDOWN_FROM - 1; n >= 1; n -= 1) {
+              countdownTimers.current.push(setTimeout(() => setCountdown(n), (COUNTDOWN_FROM - n) * COUNTDOWN_STEP_MS));
+            }
+            countdownTimers.current.push(setTimeout(() => {
+              setCountdown(null);
+              sting();
+              const play = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+              setIntro(play);
+              if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
+            }, COUNTDOWN_FROM * COUNTDOWN_STEP_MS));
+          }
+          // A cleared screen wipes; a new question has its own countdown and intro.
           if (previous && next === null) setWipe((count) => count + 1);
-          if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
         }
         setQuestion(next);
         setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
@@ -126,6 +150,14 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         menuSeen.current = nextMenu;
         setMenu(nextMenu);
         setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
+        const segment = data?.segment && typeof data.segment.remainingMs === "number" ? data.segment as { remainingMs: number; nextSwitchMs: number } : null;
+        setSegmentEnd(segment ? Date.now() + segment.remainingMs : null);
+        clearTimeout(switchTimer);
+        if (segment && segment.nextSwitchMs < 2_500) {
+          // If a regular poll is still out at that moment, try again just after it.
+          const onTime = () => { if (pending) switchTimer = setTimeout(onTime, 100); else void refresh(); };
+          switchTimer = setTimeout(onTime, segment.nextSwitchMs + 150);
+        }
         const explainerAt = typeof data?.explainer === "string" ? data.explainer : null;
         if (explainerAt !== explainerSeen.current) {
           // One that was already running when this screen opened is not replayed.
@@ -146,12 +178,23 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       disposed = true;
       controller.abort();
       clearTimeout(introTimer.current);
+      clearTimeout(switchTimer);
+      countdownTimers.current.forEach(clearTimeout);
       explainerTimers.current.forEach(clearTimeout);
       clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
     };
   }, [space]);
+
+  // The segment clock ticks on its own between polls.
+  useEffect(() => {
+    if (segmentEnd === null) return;
+    const tick = () => setSegmentLeft(Math.max(0, segmentEnd - Date.now()));
+    tick();
+    const timer = setInterval(tick, 250);
+    return () => clearInterval(timer);
+  }, [segmentEnd]);
 
   // Sound starts by itself where the browser allows autoplay for this site; otherwise the first tap, click or key press turns it on.
   useEffect(() => {
@@ -247,7 +290,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       onDoubleClick={toggleFullscreen}
     >
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
-        {question && !intro ? (
+        {question && !intro && countdown === null ? (
           // Sized together, so a long question and its name both fit above the QR.
           <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
@@ -268,8 +311,18 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       ) : null}
     </main>
     )}
+    {countdown !== null && !menu && !explainer ? (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black text-white" aria-hidden="true">
+        <span key={countdown} className="pnc-countdown font-[family-name:var(--pnc-heading)] font-bold tabular-nums leading-none">{countdown}</span>
+      </div>
+    ) : null}
     {intro && !menu && !explainer ? <BadDecisionIntro /> : null}
     {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} /> : null}
+    {segmentEnd !== null ? (
+      <p className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1 font-[family-name:var(--pnc-heading)] text-lg tabular-nums text-white/80 sm:bottom-4 sm:text-2xl" aria-hidden="true">
+        {segmentClock(segmentLeft)}
+      </p>
+    ) : null}
     {wipe ? <div key={wipe} className="pnc-wipe" aria-hidden="true" /> : null}
     {/* Outside <main>, so it is not read out with the question. */}
     {!mirrored && !soundOn ? (
@@ -293,6 +346,12 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     ) : null}
     </>
   );
+}
+
+/** m:ss, rounded up so it reads 12:00 at the start and 0:00 only at the very end. */
+function segmentClock(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 type WebkitDocument = Document & {

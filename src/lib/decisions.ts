@@ -36,6 +36,31 @@ export function sanitizeSubmission(input: unknown): { decision: string; name: st
   return { decision, name };
 }
 
+/** How many questions the host can preload in one go. */
+export const PRELOAD_MAX = 50;
+
+/**
+ * Questions the host types into the control center ahead of time: one per
+ * line, blank lines skipped, repeats dropped. The optional name goes on every
+ * one, the same as a sender who ticked "Put my name on it".
+ */
+export function parsePreload(input: unknown): { decisions: string[]; name: string } | null {
+  if (typeof input !== "object" || input === null) return null;
+  const raw = input as { text?: unknown; name?: unknown };
+  if (typeof raw.text !== "string") return null;
+  const seen = new Set<string>();
+  const decisions: string[] = [];
+  for (const line of raw.text.split(/\r\n?|\n/)) {
+    const decision = cleanLine(line, DECISION_MAX);
+    const key = decision.toLowerCase();
+    if (!decision || seen.has(key)) continue;
+    seen.add(key);
+    decisions.push(decision);
+  }
+  if (!decisions.length) return null;
+  return { decisions: decisions.slice(0, PRELOAD_MAX), name: cleanLine(raw.name, NAME_MAX) };
+}
+
 /**
  * One line: every kind of whitespace becomes a single space. Control
  * characters become spaces rather than vanishing, so a name pasted across
