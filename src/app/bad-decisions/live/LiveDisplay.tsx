@@ -35,6 +35,9 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const countdownTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   // The timed segment's end, on this screen's own clock; null when none is running.
   const [segmentEnd, setSegmentEnd] = useState<number | null>(null);
+  // The performer whose set is starting: their name holds the screen for its first two minutes.
+  const [performer, setPerformer] = useState<string | null>(null);
+  const performerSeen = useRef<string | null | undefined>(undefined);
   const [segmentLeft, setSegmentLeft] = useState(0);
   // Browsers only allow sound after someone taps or clicks the page once; until then the button below asks for it.
   const audio = useRef<AudioContext | null>(null);
@@ -145,6 +148,11 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         }
         setQuestion(next);
         setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
+        const nextPerformer = typeof data?.performer === "string" && data.performer.trim() ? data.performer.trim() : null;
+        // A name going up or coming down wipes, like any other screen change.
+        if (performerSeen.current !== undefined && nextPerformer !== performerSeen.current && !(performerSeen.current && next)) setWipe((count) => count + 1);
+        performerSeen.current = nextPerformer;
+        setPerformer(nextPerformer);
         const nextMenu = data?.menu === true;
         if (menuSeen.current !== undefined && nextMenu !== menuSeen.current) setWipe((count) => count + 1);
         menuSeen.current = nextMenu;
@@ -295,6 +303,11 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
           <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
             {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">— {name}</p> : null}
+          </div>
+        ) : !question && performer && !intro && countdown === null ? (
+          <div key={performer} className="pnc-screen-in w-full text-center">
+            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">Now on stage</p>
+            <h1 className="mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none">{performer}</h1>
           </div>
         ) : null}
       </div>

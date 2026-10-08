@@ -3,8 +3,8 @@ import { getContentStrict, patchContent } from "@/lib/store";
 import { isFromPastShow, lastPastShowDate, parsePreload, pickRandom, submissionWindow } from "@/lib/decisions";
 import { isAuthed } from "@/lib/auth";
 import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
-import { clearLiveSelection, readLiveSelection, readMenu, readSegment, startExplainer, writeLiveSelection, writeMenu, writeSegment } from "@/lib/live-store";
-import { SEGMENT_SLOTS, rearrange, segmentSelection, segmentStatus, upcomingIds, type Segment } from "@/lib/segment";
+import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
+import { MAX_PERFORMERS, SEGMENT_SLOTS, rearrange, segmentScreen, segmentStatus, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
 import { cleanMarquee } from "@/lib/drink-menu";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
@@ -25,6 +25,11 @@ function spaceFrom(request: Request): Space {
  * center, so each night starts fresh. The rehearsal space has no show clock
  * and keeps everything.
  */
+/** What the control center needs to draw the lineup: every card, and the set running now. */
+function lineupView(lineup: Lineup) {
+  return { lineup, segment: segmentStatus(lineup, Date.now()) };
+}
+
 function currentOnly(list: Submission[], shows: Show[], space: Space): Submission[] {
   if (space === "rehearsal") return list;
   const lastPast = lastPastShowDate(shows);
@@ -36,11 +41,11 @@ export async function GET(request: Request) {
   if (!(await isAuthed())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
   const space = spaceFrom(request);
   try {
-    const [pile, onScreen, content, menu, segment] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict(), readMenu(space), readSegment(space)]);
+    const [pile, onScreen, content, menu, segment] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict(), readMenu(space), readLineup(space)]);
     const current = currentOnly(pile.submissions, content.shows, space);
     const now = Date.now();
     const status = segmentStatus(segment, now);
-    const fromSegment = segmentSelection(segment, now);
+    const fromSegment = segmentScreen(segment, now)?.selection;
     // The slot that is up now counts as shown, the same as one the host picked.
     if (fromSegment) {
       const item = current.find((entry) => entry.id === fromSegment.submissionId);
@@ -49,9 +54,8 @@ export async function GET(request: Request) {
         item.shownAt = new Date(now).toISOString();
       }
     }
-    // Lined up in a slot that has not been on screen yet: it lives in the segment panel, not the waiting list.
-    const lined = upcomingIds(segment, now);
-    if (fromSegment) lined.delete(fromSegment.submissionId);
+    // Sitting in a performer's card: it lives there, not in the waiting list.
+    const lined = slottedIds(segment);
     // A question left on the projector from a past show comes down too.
     let selected = onScreen;
     const onScreenItem = selected && pile.submissions.find((item) => item.id === selected?.submissionId);
@@ -59,12 +63,13 @@ export async function GET(request: Request) {
       await clearLiveSelection(selected.submissionId, space).catch((error) => console.error("[run-show] clear stale screen failed", error));
       selected = null;
     }
-    const live = current.filter((item) => item.status !== "archived" && !lined.has(item.id));
-    if (fromSegment !== undefined) selected = fromSegment;
+    const live = current.filter((item) => item.status !== "archived");
+    if (status.running) selected = fromSegment ?? null;
     return NextResponse.json({
-      segment: { ...segment, ...status },
-      // Waiting: never on screen. Once a question has been up it moves to `shown`.
-      submissions: live.filter((item) => !item.shownAt && item.id !== selected?.submissionId),
+      lineup: segment,
+      segment: status,
+      // Waiting: never on screen and not in a card. Once a question has been up it moves to `shown`.
+      submissions: live.filter((item) => !item.shownAt && item.id !== selected?.submissionId && !lined.has(item.id)),
       shown: live.filter((item) => item.shownAt || item.id === selected?.submissionId),
       archived: current.filter((item) => item.status === "archived"),
       truncated: pile.truncated,
@@ -168,47 +173,62 @@ export async function POST(request: Request) {
   }
   if ("segment" in body) {
     if (body.segment !== "start" && body.segment !== "stop") {
-      return NextResponse.json({ error: "Invalid segment request" }, { status: 400, headers });
+      return NextResponse.json({ error: "Invalid set request" }, { status: 400, headers });
+    }
+    const performerId = "performerId" in body ? body.performerId : null;
+    if (body.segment === "start" && (typeof performerId !== "string" || !ID.test(performerId))) {
+      return NextResponse.json({ error: "Choose whose set to start." }, { status: 400, headers });
     }
     try {
-      const segment = await readSegment(space);
+      const lineup = await readLineup(space);
       if (body.segment === "stop") {
-        const next: Segment = { ...segment, startedAt: null };
-        await writeSegment(next, space);
-        return NextResponse.json({ segment: { ...next, ...segmentStatus(next, Date.now()) } }, { headers });
+        const next = stopAll(lineup, Date.now());
+        await writeLineup(next, space);
+        return NextResponse.json(lineupView(next), { headers });
       }
-      const next: Segment = { ...segment, startedAt: new Date().toISOString() };
-      await writeSegment(next, space);
-      // The segment owns the screen now; when it ends, the screen is left clear.
-      await writeLiveSelection(null, space).catch((error) => console.error("[run-show] clear for segment failed", error));
+      const next = startPerformer(lineup, performerId as string, Date.now());
+      if (!next) return NextResponse.json({ error: "That performer is gone. Refresh and try again." }, { status: 404, headers });
+      await writeLineup(next, space);
+      // The set owns the screen now; when it ends, the screen is left clear.
+      await writeLiveSelection(null, space).catch((error) => console.error("[run-show] clear for set failed", error));
       await writeMenu({ on: false }, space).catch((error) => console.error("[run-show] menu off failed", error));
-      return NextResponse.json({ segment: { ...next, ...segmentStatus(next, Date.now()) } }, { headers });
+      return NextResponse.json(lineupView(next), { headers });
     } catch (error) {
-      console.error("[run-show] segment failed", error);
-      return NextResponse.json({ error: "Could not update the segment. Try again." }, { status: 503, headers });
+      console.error("[run-show] set failed", error);
+      return NextResponse.json({ error: "Could not update the set. Try again." }, { status: 503, headers });
     }
   }
-  if ("segmentSlots" in body) {
-    const ids = body.segmentSlots;
-    if (!Array.isArray(ids) || ids.length !== SEGMENT_SLOTS || !ids.every((id) => id === null || (typeof id === "string" && ID.test(id)))) {
-      return NextResponse.json({ error: "Invalid segment lineup" }, { status: 400, headers });
-    }
+  if ("lineup" in body) {
+    const raw = body.lineup;
+    const valid = Array.isArray(raw) && raw.length <= MAX_PERFORMERS && raw.every((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const item = entry as Record<string, unknown>;
+      return typeof item.id === "string" && ID.test(item.id) && item.id.length <= 40
+        && (item.name === undefined || typeof item.name === "string")
+        && Array.isArray(item.slots) && item.slots.length === SEGMENT_SLOTS
+        && item.slots.every((id) => id === null || (typeof id === "string" && ID.test(id)));
+    });
+    if (!valid) return NextResponse.json({ error: "Invalid lineup" }, { status: 400, headers });
     try {
-      const segment = await readSegment(space);
-      // Reuse what is already in a slot; read only the questions newly dropped in.
-      const known = new Map(segment.slots.filter((slot) => slot !== null).map((slot) => [slot.submissionId, slot]));
-      const slots = await Promise.all((ids as (string | null)[]).map(async (id) => {
-        if (id === null) return null;
-        const have = known.get(id);
-        if (have) return have;
-        const submission = await getSubmission(id, space);
-        return submission ? selectionFor(submission) : null;
-      }));
-      const next = rearrange(segment, slots, Date.now());
-      await writeSegment(next, space);
-      return NextResponse.json({ segment: { ...next, ...segmentStatus(next, Date.now()) } }, { headers });
+      const lineup = await readLineup(space);
+      // Reuse what is already in a card; read only the questions newly dropped in.
+      const known = new Map(lineup.performers.flatMap((performer) => performer.slots).filter((slot) => slot !== null).map((slot) => [slot.submissionId, slot]));
+      const input: PerformerInput[] = await Promise.all((raw as { id: string; name?: string; slots: (string | null)[] }[]).map(async (entry) => ({
+        id: entry.id,
+        name: entry.name ?? "",
+        slots: await Promise.all(entry.slots.map(async (id) => {
+          if (id === null) return null;
+          const have = known.get(id);
+          if (have) return have;
+          const submission = await getSubmission(id, space);
+          return submission ? selectionFor(submission) : null;
+        })),
+      })));
+      const next = rearrange(lineup, input, Date.now());
+      await writeLineup(next, space);
+      return NextResponse.json(lineupView(next), { headers });
     } catch (error) {
-      console.error("[run-show] segment lineup failed", error);
+      console.error("[run-show] lineup failed", error);
       return NextResponse.json({ error: "Could not save the lineup. Try again." }, { status: 503, headers });
     }
   }
@@ -216,9 +236,9 @@ export async function POST(request: Request) {
     try {
       // Read past the cache: a pile even slightly behind could hand the host
       // something already read out on stage.
-      const [pile, current, content, segment] = await Promise.all([listPile({ fresh: true }, space), readLiveSelection(space), getContentStrict(), readSegment(space)]);
-      if (segmentStatus(segment, Date.now()).running) return NextResponse.json({ error: "The segment is running. Stop it to pick by hand." }, { status: 409, headers });
-      const lined = upcomingIds(segment, Date.now());
+      const [pile, current, content, segment] = await Promise.all([listPile({ fresh: true }, space), readLiveSelection(space), getContentStrict(), readLineup(space)]);
+      if (segmentStatus(segment, Date.now()).running) return NextResponse.json({ error: "A set is running. Stop it to pick by hand." }, { status: 409, headers });
+      const lined = slottedIds(segment);
       const picked = pickRandom(drawable(currentOnly(pile.submissions, content.shows, space), current?.submissionId).filter((item) => !lined.has(item.id)));
       if (!picked) return NextResponse.json({ error: "No questions waiting to draw." }, { status: 404, headers });
       const selected = await show(picked, space);
@@ -264,8 +284,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid question" }, { status: 400, headers });
   }
   try {
-    if (segmentStatus(await readSegment(space), Date.now()).running) {
-      return NextResponse.json({ error: "The segment is running. Stop it to pick by hand." }, { status: 409, headers });
+    if (segmentStatus(await readLineup(space), Date.now()).running) {
+      return NextResponse.json({ error: "A set is running. Stop it to pick by hand." }, { status: 409, headers });
     }
     const submission = id === null ? null : await getSubmission(id, space);
     if (id !== null && (!submission || !selectionFor(submission))) {
