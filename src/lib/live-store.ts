@@ -7,6 +7,7 @@ import { readFile as githubRead, writeFile as githubWrite } from "./github-store
 import { parseSelection, type LiveSelection } from "./live-selection";
 import { parseMenuState, type MenuState } from "./drink-menu";
 import { parseExplainer } from "./explainer";
+import { parseSegment, type Segment } from "./segment";
 import { storagePrefix, type Space } from "./space";
 
 /** live-show/selection.json for the show; rehearsal/live-show/… for practice. */
@@ -112,4 +113,17 @@ export async function startExplainer(space: Space = "live"): Promise<string> {
   const at = new Date().toISOString();
   await writeRecord(explainerKeyOf(space), { at }, "Play the Bad Decisions intro");
   return at;
+}
+
+/** live-show/segment.json: the timed segment's four slots and when it started. */
+function segmentKeyOf(space: Space): string {
+  return `${storagePrefix(space)}live-show/segment.json`;
+}
+
+export async function readSegment(space: Space = "live"): Promise<Segment> {
+  return parseSegment(await readRecord(segmentKeyOf(space)));
+}
+
+export async function writeSegment(segment: Segment, space: Space = "live"): Promise<void> {
+  await writeRecord(segmentKeyOf(space), segment, "Update the timed segment");
 }

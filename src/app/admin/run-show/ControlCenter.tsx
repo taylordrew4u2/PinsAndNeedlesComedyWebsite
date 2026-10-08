@@ -6,10 +6,16 @@ import type { LiveSelection } from "@/lib/live-selection";
 import { DEFAULT_MARQUEE, MARQUEE_MAX } from "@/lib/drink-menu";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
+import { SEGMENT_MS, SEGMENT_SLOTS, SLOT_MS, type Segment, type SegmentStatus } from "@/lib/segment";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import LiveMirror from "./LiveMirror";
 
+type SegmentView = Segment & SegmentStatus;
 type State = {
+  /** The timed segment: its four slots, and its clock as of `segmentAt`. */
+  segment: SegmentView;
+  /** When this page received `segment`, so the clock can keep ticking between polls. */
+  segmentAt: number;
   submissions: Submission[];
   shown: Submission[];
   archived: Submission[];
@@ -23,7 +29,9 @@ type State = {
   manualOpen: boolean;
   pageLive: boolean;
 };
-type Change = Partial<Pick<State, "selected" | "menu" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive">> & { drawn?: Submission; submission?: Submission };
+type Change = Partial<Pick<State, "selected" | "menu" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment">> & { drawn?: Submission; submission?: Submission };
+/** What is being dragged: a waiting question, or a question already in a slot. */
+type Drag = { from: "pile"; id: string } | { from: "slot"; slot: number };
 
 const API = "/api/admin/run-show";
 const PILE_API = "/api/admin/decisions";
@@ -54,6 +62,10 @@ export default function ControlCenter() {
   // Questions the host is typing in ahead of time, one per line.
   const [preloadText, setPreloadText] = useState("");
   const [preloadName, setPreloadName] = useState("");
+  const [dragging, setDragging] = useState<Drag | null>(null);
+  const [dropOn, setDropOn] = useState<number | null>(null);
+  // Ticks while the segment runs, so its clock counts down between polls.
+  const [now, setNow] = useState(() => Date.now());
   const ping = useSyncExternalStore(subscribePing, readPing, () => false);
   useWakeLock();
   const revision = useRef(0);
@@ -89,7 +101,7 @@ export default function ControlCenter() {
         }
       }
       known.current = new Set([...(known.current ?? []), ...ids]);
-      setState(data);
+      setState({ ...data, segmentAt: Date.now() });
       setError("");
     } catch (failure) {
       if (started === revision.current) setError(failure instanceof Error ? failure.message : "Could not load questions.");
@@ -226,6 +238,99 @@ export default function ControlCenter() {
     await refresh();
   };
 
+  const running = Boolean(state?.segment.running);
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, [running]);
+  // The segment's clock right now, run forward from the last poll.
+  const segmentLeft = state && running ? Math.max(0, state.segment.remainingMs - (now - state.segmentAt)) : 0;
+  const segmentIndex = state && running ? Math.min(SEGMENT_SLOTS - 1, Math.floor((SEGMENT_MS - segmentLeft) / SLOT_MS)) : null;
+  // Slots before the one on screen have been and gone; they cannot change.
+  const firstOpenSlot = segmentIndex ?? 0;
+
+  const setSegment = (segment: SegmentView) =>
+    setState((current) => current ? { ...current, segment, segmentAt: Date.now() } : current);
+
+  /** Save a new lineup. It shows at once; the server's answer (and the next poll) settle it. */
+  const saveSlots = async (slots: (LiveSelection | null)[]) => {
+    if (!state) return;
+    setSegment({ ...state.segment, remainingMs: segmentLeft, slots });
+    await change(API, { segmentSlots: slots.map((slot) => slot?.submissionId ?? null) }, (data) => {
+      if (data.segment) setSegment(data.segment);
+    }, "Could not save the lineup.");
+    // Saved or not, the waiting list catches up with what moved in or out of the slots.
+    await refresh();
+  };
+
+  const slotFor = (item: Submission): LiveSelection => ({ submissionId: item.id, question: item.decision, name: item.name.trim() });
+
+  const dropInto = (slot: number, drag: Drag) => {
+    if (!state || slot < firstOpenSlot) return;
+    const slots = [...state.segment.slots];
+    if (drag.from === "slot") {
+      if (drag.slot === slot || drag.slot < firstOpenSlot) return;
+      [slots[slot], slots[drag.slot]] = [slots[drag.slot], slots[slot]];
+    } else {
+      const item = state.submissions.find((entry) => entry.id === drag.id);
+      if (!item) return;
+      forget(item.id);
+      slots[slot] = slotFor(item);
+    }
+    void saveSlots(slots);
+  };
+
+  const addToSegment = (item: Submission) => {
+    if (!state) return;
+    const slot = state.segment.slots.findIndex((entry, i) => i >= firstOpenSlot && !entry);
+    if (slot !== -1) dropInto(slot, { from: "pile", id: item.id });
+  };
+
+  const moveSlot = (slot: number, by: number) => {
+    const target = slot + by;
+    if (!state || target < firstOpenSlot || target >= SEGMENT_SLOTS) return;
+    dropInto(target, { from: "slot", slot });
+  };
+
+  const emptySlot = (slot: number) => {
+    if (!state || slot < firstOpenSlot) return;
+    void saveSlots(state.segment.slots.map((entry, i) => (i === slot ? null : entry)));
+  };
+
+  /** Fill every open, empty slot at random from the waiting questions. */
+  const fillSlots = () => {
+    if (!state) return;
+    const pool = [...state.submissions].sort(() => Math.random() - 0.5);
+    void saveSlots(state.segment.slots.map((entry, i) => (i < firstOpenSlot || entry ? entry : pool.length ? slotFor(pool.pop() as Submission) : null)));
+  };
+
+  const clearSlots = () => {
+    if (!state) return;
+    void saveSlots(state.segment.slots.map((entry, i) => (i < firstOpenSlot ? entry : null)));
+  };
+
+  const startSegment = async () => {
+    if (!state) return;
+    if (state.segment.slots.every((slot) => !slot) && !window.confirm("No questions are lined up. Start the 12-minute clock anyway?")) return;
+    const ok = await change(API, { segment: "start" }, (data) => {
+      if (data.segment) setSegment(data.segment);
+      setState((current) => current ? { ...current, menu: false, selected: data.segment?.slots[0] ?? null } : current);
+      setNow(Date.now());
+      setNotice("Segment started. The first question is going up now.");
+    }, "Could not start the segment.");
+    if (ok) await refresh();
+  };
+
+  const stopSegment = async () => {
+    if (!window.confirm("Stop the segment? The timer comes off the live screen and the screen clears.")) return;
+    const ok = await change(API, { segment: "stop" }, (data) => {
+      if (data.segment) setSegment(data.segment);
+      setNotice("Segment stopped.");
+    }, "Could not stop the segment.");
+    if (ok) await refresh();
+  };
+
   const setManualOpen = (manualOpen: boolean) =>
     change(API, { manualOpen }, (data) => {
       setState((current) => current ? {
@@ -319,8 +424,8 @@ export default function ControlCenter() {
                 >
                   {state?.menu ? "Hide drink menu" : "Show drink menu"}
                 </button>
-                <button type="button" onClick={() => void draw()} disabled={busy || !waiting.length} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
-                <button type="button" onClick={() => void select(null)} disabled={busy || !state?.selected} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
+                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.length} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
+                <button type="button" onClick={() => void select(null)} disabled={busy || running || !state?.selected} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
               </div>
             </div>
             <LiveMirror version={mirrorVersion} />
@@ -408,6 +513,66 @@ export default function ControlCenter() {
           </section>
 
           <section aria-label="Question submissions" className="min-w-0">
+            <div className="mb-6 rounded-lg border border-[#ff2e4d]/60 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base">⏱ 12-minute segment</h2>
+                  <p className="text-sm text-neutral-400">
+                    {running
+                      ? <>Running · <span className="font-semibold tabular-nums text-white">{clock(segmentLeft)}</span> left{segmentIndex !== null && segmentIndex < SEGMENT_SLOTS - 1 ? <> · next in <span className="tabular-nums">{clock(segmentLeft - (SEGMENT_SLOTS - 1 - segmentIndex) * SLOT_MS)}</span></> : null}</>
+                      : "A question goes up every 3 minutes. Drag questions into the slots, any time."}
+                  </p>
+                </div>
+                {running
+                  ? <button type="button" onClick={() => void stopSegment()} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Stop</button>
+                  : <button type="button" onClick={() => void startSegment()} disabled={busy || !state} className="rounded-md bg-[#ff2e4d] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">▶ Start</button>}
+              </div>
+              <ol className="mt-3 space-y-2">
+                {(state?.segment.slots ?? Array.from({ length: SEGMENT_SLOTS }, () => null)).map((slot, i) => {
+                  const past = i < firstOpenSlot;
+                  const live = segmentIndex === i;
+                  const startsIn = running ? segmentLeft - (SEGMENT_SLOTS - i) * SLOT_MS : 0;
+                  return (
+                    <li
+                      key={i}
+                      onDragOver={(event) => { if (dragging && !past) { event.preventDefault(); setDropOn(i); } }}
+                      onDragLeave={() => setDropOn((current) => (current === i ? null : current))}
+                      onDrop={(event) => { event.preventDefault(); setDropOn(null); if (dragging) dropInto(i, dragging); setDragging(null); }}
+                      className={`flex items-start gap-3 rounded-md border px-3 py-2 ${live ? "border-white bg-white/10" : past ? "border-white/10 opacity-50" : dropOn === i ? "border-[#ff2e4d] bg-[#ff2e4d]/10" : "border-white/20"}`}
+                    >
+                      <span className="w-16 shrink-0 text-xs leading-5 text-neutral-400">
+                        <span className="block font-semibold text-white">{clock(i * SLOT_MS)}</span>
+                        {live ? "on screen" : past ? "done" : running ? `in ${clock(startsIn)}` : `slot ${i + 1}`}
+                      </span>
+                      {slot ? (
+                        <span
+                          draggable={!past && !busy}
+                          onDragStart={(event) => { event.dataTransfer.setData("text/plain", slot.question); setDragging({ from: "slot", slot: i }); }}
+                          onDragEnd={() => { setDragging(null); setDropOn(null); }}
+                          className={`min-w-0 flex-1 ${past ? "" : "cursor-grab"}`}
+                        >
+                          <span className="block whitespace-pre-wrap break-words text-sm">{slot.question}</span>
+                          <span className="block text-xs text-neutral-500">{slot.name || "Anonymous"}</span>
+                        </span>
+                      ) : <span className="flex-1 text-sm text-neutral-500">{past ? "Nothing went up" : "Drop a question here"}</span>}
+                      {!past ? (
+                        <span className="flex shrink-0 gap-1">
+                          <button type="button" aria-label={`Move slot ${i + 1} up`} onClick={() => moveSlot(i, -1)} disabled={busy || i <= firstOpenSlot} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
+                          <button type="button" aria-label={`Move slot ${i + 1} down`} onClick={() => moveSlot(i, 1)} disabled={busy || i >= SEGMENT_SLOTS - 1} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
+                          {slot ? <button type="button" aria-label={`Empty slot ${i + 1}`} onClick={() => emptySlot(i)} disabled={busy} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✕</button> : null}
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ol>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                <button type="button" onClick={fillSlots} disabled={busy || !state || !waiting.length || !state.segment.slots.some((slot, i) => i >= firstOpenSlot && !slot)} className="rounded-md border border-white/30 px-3 py-1.5 disabled:opacity-40">🎲 Fill empty slots</button>
+                <button type="button" onClick={clearSlots} disabled={busy || !state || !state.segment.slots.some((slot, i) => i >= firstOpenSlot && slot)} className="rounded-md px-3 py-1.5 text-neutral-400 underline disabled:opacity-40">Empty all</button>
+              </div>
+              {running ? <p className="mt-2 text-xs text-neutral-500">While the segment runs it owns the live screen; Show, Draw and Clear wait until it ends or you stop it.</p> : null}
+            </div>
+
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base">Questions{state ? ` (${waiting.length})` : ""}</h2>
               <div className="flex flex-wrap items-center gap-3">
@@ -429,14 +594,21 @@ export default function ControlCenter() {
                 {waiting.map((item) => {
                   const isNew = fresh.has(item.id);
                   return (
-                    <li key={item.id} className={`rounded-lg border p-4 transition-colors ${isNew ? "border-emerald-400/70 bg-emerald-950/30" : "border-white/15"}`}>
+                    <li
+                      key={item.id}
+                      draggable={!busy}
+                      onDragStart={(event) => { event.dataTransfer.setData("text/plain", item.decision); setDragging({ from: "pile", id: item.id }); }}
+                      onDragEnd={() => { setDragging(null); setDropOn(null); }}
+                      className={`cursor-grab rounded-lg border p-4 transition-colors ${isNew ? "border-emerald-400/70 bg-emerald-950/30" : "border-white/15"}`}
+                    >
                       {isNew ? <span className="mb-2 inline-block rounded-full bg-emerald-400 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-black">New</span> : null}
                       <p className="whitespace-pre-wrap break-words text-lg leading-relaxed">{item.decision}</p>
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                         <span className="text-sm text-neutral-400">{item.name || "Anonymous"}{item.createdAt ? ` · ${timeOf(item.createdAt)}` : ""}</span>
                         <span className="flex gap-2">
                           <button type="button" onClick={() => void remove(item)} disabled={busy} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Delete</button>
-                          <button type="button" disabled={busy} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
+                          <button type="button" onClick={() => addToSegment(item)} disabled={busy || !state?.segment.slots.some((slot, i) => i >= firstOpenSlot && !slot)} className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Segment</button>
+                          <button type="button" disabled={busy || running} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
                         </span>
                       </div>
                     </li>
@@ -555,6 +727,12 @@ async function collectTexts(setTexting: (value: { on: boolean; error: string }) 
     // A failed pull must never stop the pile from loading.
     setTexting({ on: true, error: "Mailbox unreachable" });
   }
+}
+
+/** m:ss for the segment clock. */
+function clock(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 function timeOf(iso: string): string {
