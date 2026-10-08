@@ -66,8 +66,11 @@ export default function CustomMenuCard({ marquee, live, qr, busy, save, ...saved
     bartenderColor: value.bartenderColor,
   });
   const next = toSave();
+  // Case only matters where the board shows it as typed: the bartender's name. Colours compare as hex, the rest is drawn in capitals.
   const changed = (Object.keys(EMPTY) as (keyof CustomMenuInput)[])
-    .some((key) => next[key].trim().toUpperCase() !== saved[key].trim().toUpperCase());
+    .some((key) => key === "bartender"
+      ? next[key].trim() !== saved[key].trim()
+      : next[key].trim().toUpperCase() !== saved[key].trim().toUpperCase());
 
   const submit = async (input: CustomMenuInput) => {
     if (await save(input)) setDraft({});
