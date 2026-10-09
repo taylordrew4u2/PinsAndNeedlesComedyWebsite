@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
+import { isNewerBuild, quietScreen } from "@/lib/build";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import type { CustomLook } from "@/lib/drink-menu";
@@ -19,13 +20,15 @@ const POINTER_IDLE_MS = 2_500;
  * never stop the screen updating.
  */
 const POLL_TIMEOUT_MS = 8_000;
+/** Remembers which update this screen last reloaded itself for, so it never reloads twice for the same one. */
+const RELOAD_KEY = "pnc-live-reloaded-for";
 /** After a tap there is no pointer to hide, so the controls stay long enough to reach. */
 const TOUCH_IDLE_MS = 5_000;
 /** A silent 3, 2, 1 before a newly picked question, so the room sees it coming. */
 const COUNTDOWN_FROM = 3;
 const COUNTDOWN_STEP_MS = 1_000;
 
-export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolean; space?: Space }) {
+export default function LiveDisplay({ showQr, space = "live", build = "" }: { showQr: boolean; space?: Space; build?: string }) {
   const [question, setQuestion] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   // The control center can put the drink menu up over everything, between sets.
@@ -130,6 +133,17 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         if (!response.ok) return;
         const data = JSON.parse(text);
         if (disposed) return;
+        // The site was updated while this screen was open: its code is old, and new
+        // features would never show. Reload once, at a moment the room won't notice,
+        // and only after the page itself answers, so a wifi drop can't leave an error page up.
+        if (isNewerBuild(build, data?.build) && quietScreen(data)) {
+          let tried = false;
+          try { tried = sessionStorage.getItem(RELOAD_KEY) === data.build; sessionStorage.setItem(RELOAD_KEY, data.build); } catch { /* storage blocked: still reload once */ }
+          if (!tried) {
+            const page = await fetchWithin(window.location.href, { cache: "no-store" }, POLL_TIMEOUT_MS, controller.signal).catch(() => null);
+            if (page?.response.ok && !disposed) { window.location.reload(); return; }
+          }
+        }
         const next = typeof data?.question === "string" ? data.question : null;
         const previous = shown.current;
         shown.current = next;
@@ -219,7 +233,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
     };
-  }, [space]);
+  }, [space, build]);
 
   // The segment clock ticks on its own between polls.
   useEffect(() => {

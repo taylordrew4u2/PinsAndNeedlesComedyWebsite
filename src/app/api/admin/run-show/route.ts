@@ -9,6 +9,7 @@ import { cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, typ
 import { isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
+import { currentBuild } from "@/lib/build";
 import type { Show, Submission } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +77,8 @@ export async function GET(request: Request) {
     const live = current.filter((item) => item.status !== "archived");
     if (status.running) selected = fromSegment ?? null;
     return NextResponse.json({
+      // The deployment answering, so a Control Center left open across an update can say so.
+      build: currentBuild(),
       lineup: segment,
       segment: status,
       // Waiting: never on screen and not in a card. Once a question has been up it moves to `shown`.

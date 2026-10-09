@@ -5,6 +5,7 @@ import { freshExplainer } from "@/lib/explainer";
 import { publicSelection } from "@/lib/live-selection";
 import { DEFAULT_MARQUEE, customLook } from "@/lib/drink-menu";
 import { spaceOf } from "@/lib/space";
+import { currentBuild } from "@/lib/build";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" };
@@ -33,6 +34,8 @@ export async function GET(request: Request) {
       menuCustom: menu.on ? customLook(menu) : null,
       explainer: freshExplainer(explainer, now),
       performer: screen?.performer ?? null,
+      // The deployment answering, so a screen left open across an update knows to reload.
+      build: currentBuild(),
       segment: status.running ? { remainingMs: status.remainingMs, nextSwitchMs: status.nextSwitchMs } : null,
     }, { headers });
   } catch (error) {

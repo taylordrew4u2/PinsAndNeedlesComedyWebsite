@@ -11,6 +11,7 @@ import type { Lineup, SegmentStatus } from "@/lib/segment";
 import LineupPanel, { applyDrop, clockFor, firstEmptySlot, type Drag, type LineupInput } from "./LineupPanel";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
+import { isNewerBuild } from "@/lib/build";
 import LiveMirror from "./LiveMirror";
 
 type State = {
@@ -62,12 +63,14 @@ const POLL_TIMEOUT_MS = 15_000;
  * The show-night control center: the questions as they arrive, a mirror of
  * the live screen, and every control for the pile. Only reachable signed in.
  */
-export default function ControlCenter() {
+export default function ControlCenter({ build = "" }: { build?: string }) {
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [authLost, setAuthLost] = useState(false);
+  // The site was updated while this page was open; it says so rather than reloading over unsaved typing.
+  const [updated, setUpdated] = useState(false);
   const [mirrorVersion, setMirrorVersion] = useState(0);
   // Ids that arrived while this page was open and have not been looked at yet.
   const [fresh, setFresh] = useState<Set<string>>(() => new Set());
@@ -118,11 +121,12 @@ export default function ControlCenter() {
       }
       known.current = new Set([...(known.current ?? []), ...ids]);
       setState({ ...data, segmentAt: Date.now() });
+      if (isNewerBuild(build, (data as { build?: unknown }).build)) setUpdated(true);
       setError("");
     } catch (failure) {
-      if (started === revision.current) setError(failure instanceof Error ? failure.message : "Could not load questions.");
+      if (started === revision.current) setError(plainError(failure, "Could not load questions."));
     } finally { loading.current = false; }
-  }, []);
+  }, [build]);
 
   useEffect(() => {
     // refresh reads external server state, rather than deriving state from props.
@@ -156,16 +160,17 @@ export default function ControlCenter() {
     setNotice("");
     let ok = false;
     try {
-      const response = await fetch(endpoint, {
+      // A change that never answers must not hold every button: give up, and the next poll shows what landed.
+      const { response, text } = await fetchWithin(endpoint, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      }, POLL_TIMEOUT_MS);
       if (response.status === 401) { setAuthLost(true); return false; }
-      const data = await response.json();
+      const data = JSON.parse(text);
       if (!response.ok || data.ok === false) throw new Error(data.error || failed);
       done(data);
       ok = true;
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : failed);
+      setError(plainError(failure, failed));
     } finally {
       revision.current += 1;
       changing.current = false;
@@ -406,6 +411,12 @@ export default function ControlCenter() {
           </div>
         </header>
 
+        {updated ? (
+          <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-400/60 bg-sky-950/40 px-4 py-2 text-sm text-sky-100">
+            <span>The site was just updated. Reload this page to get the newest Control Center (save anything you are typing first). The live screen updates itself.</span>
+            <button type="button" onClick={() => window.location.reload()} className="rounded-md bg-sky-300 px-3 py-1.5 font-semibold text-black">Reload</button>
+          </div>
+        ) : null}
         {notice ? <p role="status" className="mb-4 text-emerald-300">{notice}</p> : null}
         {error ? <p role="alert" className="mb-4 text-red-300">{error}</p> : null}
         {state?.truncated ? <p className="mb-4 text-sm text-amber-200">Showing the newest available questions. There are more stored than can be listed at once; delete some archived ones to bring the rest into view.</p> : null}
@@ -719,6 +730,12 @@ async function collectTexts(setTexting: (value: { on: boolean; error: string }) 
     // A failed pull must never stop the pile from loading.
     setTexting({ on: true, error: "Mailbox unreachable" });
   }
+}
+
+/** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */
+function plainError(failure: unknown, fallback: string): string {
+  if (!(failure instanceof Error) || failure.name === "AbortError" || failure.name === "TimeoutError" || failure instanceof SyntaxError) return fallback;
+  return failure.message;
 }
 
 function timeOf(iso: string): string {
