@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getContent } from "@/lib/store";
 import { decisionQrKey } from "@/lib/decision-access";
 import { spaceOf } from "@/lib/space";
+import { currentBuild } from "@/lib/build";
 import LiveDisplay from "./LiveDisplay";
 
 export const dynamic = "force-dynamic";
@@ -21,5 +22,5 @@ export default async function LiveShowPage({ searchParams }: {
   const space = spaceOf((await searchParams).mode);
   const { weekly } = await getContent();
   // No serialized pile or admin state is ever sent to the display browser.
-  return <LiveDisplay space={space} showQr={(weekly.enabled || space === "rehearsal") && Boolean(decisionQrKey())} />;
+  return <LiveDisplay space={space} build={currentBuild()} showQr={(weekly.enabled || space === "rehearsal") && Boolean(decisionQrKey())} />;
 }
