@@ -4,7 +4,7 @@ import { isFromPastShow, lastPastShowDate, parsePreload, pickRandom, submissionW
 import { isAuthed } from "@/lib/auth";
 import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
 import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
-import { MAX_PERFORMERS, SEGMENT_SLOTS, rearrange, segmentScreen, segmentStatus, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
+import { DEFAULT_TIMING, MAX_PERFORMERS, QUESTIONS_MAX, clearFinished, parseCardTiming, parseTiming, rearrange, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotCountFor, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
 import { cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, type MenuState } from "@/lib/drink-menu";
 import { isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
@@ -268,12 +268,16 @@ export async function POST(request: Request) {
       const item = entry as Record<string, unknown>;
       return typeof item.id === "string" && ID.test(item.id) && item.id.length <= 40
         && (item.name === undefined || typeof item.name === "string")
-        && Array.isArray(item.slots) && item.slots.length === SEGMENT_SLOTS
+        && Array.isArray(item.slots) && item.slots.length >= 1 && item.slots.length <= QUESTIONS_MAX
         && item.slots.every((id) => id === null || (typeof id === "string" && ID.test(id)));
     });
     if (!valid) return NextResponse.json({ error: "Invalid lineup" }, { status: 400, headers });
     try {
       const lineup = await readLineup(space);
+      // Each card comes back with as many slots as it holds now; a different count was made against a lineup that has since changed.
+      if ((raw as { id: string; slots: unknown[] }[]).some((entry) => entry.slots.length !== slotCountFor(lineup, entry.id))) {
+        return NextResponse.json({ error: "The lineup just changed. Look it over and try again." }, { status: 409, headers });
+      }
       // Reuse what is already in a card; read only the questions newly dropped in.
       const known = new Map(lineup.performers.flatMap((performer) => performer.slots).filter((slot) => slot !== null).map((slot) => [slot.submissionId, slot]));
       const input: PerformerInput[] = await Promise.all((raw as { id: string; name?: string; slots: (string | null)[] }[]).map(async (entry) => ({
@@ -363,6 +367,49 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("[run-show] sound test failed", error);
       return NextResponse.json({ error: "Could not test the sound. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("lineupTiming" in body) {
+    // null is the standard twelve minutes.
+    const timing = body.lineupTiming === null ? DEFAULT_TIMING : parseTiming(body.lineupTiming);
+    if (!timing) return NextResponse.json({ error: "Invalid set timing" }, { status: 400, headers });
+    try {
+      const lineup = await readLineup(space);
+      // Cards following the lineup's timing fit it; the set on stage keeps the timing it started with.
+      const next = setLineupTiming(lineup, timing, Date.now());
+      if (JSON.stringify(next) !== JSON.stringify(lineup)) await writeLineup(next, space);
+      return NextResponse.json(lineupView(next), { headers });
+    } catch (error) {
+      console.error("[run-show] set timing failed", error);
+      return NextResponse.json({ error: "Could not save the set timing. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("cardTiming" in body) {
+    const wanted = parseCardTiming(body.cardTiming);
+    if (!wanted) return NextResponse.json({ error: "Invalid set timing" }, { status: 400, headers });
+    try {
+      const lineup = await readLineup(space);
+      const next = setCardTiming(lineup, wanted.performerId, wanted.timing, Date.now());
+      if (next === "gone") return NextResponse.json({ error: "That performer is gone. Refresh and try again." }, { status: 404, headers });
+      if (next === "running") return NextResponse.json({ error: "That set is running. Change its timing after it ends." }, { status: 409, headers });
+      if (JSON.stringify(next) !== JSON.stringify(lineup)) await writeLineup(next, space);
+      return NextResponse.json(lineupView(next), { headers });
+    } catch (error) {
+      console.error("[run-show] card timing failed", error);
+      return NextResponse.json({ error: "Could not save the set timing. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("clearFinished" in body) {
+    if (body.clearFinished !== true) return NextResponse.json({ error: "Invalid lineup" }, { status: 400, headers });
+    try {
+      const lineup = await readLineup(space);
+      // Cards whose set has run go; never the one on stage, never one still to go.
+      const next = clearFinished(lineup, Date.now());
+      if (next.performers.length !== lineup.performers.length) await writeLineup(next, space);
+      return NextResponse.json(lineupView(next), { headers });
+    } catch (error) {
+      console.error("[run-show] clear finished failed", error);
+      return NextResponse.json({ error: "Could not clear the finished cards. Try again." }, { status: 503, headers });
     }
   }
   if ("putBack" in body) {
