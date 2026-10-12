@@ -7,7 +7,7 @@ import { DEFAULT_MARQUEE, MARQUEE_MAX, type MenuStyle } from "@/lib/drink-menu";
 import CustomMenuCard, { type CustomMenuInput } from "./CustomMenuCard";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
-import type { Lineup, SegmentStatus } from "@/lib/segment";
+import { clockText, durationWords, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
 import LineupPanel, { applyDrop, clockFor, firstEmptySlot, type Drag, type LineupInput } from "./LineupPanel";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
@@ -312,7 +312,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     const to = firstEmptySlot(state.lineup, setClock);
     const input = to && applyDrop(state.lineup, to, { from: "pile", id: item.id }, setClock);
     if (!input || !to) return;
-    const optimistic: Lineup = { performers: state.lineup.performers.map((performer) => performer.id !== to.performer ? performer : {
+    const optimistic: Lineup = { ...state.lineup, performers: state.lineup.performers.map((performer) => performer.id !== to.performer ? performer : {
       ...performer, slots: performer.slots.map((slot, i) => (i === to.slot ? { submissionId: item.id, question: item.decision, name: item.name.trim() } : slot)),
     }) };
     void saveLineup(input, optimistic);
@@ -323,18 +323,19 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     const performer = state.lineup.performers.find((entry) => entry.id === performerId);
     if (!performer) return;
     const who = performer.name || "this performer";
+    const timing = timingOf(state.lineup, performer);
     const replacing = running && state.segment.performerId !== performerId;
     const warnings = [
       replacing ? "This stops the set that is running now." : "",
-      !performer.name ? "There is no name on this card, so the screen stays blank for the first 2 minutes." : "",
+      !performer.name && timing.nameMs ? `There is no name on this card, so the screen stays blank for the first ${durationWords(timing.nameMs)}.` : "",
       performer.slots.every((slot) => !slot) ? "No questions are lined up." : "",
     ].filter(Boolean);
-    if (warnings.length && !window.confirm(`Start ${who}'s 12 minutes?\n\n${warnings.join("\n")}`)) return;
+    if (warnings.length && !window.confirm(`Start ${who}'s ${durationWords(timing.setMs)}?\n\n${warnings.join("\n")}`)) return;
     const ok = await change(API, { segment: "start", performerId }, (data) => {
       takeLineup(data);
       setState((current) => current ? { ...current, menu: false, selected: null } : current);
       setNow(Date.now());
-      setNotice(`${who === "this performer" ? "The set" : `${who}'s set`} has started. Their name is on screen; the first question goes up at 2:00.`);
+      setNotice(`${who === "this performer" ? "The set" : `${who}'s set`} has started. ${timing.nameMs ? `Their name is on screen; the first question goes up at ${clockText(timing.nameMs)}.` : "The first question is up now."}`);
     }, "Could not start the set.");
     if (ok) await refresh();
   };
@@ -346,6 +347,17 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       setNotice("Set stopped.");
     }, "Could not stop the set.");
     if (ok) await refresh();
+  };
+
+  /** Set timing and clearing finished cards: the server answers with the whole lineup. */
+  const editLineup = async (body: object, done: string, failed: string) => {
+    const ok = await change(API, body, (data) => {
+      takeLineup(data);
+      setNotice(done);
+    }, failed);
+    // Questions that came out of a card are back in the waiting list.
+    if (ok) await refresh();
+    return ok;
   };
 
   const setManualOpen = (manualOpen: boolean) =>
@@ -573,6 +585,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 save={saveLineup}
                 start={startSet}
                 stop={stopSet}
+                edit={editLineup}
               />
             ) : null}
 

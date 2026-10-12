@@ -3,7 +3,12 @@
 import { useState } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { NAME_MS, PERFORMER_NAME_MAX, SEGMENT_MS, SEGMENT_SLOTS, SLOT_MS, slotStartMs, type Lineup, type SegmentStatus } from "@/lib/segment";
+import {
+  DEFAULT_TIMING, PERFORMER_NAME_MAX, clockText, moveCard, slotAt, slotStartMs, switchAfter, timingOf, timingSentence, timingShort,
+  type Lineup, type SegmentStatus, type SetTiming,
+} from "@/lib/segment";
+import SetTimingCard from "./SetTimingCard";
+import CardTiming from "./CardTiming";
 
 /** What is being dragged: a waiting question, or a question already in a card. */
 export type Drag = { from: "pile"; id: string } | { from: "slot"; performer: string; slot: number };
@@ -11,15 +16,14 @@ export type Drag = { from: "pile"; id: string } | { from: "slot"; performer: str
 /** The lineup as the API takes it: ids only for the questions. */
 export type LineupInput = { id: string; name: string; slots: (string | null)[] }[];
 
-/** The running set's clock, run forward on this page between polls. */
-export type Clock = { running: boolean; performerId: string | null; left: number; index: number | null };
+/** The running set's clock, run forward on this page between polls, on the timing that set started with. */
+export type Clock = { running: boolean; performerId: string | null; left: number; index: number | null; timing: SetTiming };
 
 export function clockFor(segment: SegmentStatus, segmentAt: number, now: number): Clock {
-  if (!segment.running) return { running: false, performerId: null, left: 0, index: null };
+  if (!segment.running) return { running: false, performerId: null, left: 0, index: null, timing: DEFAULT_TIMING };
+  const timing = segment.timing ?? DEFAULT_TIMING;
   const left = Math.max(0, segment.remainingMs - (now - segmentAt));
-  const elapsed = SEGMENT_MS - left;
-  const index = elapsed < NAME_MS ? null : Math.min(SEGMENT_SLOTS - 1, Math.floor((elapsed - NAME_MS) / SLOT_MS));
-  return { running: true, performerId: segment.performerId, left, index };
+  return { running: true, performerId: segment.performerId, left, index: slotAt(timing, timing.setMs - left), timing };
 }
 
 /** Slots before this one have been and gone on the running set; every slot is open on any other card. */
@@ -77,8 +81,7 @@ function newId(): string {
 
 /** m:ss, rounded up so a full set reads 12:00. */
 export function clock(ms: number): string {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+  return clockText(ms);
 }
 
 type Props = {
@@ -91,13 +94,16 @@ type Props = {
   save: (input: LineupInput, optimistic: Lineup) => Promise<void>;
   start: (performerId: string) => Promise<void>;
   stop: () => Promise<void>;
+  /** A timing or tidying change the server makes to the whole lineup: posts `body`, then says `done`. */
+  edit: (body: object, done: string, failed: string) => Promise<boolean>;
 };
 
 /**
- * One card per performer: their name (on screen for the first two minutes of
- * their set) and four questions, filled in ahead of time or during the show.
+ * One card per performer: their name (on screen at the start of their set)
+ * and their questions, filled in ahead of time or during the show. Every set
+ * runs the lineup's timing unless its card has its own.
  */
-export default function LineupPanel({ lineup, clock: time, waiting, busy, dragging, setDragging, save, start, stop }: Props) {
+export default function LineupPanel({ lineup, clock: time, waiting, busy, dragging, setDragging, save, start, stop, edit }: Props) {
   const [dropOn, setDropOn] = useState<string | null>(null);
   // What the host is typing in each name box, until it is saved.
   const [names, setNames] = useState<Record<string, string>>({});
@@ -109,12 +115,15 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
     if (dropped) known.set(dropped.id, { submissionId: dropped.id, question: dropped.decision, name: dropped.name.trim() });
     const old = new Map(lineup.performers.map((performer) => [performer.id, performer]));
     const optimistic: Lineup = {
+      ...lineup,
       performers: input.map((entry) => ({
         id: entry.id,
         name: entry.name,
         slots: entry.slots.map((id) => (id ? known.get(id) ?? null : null)),
+        timing: old.get(entry.id)?.timing ?? null,
         startedAt: old.get(entry.id)?.startedAt ?? null,
         stoppedAt: old.get(entry.id)?.stoppedAt ?? null,
+        ranWith: old.get(entry.id)?.ranWith ?? null,
       })),
     };
     void save(input, optimistic);
@@ -137,13 +146,19 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
     commit(input);
   };
 
-  const addPerformer = () => commit([...toInput(lineup), { id: newId(), name: "", slots: Array.from({ length: SEGMENT_SLOTS }, () => null) }]);
+  const addPerformer = () => commit([...toInput(lineup), { id: newId(), name: "", slots: Array.from({ length: lineup.timing.questions }, () => null) }]);
 
   const removePerformer = (id: string) => {
     const performer = lineup.performers.find((entry) => entry.id === id);
     if (!performer) return;
     if (performer.slots.some(Boolean) && !window.confirm(`Remove ${performer.name || "this performer"}? Their questions go back to the waiting list.`)) return;
     commit(toInput(lineup).filter((entry) => entry.id !== id));
+  };
+
+  /** Running order: one place up or down. */
+  const moveBy = (id: string, by: -1 | 1) => {
+    const input = moveCard(toInput(lineup), id, by);
+    if (input) commit(input);
   };
 
   const editSlots = (id: string, change: (slots: (string | null)[], open: number) => (string | null)[]) => {
@@ -160,6 +175,31 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
     editSlots(id, (slots, open) => slots.map((slot, i) => (i < open || slot || !pool.length ? slot : (pool.pop() as Submission).id)));
   };
 
+  const saveLineupTiming = (timing: SetTiming | null) => edit(
+    { lineupTiming: timing },
+    `${timing ? `Set timing saved: ${timingShort(timing)}.` : `Set timing back to the standard: ${timingShort(DEFAULT_TIMING)}.`}${time.running ? " The set on stage keeps the timing it started with." : ""}`,
+    "Could not save the set timing.",
+  );
+
+  const saveCardTiming = (id: string, timing: SetTiming | null) => {
+    const who = lineup.performers.find((entry) => entry.id === id)?.name || "This card";
+    return edit(
+      { cardTiming: { performerId: id, timing } },
+      timing ? `${who} now runs ${timingShort(timing)}.` : `${who} follows the lineup's set timing again.`,
+      "Could not save the set timing.",
+    );
+  };
+
+  // Cards whose set has run: cleared together once the host is done with them.
+  const finished = lineup.performers.filter((performer) => done(lineup, performer.id, time));
+  const clearFinished = () => {
+    if (!finished.length) return;
+    const who = finished.map((performer) => performer.name || "no name").join(", ");
+    if (!window.confirm(`Clear ${finished.length === 1 ? "the card" : `the ${finished.length} cards`} whose set has run (${who})? Questions in them that were never shown go back to the waiting list.`)) return;
+    void edit({ clearFinished: true }, "Finished cards cleared.", "Could not clear the finished cards.");
+  };
+  const someOwnTiming = lineup.performers.some((performer) => performer.timing);
+
   return (
     <div className="mb-6 rounded-lg border border-[#ff2e4d]/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -168,17 +208,20 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
           <p className="text-sm text-neutral-400">
             {time.running
               ? <>Running · <span className="font-semibold tabular-nums text-white">{clock(time.left)}</span> left{nextChange(time)}</>
-              : "12 minutes each: their name for 2 minutes, then a question at 2:00, 4:30, 7:00 and 9:30. Drag questions in any time."}
+              : `${timingSentence(lineup.timing)}${someOwnTiming ? " Some cards have their own timing." : ""} Drag questions in any time.`}
           </p>
         </div>
         {time.running ? <button type="button" onClick={() => void stop()} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Stop</button> : null}
       </div>
+      <SetTimingCard lineup={lineup} running={time.running} busy={busy} save={saveLineupTiming} />
 
       <div className="mt-3 space-y-4">
         {lineup.performers.map((performer, number) => {
           const live = time.running && time.performerId === performer.id;
           const open = firstOpen(time, performer.id);
           const ran = done(lineup, performer.id, time);
+          // The set on stage runs on the timing it started with; any other card shows the timing it would start with.
+          const timing = live ? time.timing : timingOf(lineup, performer);
           return (
             <div key={performer.id} className={`rounded-md border p-3 ${live ? "border-white bg-white/5" : ran ? "border-white/10 opacity-60" : "border-white/20"}`}>
               <div className="flex flex-wrap items-center gap-2">
@@ -197,11 +240,17 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                 {live
                   ? <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-black">On stage</span>
                   : <button type="button" onClick={() => void start(performer.id)} disabled={busy} className="rounded-md bg-[#ff2e4d] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">{ran ? "▶ Again" : "▶ Start"}</button>}
+                <span className="flex shrink-0">
+                  <button type="button" aria-label={`Move performer ${number + 1} up`} onClick={() => moveBy(performer.id, -1)} disabled={busy || number === 0} className="px-1 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
+                  <button type="button" aria-label={`Move performer ${number + 1} down`} onClick={() => moveBy(performer.id, 1)} disabled={busy || number === lineup.performers.length - 1} className="px-1 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
+                </span>
                 {live ? null : <button type="button" aria-label={`Remove performer ${number + 1}`} onClick={() => removePerformer(performer.id)} disabled={busy} className="px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✕</button>}
               </div>
-              <p className={`mt-2 text-xs ${live && time.index === null ? "font-semibold text-white" : "text-neutral-500"}`}>
-                0:00 · name on screen{live && time.index === null ? " now" : ""}
-              </p>
+              {timing.nameMs ? (
+                <p className={`mt-2 text-xs ${live && time.index === null ? "font-semibold text-white" : "text-neutral-500"}`}>
+                  0:00 · name on screen{live && time.index === null ? " now" : ""}
+                </p>
+              ) : null}
               <ol className="mt-2 space-y-1.5">
                 {performer.slots.map((slot, i) => {
                   const key = `${performer.id}:${i}`;
@@ -216,8 +265,8 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                       className={`flex items-start gap-3 rounded-md border px-3 py-2 ${up ? "border-white bg-white/10" : past ? "border-white/10 opacity-50" : dropOn === key ? "border-[#ff2e4d] bg-[#ff2e4d]/10" : "border-white/15"}`}
                     >
                       <span className="w-[4.5rem] shrink-0 text-xs leading-5 text-neutral-400">
-                        <span className="block font-semibold text-white">{clock(slotStartMs(i))}</span>
-                        {up ? "on screen" : past ? "done" : live ? `in ${clock(time.left - (SEGMENT_MS - slotStartMs(i)))}` : null}
+                        <span className="block font-semibold text-white">{clock(slotStartMs(i, timing))}</span>
+                        {up ? "on screen" : past ? "done" : live ? `in ${clock(time.left - (timing.setMs - slotStartMs(i, timing)))}` : null}
                       </span>
                       {slot ? (
                         <span
@@ -233,7 +282,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                       {!past ? (
                         <span className="flex shrink-0 gap-1">
                           <button type="button" aria-label="Move up" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i - 1))} disabled={busy || i <= open} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
-                          <button type="button" aria-label="Move down" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i + 1))} disabled={busy || i >= SEGMENT_SLOTS - 1} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
+                          <button type="button" aria-label="Move down" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i + 1))} disabled={busy || i >= performer.slots.length - 1} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
                           {slot ? <button type="button" aria-label="Empty slot" onClick={() => editSlots(performer.id, (slots) => slots.map((entry, j) => (j === i ? null : entry)))} disabled={busy} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✕</button> : null}
                         </span>
                       ) : null}
@@ -244,13 +293,17 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 <button type="button" onClick={() => fill(performer.id)} disabled={busy || !waiting.length || !performer.slots.some((slot, i) => i >= open && !slot)} className="rounded-md border border-white/30 px-2.5 py-1 disabled:opacity-40">🎲 Fill empty</button>
                 <button type="button" onClick={() => editSlots(performer.id, (slots, from) => slots.map((slot, i) => (i < from ? slot : null)))} disabled={busy || !performer.slots.some((slot, i) => i >= open && slot)} className="rounded-md px-2.5 py-1 text-neutral-400 underline disabled:opacity-40">Empty all</button>
+                <CardTiming lineup={lineup} performer={performer} live={live} liveTiming={time.timing} busy={busy} save={(next) => saveCardTiming(performer.id, next)} />
               </div>
             </div>
           );
         })}
       </div>
 
-      <button type="button" onClick={addPerformer} disabled={busy} className="mt-3 rounded-md border border-dashed border-white/40 px-4 py-2 text-sm disabled:opacity-50">+ Add performer</button>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" onClick={addPerformer} disabled={busy} className="rounded-md border border-dashed border-white/40 px-4 py-2 text-sm disabled:opacity-50">+ Add performer</button>
+        {finished.length ? <button type="button" onClick={clearFinished} disabled={busy} className="rounded-md border border-white/20 px-4 py-2 text-sm text-neutral-300 disabled:opacity-50">🧹 Clear finished cards ({finished.length})</button> : null}
+      </div>
       {time.running ? <p className="mt-2 text-xs text-neutral-500">While a set runs it owns the live screen; Show, Draw and Clear wait until it ends or you stop it.</p> : null}
     </div>
   );
@@ -264,8 +317,9 @@ function swap(slots: (string | null)[], a: number, b: number): (string | null)[]
 }
 
 function nextChange(time: Clock) {
-  const elapsed = SEGMENT_MS - time.left;
-  const next = time.index === null ? NAME_MS : time.index + 1 < SEGMENT_SLOTS ? slotStartMs(time.index + 1) : null;
-  if (next === null) return null;
+  // After the last question the next change is the end, which the time left already shows.
+  if (time.index !== null && time.index + 1 >= time.timing.questions) return null;
+  const next = switchAfter(time.timing, time.index);
+  const elapsed = time.timing.setMs - time.left;
   return <> · {time.index === null ? "first question" : "next"} in <span className="tabular-nums">{clock(next - elapsed)}</span></>;
 }
