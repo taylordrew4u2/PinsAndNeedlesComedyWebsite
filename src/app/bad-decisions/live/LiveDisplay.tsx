@@ -87,6 +87,9 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   const [message, setMessage] = useState<{ text: string; color: string } | null>(null);
   const messageSeen = useRef<boolean | undefined>(undefined);
   const soundTestSeen = useRef<string | null | undefined>(undefined);
+  // The message or the drink menu is over the question (as of the last poll), and a new question is waiting under them for its countdown.
+  const covered = useRef(false);
+  const held = useRef(false);
   useWakeLock();
   const area = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -161,6 +164,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         messageSeen.current = Boolean(carried.message);
         soundTestSeen.current = carried.soundTest ?? null;
         menuSeen.current = typeof carried.menu === "string" ? carried.menu : undefined;
+        held.current = carried.held === true;
       }
     } catch { /* storage blocked or garbled: start fresh */ }
     // The Control Center's mirror is not the TV: it never reports, and leaves the TV's note alone.
@@ -187,36 +191,52 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         muted.current = !setup.sound;
         setSettings((current) => JSON.stringify(current) === JSON.stringify(setup) ? current : setup);
         const countFrom = setup.countdown ? setup.countdownFrom : 0;
+        const nextMenu = data?.menu === true;
+        const nextMessage = readPublicMessage(data?.message);
+        covered.current = nextMenu || nextMessage !== null;
         const next = typeof data?.question === "string" ? data.question : null;
         const previous = shown.current;
         shown.current = next;
+        /** The countdown, then the sting and the drum roll: a new question arriving where the room can see it. */
+        const arrive = () => {
+          held.current = false;
+          busyUntil.current = Date.now() + countFrom * COUNTDOWN_STEP_MS + INTRO_MS + 1_000;
+          setCountdown(countFrom || null);
+          // Silent 3, 2, 1; the sting and the drum roll come in on the beat after "1".
+          for (let n = countFrom - 1; n >= 1; n -= 1) {
+            countdownTimers.current.push(setTimeout(() => setCountdown(n), (countFrom - n) * COUNTDOWN_STEP_MS));
+          }
+          const reveal = () => {
+            setCountdown(null);
+            // The host put a message or the menu up during the countdown: no sting under it; it all starts again when they come down.
+            if (covered.current) { held.current = true; return; }
+            sting();
+            const play = setup.intro && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            setIntro(play);
+            if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
+          };
+          // With the countdown off, straight in, in this same update, so the question never flashes up before its intro.
+          if (countFrom) countdownTimers.current.push(setTimeout(reveal, countFrom * COUNTDOWN_STEP_MS));
+          else reveal();
+        };
         if (next !== previous) {
           // A changed screen ends any countdown or intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
           countdownTimers.current.forEach(clearTimeout);
           countdownTimers.current = [];
           setIntro(false);
-          const fresh = previous !== undefined && next !== null;
-          setCountdown(fresh && countFrom ? countFrom : null);
-          if (fresh) {
-            busyUntil.current = Date.now() + countFrom * COUNTDOWN_STEP_MS + INTRO_MS + 1_000;
-            // Silent 3, 2, 1; the sting and the drum roll come in on the beat after "1".
-            for (let n = countFrom - 1; n >= 1; n -= 1) {
-              countdownTimers.current.push(setTimeout(() => setCountdown(n), (countFrom - n) * COUNTDOWN_STEP_MS));
-            }
-            const reveal = () => {
-              setCountdown(null);
-              sting();
-              const play = setup.intro && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-              setIntro(play);
-              if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
-            };
-            // With the countdown off, straight in, in this same update, so the question never flashes up before its intro.
-            if (countFrom) countdownTimers.current.push(setTimeout(reveal, countFrom * COUNTDOWN_STEP_MS));
-            else reveal();
+          setCountdown(null);
+          held.current = false;
+          // One that comes up under the host's message or the drink menu (a set moving on, or the moment before they come down) waits for them.
+          if (previous !== undefined && next !== null) {
+            if (covered.current) held.current = true;
+            else arrive();
           }
           // A cleared screen wipes; a new question has its own countdown and intro.
           if (previous && next === null) setWipe((count) => count + 1);
+        } else if (held.current && next !== null && !covered.current) {
+          // What covered it came down: now its countdown and sting, as the room first sees it.
+          arrive();
         }
         setQuestion(next);
         setName(next && setup.names && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
@@ -225,7 +245,6 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         if (performerSeen.current !== undefined && nextPerformer !== performerSeen.current && !(performerSeen.current && next)) setWipe((count) => count + 1);
         performerSeen.current = nextPerformer;
         setPerformer(nextPerformer);
-        const nextMenu = data?.menu === true;
         const look = data?.menuCustom;
         const custom: CustomLook | null = nextMenu && look && typeof look.color === "string" && typeof look.headline === "string"
           ? {
@@ -260,7 +279,6 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           explainerSeen.current = explainerAt;
           if (explainerAt && !opening) runExplainer();
         }
-        const nextMessage = readPublicMessage(data?.message);
         // The host's message going up or coming down wipes, like the drink menu; new words while it is up just fade in.
         if (messageSeen.current !== undefined && (nextMessage !== null) !== messageSeen.current) setWipe((count) => count + 1);
         messageSeen.current = nextMessage !== null;
@@ -292,7 +310,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
               sessionStorage.setItem(RELOAD_KEY, data.build);
               sessionStorage.setItem(CARRY_KEY, JSON.stringify({
                 at: now, question: shown.current ?? null, performer: performerSeen.current ?? null, explainer: explainerSeen.current ?? null,
-                message: messageSeen.current ?? false, soundTest: soundTestSeen.current ?? null, menu: menuSeen.current ?? null,
+                message: messageSeen.current ?? false, soundTest: soundTestSeen.current ?? null, menu: menuSeen.current ?? null, held: held.current,
               }));
               window.location.reload();
               return;

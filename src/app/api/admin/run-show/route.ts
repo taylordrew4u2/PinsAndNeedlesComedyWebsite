@@ -118,6 +118,9 @@ export async function GET(request: Request) {
  */
 async function show(submission: Submission | null, space: Space): Promise<LiveSelection | null> {
   const selected = submission ? selectionFor(submission) : null;
+  // The question goes up first, then the menu and message come down. A poll in between sees the new question
+  // still covered, and the live screen holds its countdown and sting until it is uncovered. The other order
+  // would flash the old question back up for a moment.
   await writeLiveSelection(selected, space);
   if (selected) {
     await writeMenu({ on: false }, space).catch((error) => console.error("[run-show] menu off failed", error));
