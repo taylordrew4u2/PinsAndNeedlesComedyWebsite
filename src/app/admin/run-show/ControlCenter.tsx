@@ -5,6 +5,9 @@ import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
 import { DEFAULT_MARQUEE, MARQUEE_MAX, type MenuStyle } from "@/lib/drink-menu";
 import CustomMenuCard, { type CustomMenuInput } from "./CustomMenuCard";
+import DrinkListCard from "./DrinkListCard";
+import MarqueeCard, { type MarqueeStyleInput } from "./MarqueeCard";
+import { parseDrinkList, type DrinkList } from "@/lib/drink-list";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
 import type { Lineup, SegmentStatus } from "@/lib/segment";
@@ -46,6 +49,17 @@ type State = {
   questionsOpen: boolean;
   manualOpen: boolean;
   pageLive: boolean;
+  /** The marquee on or off, its speed ("" for Normal) and its own colour ("" to follow the menu's text colour). */
+  marqueeOn: boolean;
+  marqueeSpeed: string;
+  marqueeColor: string;
+  /** The custom menu's wording under the QR code and over the bartender; "" for the printed wording. */
+  menuQrCaption: string;
+  menuQrTitle: string;
+  menuQrLink: string;
+  menuBartenderLabel: string;
+  /** The host's drink list, shown by both menus; null while it is the printed menu. */
+  drinks: DrinkList | null;
 };
 type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
 
@@ -230,6 +244,13 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       menuBartender: typeof data.menuBartender === "string" ? data.menuBartender : current.menuBartender,
       menuBartenderFont: typeof data.menuBartenderFont === "string" ? data.menuBartenderFont : current.menuBartenderFont,
       menuBartenderColor: typeof data.menuBartenderColor === "string" ? data.menuBartenderColor : current.menuBartenderColor,
+      marqueeOn: typeof data.marqueeOn === "boolean" ? data.marqueeOn : current.marqueeOn,
+      marqueeSpeed: typeof data.marqueeSpeed === "string" ? data.marqueeSpeed : current.marqueeSpeed,
+      marqueeColor: typeof data.marqueeColor === "string" ? data.marqueeColor : current.marqueeColor,
+      menuQrCaption: typeof data.menuQrCaption === "string" ? data.menuQrCaption : current.menuQrCaption,
+      menuQrTitle: typeof data.menuQrTitle === "string" ? data.menuQrTitle : current.menuQrTitle,
+      menuQrLink: typeof data.menuQrLink === "string" ? data.menuQrLink : current.menuQrLink,
+      menuBartenderLabel: typeof data.menuBartenderLabel === "string" ? data.menuBartenderLabel : current.menuBartenderLabel,
     } : current);
 
   const saveMarquee = (marquee: string) =>
@@ -256,6 +277,21 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       takeMenu(data);
       setNotice(data.menu && data.menuStyle === "custom" ? "Custom menu saved. The live screen has it now." : "Custom menu saved. It shows when you put the custom menu up.");
     }, "Could not save the custom menu.");
+
+  /** The marquee on or off, its speed and colour; its text stays as saved. */
+  const saveMarqueeStyle = (style: MarqueeStyleInput) =>
+    change(API, { marqueeStyle: style }, (data) => {
+      takeMenu(data);
+      setNotice(!style.on ? "Marquee off. The drink menu fills the screen." : data.menu ? "Marquee saved. The live screen has it now." : "Marquee saved. It runs when you show either drink menu.");
+    }, "Could not update the marquee.");
+
+  /** The whole drink list (null for the printed menu); `message` says what changed. */
+  const saveDrinks = (drinks: DrinkList | null, message: string) =>
+    change(API, { drinks }, (data) => {
+      const saved = parseDrinkList(data.drinks);
+      setState((current) => current ? { ...current, drinks: saved } : current);
+      setNotice(message);
+    }, "Could not save the drink list.");
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -492,9 +528,10 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Use default</button>
               </div>
               <p className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-neutral-500">
-                <span>{state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show either drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}</span>
+                <span>{state?.marquee ? (state.menu && state.marqueeOn ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show either drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}</span>
                 <span aria-live="polite">{(marqueeDraft ?? state?.marquee ?? "").length}/{MARQUEE_MAX}</span>
               </p>
+              {state ? <MarqueeCard on={state.marqueeOn} speed={state.marqueeSpeed} color={state.marqueeColor} text={state.marquee} busy={busy} save={saveMarqueeStyle} /> : null}
             </form>
 
             {state ? (
@@ -512,8 +549,16 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 qr={state.pageLive}
                 busy={busy}
                 save={saveCustomMenu}
+                qrCaption={state.menuQrCaption}
+                qrTitle={state.menuQrTitle}
+                qrLink={state.menuQrLink}
+                bartenderLabel={state.menuBartenderLabel}
+                marqueeStyle={{ on: state.marqueeOn, speed: state.marqueeSpeed, color: state.marqueeColor }}
+                drinks={state.drinks}
               />
             ) : null}
+
+            {state ? <DrinkListCard saved={state.drinks} live={state.menu} qr={state.pageLive} busy={busy} save={saveDrinks} /> : null}
 
             <div className="mt-6 rounded-lg border border-white/20 p-4">
               <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : "Questions are closed"}</p>

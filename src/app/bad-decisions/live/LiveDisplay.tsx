@@ -7,6 +7,8 @@ import { isNewerBuild, quietScreen } from "@/lib/build";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import type { CustomLook } from "@/lib/drink-menu";
+import { customWording } from "@/lib/drink-menu";
+import { parseLiveBoard, type LiveBoard } from "@/lib/drink-list";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { playIntroSound } from "@/lib/intro-sound";
@@ -40,6 +42,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   const [marquee, setMarquee] = useState<string | null>(null);
   // The custom menu's colour and line above the QR; null for the standard menu.
   const [menuCustom, setMenuCustom] = useState<CustomLook | null>(null);
+  // The host's drinks and the marquee's speed and colour; the printed menu at the usual pace until the first poll says otherwise.
+  const [board, setBoard] = useState<LiveBoard>(() => parseLiveBoard(null));
   // A newly picked question gets a drum roll first; the screen opening on one does not.
   const [intro, setIntro] = useState(false);
   const shown = useRef<string | null | undefined>(undefined);
@@ -189,6 +193,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
             bartender: typeof look.bartender === "string" ? look.bartender : "",
             bartenderFont: isScriptFont(look.bartenderFont) ? look.bartenderFont : DEFAULT_SCRIPT_FONT,
             bartenderColor: typeof look.bartenderColor === "string" ? look.bartenderColor : look.color,
+            ...customWording(look),
           }
           : null;
         const which = nextMenu ? (custom ? "custom" : "standard") : "off";
@@ -198,6 +203,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         setMenuCustom((current) => current && custom && JSON.stringify(current) === JSON.stringify(custom) ? current : custom);
         setMenu(nextMenu);
         setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
+        const nextBoard = parseLiveBoard(data);
+        setBoard((current) => (JSON.stringify(current) === JSON.stringify(nextBoard) ? current : nextBoard));
         const segment = data?.segment && typeof data.segment.remainingMs === "number" ? data.segment as { remainingMs: number; nextSwitchMs: number } : null;
         setSegmentEnd(segment ? Date.now() + segment.remainingMs : null);
         clearTimeout(switchTimer);
@@ -327,7 +334,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     <>
     {menu ? (
       <main className={`pnc-screen-in select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
-        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} marquee={marquee} custom={menuCustom} />
+        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} />
       </main>
     ) : (
     <main

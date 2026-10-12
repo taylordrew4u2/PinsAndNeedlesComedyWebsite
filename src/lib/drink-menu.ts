@@ -3,9 +3,16 @@ import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont, type 
 /**
  * The venue's drink menu, as the live screen shows it between sets. Copied
  * from Pixelated Records' printed menu; edit here when their list changes.
+ * The host can keep a list of their own from the Control Center (see
+ * drink-list.ts); until they do, and after "Back to the printed menu", this is it.
+ *
+ * `id` keeps a drink or section the same one while the host edits and moves
+ * it (the printed menu goes by its names). A sold-out drink stays on the
+ * board, crossed out. A section with `shared` set lists its drinks without
+ * prices even when no shared price is written in.
  */
-export type Drink = { name: string; price?: string; detail?: string };
-export type DrinkSection = { title: string; price?: string; drinks: Drink[] };
+export type Drink = { id?: string; name: string; price?: string; detail?: string; soldOut?: boolean };
+export type DrinkSection = { id?: string; title: string; price?: string; shared?: boolean; drinks: Drink[] };
 
 export const DRINK_MENU: DrinkSection[][] = [
   [
@@ -80,6 +87,33 @@ export const DEFAULT_MARQUEE = "Pins & Needles Comedy";
 /** Longest marquee the Control Center accepts; long enough for a plug, short enough to read. */
 export const MARQUEE_MAX = 140;
 
+/** How fast the marquee has always crawled, in board pixels per second. */
+export const DEFAULT_MARQUEE_SPEED = 90;
+
+/**
+ * The marquee speeds the host picks from, in board pixels per second. Named
+ * rather than a free number, so it can never be set to a blur or a standstill;
+ * Normal ("") is the speed it has always run at.
+ */
+export const MARQUEE_SPEEDS = [
+  { id: "slowest", label: "Very slow", speed: 30 },
+  { id: "slow", label: "Slow", speed: 55 },
+  { id: "", label: "Normal", speed: DEFAULT_MARQUEE_SPEED },
+  { id: "fast", label: "Fast", speed: 140 },
+  { id: "fastest", label: "Very fast", speed: 210 },
+] as const;
+
+export type MarqueeSpeedId = (typeof MARQUEE_SPEEDS)[number]["id"];
+
+export function isMarqueeSpeed(id: unknown): id is MarqueeSpeedId {
+  return MARQUEE_SPEEDS.some((speed) => speed.id === id);
+}
+
+/** A stored speed in board pixels per second; anything unknown runs at Normal. */
+export function marqueeSpeedOf(id: unknown): number {
+  return MARQUEE_SPEEDS.find((speed) => speed.id === id)?.speed ?? DEFAULT_MARQUEE_SPEED;
+}
+
 /** Longest line the host can put above the QR code on the custom menu. */
 export const HEADLINE_MAX = 80;
 
@@ -91,6 +125,23 @@ export const BARTENDER_MAX = 40;
 
 /** What the custom menu says above the QR code until the host writes their own. */
 export const DEFAULT_HEADLINE = "Don’t miss the 9 PM show! Scan here for Bad Decisions";
+
+/**
+ * The rest of the custom menu's wording the host can change: the three lines
+ * under the QR code and the label over tonight's bartender. Each starts as
+ * the printed board has it, and an empty one goes back to that. The limits
+ * keep each to a line or two in its space on the board.
+ */
+export const MENU_WORDING = {
+  qrCaption: { label: "Small line under the QR code", fallback: "SCAN TO SUBMIT", max: 28 },
+  qrTitle: { label: "Big line under the QR code", fallback: "YOUR BAD DECISIONS", max: 28 },
+  qrLink: { label: "Web address under the QR code", fallback: "pinsandneedlescomedy.com/bad-decisions", max: 48 },
+  bartenderLabel: { label: "Over the bartender’s name", fallback: "Your bartender tonight", max: 32 },
+} as const;
+
+export type WordingKey = keyof typeof MENU_WORDING;
+export const WORDING_KEYS = Object.keys(MENU_WORDING) as WordingKey[];
+export type MenuWording = Record<WordingKey, string>;
 
 /** The custom menu's text colour until the host picks one: the brand red. */
 export const DEFAULT_MENU_COLOR = "#FF2E4D";
@@ -114,16 +165,18 @@ export type MenuState = {
   on: boolean; style: MenuStyle; marquee: string; color: string; headline: string; note: string; noteColor: string;
   /** The custom menu's font ("" for the standard one), and tonight's bartender in a script font and colour of their own. */
   font: string; bartender: string; bartenderFont: string; bartenderColor: string;
-};
+  /** The marquee on (as it has always been) or off, its speed ("" for Normal) and its own colour ("" for the menu's text colour). */
+  marqueeOn: boolean; marqueeSpeed: string; marqueeColor: string;
+} & MenuWording;
 
 /** What the custom menu draws, defaults filled in. An empty note or bartender is left off. */
 export type CustomLook = {
   color: string; headline: string; note: string; noteColor: string;
   font: MenuFontId; bartender: string; bartenderFont: ScriptFontId; bartenderColor: string;
-};
+} & MenuWording;
 
 /** One line of plain text, trimmed and capped. Anything that is not a string is no text. */
-function cleanLine(raw: unknown, max: number): string {
+export function cleanLine(raw: unknown, max: number): string {
   if (typeof raw !== "string") return "";
   return raw.replace(/\s+/g, " ").trim().slice(0, max).trim();
 }
@@ -145,6 +198,29 @@ export function cleanBartender(raw: unknown): string {
   return cleanLine(raw, BARTENDER_MAX);
 }
 
+/** One line of the custom menu's wording, trimmed and capped; "" is the printed wording. */
+export function cleanWording(key: WordingKey, raw: unknown): string {
+  return cleanLine(raw, MENU_WORDING[key].max);
+}
+
+/** Only the wording the host sent, cleaned: what they left out keeps what is saved. */
+export function wordingChange(raw: Record<string, unknown>): Partial<MenuWording> {
+  return Object.fromEntries(WORDING_KEYS.filter((key) => raw[key] !== undefined).map((key) => [key, cleanWording(key, raw[key])]));
+}
+
+/**
+ * The wording with the printed wording in every blank, for drawing. The live
+ * screen also reads its answer through this, so a missing line (an older
+ * server, a damaged answer) still draws the printed board.
+ */
+export function customWording(raw: unknown): MenuWording {
+  const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  return Object.fromEntries(WORDING_KEYS.map((key) => {
+    const text = value[key];
+    return [key, typeof text === "string" && text.trim() ? text : MENU_WORDING[key].fallback];
+  })) as MenuWording;
+}
+
 /** A six-digit hex colour, upper-cased; anything else is no colour (the default). */
 export function cleanColor(raw: unknown): string {
   if (typeof raw !== "string") return "";
@@ -155,7 +231,10 @@ export function cleanColor(raw: unknown): string {
 /** The stored menu record. Anything malformed reads as off, standard, with the defaults. */
 export function parseMenuState(raw: unknown): MenuState {
   if (!raw || typeof raw !== "object") {
-    return { on: false, style: "standard", marquee: "", color: "", headline: "", note: "", noteColor: "", font: "", bartender: "", bartenderFont: "", bartenderColor: "" };
+    return {
+      on: false, style: "standard", marquee: "", color: "", headline: "", note: "", noteColor: "", font: "", bartender: "", bartenderFont: "", bartenderColor: "",
+      marqueeOn: true, marqueeSpeed: "", marqueeColor: "", qrCaption: "", qrTitle: "", qrLink: "", bartenderLabel: "",
+    };
   }
   const value = raw as Record<string, unknown>;
   return {
@@ -170,6 +249,14 @@ export function parseMenuState(raw: unknown): MenuState {
     bartender: cleanBartender(value.bartender),
     bartenderFont: isScriptFont(value.bartenderFont) ? value.bartenderFont : "",
     bartenderColor: cleanColor(value.bartenderColor),
+    // Only a marquee switched off on purpose is off: a record from before the switch runs it, as it always did.
+    marqueeOn: value.marqueeOn !== false,
+    marqueeSpeed: isMarqueeSpeed(value.marqueeSpeed) ? value.marqueeSpeed : "",
+    marqueeColor: cleanColor(value.marqueeColor),
+    qrCaption: cleanWording("qrCaption", value.qrCaption),
+    qrTitle: cleanWording("qrTitle", value.qrTitle),
+    qrLink: cleanWording("qrLink", value.qrLink),
+    bartenderLabel: cleanWording("bartenderLabel", value.bartenderLabel),
   };
 }
 
@@ -183,5 +270,16 @@ export function customLook(state: MenuState): CustomLook | null {
     bartender: state.bartender,
     bartenderFont: isScriptFont(state.bartenderFont) ? state.bartenderFont : DEFAULT_SCRIPT_FONT,
     bartenderColor: state.bartenderColor || color,
+    ...customWording(state),
   };
+}
+
+/** The marquee the live screen runs: only while a menu is up with the marquee on, in the default text until the host writes one. */
+export function liveMarquee(state: MenuState): string | null {
+  return state.on && state.marqueeOn ? state.marquee || DEFAULT_MARQUEE : null;
+}
+
+/** How fast the live screen runs it, and in what colour ("" for the menu's text colour); null while no menu is up. */
+export function liveMarqueeLook(state: MenuState): { speed: number; color: string } | null {
+  return state.on ? { speed: marqueeSpeedOf(state.marqueeSpeed), color: state.marqueeColor } : null;
 }

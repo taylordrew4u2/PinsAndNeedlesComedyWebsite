@@ -1,24 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import DrinkMenu from "@/components/DrinkMenu";
 import { MENU_FONT_FAMILY, SCRIPT_FONT_FAMILY } from "@/components/menu-font-faces";
-import { BARTENDER_MAX, DEFAULT_HEADLINE, DEFAULT_MARQUEE, DEFAULT_MENU_COLOR, HEADLINE_MAX, MENU_COLORS, NOTE_MAX } from "@/lib/drink-menu";
+import { BARTENDER_MAX, DEFAULT_HEADLINE, DEFAULT_MARQUEE, DEFAULT_MENU_COLOR, HEADLINE_MAX, MENU_COLORS, MENU_WORDING, NOTE_MAX, customWording, marqueeSpeedOf, type MenuWording, type WordingKey } from "@/lib/drink-menu";
+import { visibleMenu, type DrinkList } from "@/lib/drink-list";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, MENU_FONTS, SCRIPT_FONTS, isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 
 /**
  * What the card saves. "" means the default: the brand red, the 9 PM line,
- * the standard font, Great Vibes; no note or bartender; and for the note and
- * bartender colours, the menu's text colour.
+ * the standard font, Great Vibes; no note or bartender; for the note and
+ * bartender colours, the menu's text colour; and the printed wording under
+ * the QR code and over the bartender.
  */
 export type CustomMenuInput = {
   color: string; headline: string; note: string; noteColor: string;
   font: string; bartender: string; bartenderFont: string; bartenderColor: string;
-};
+} & MenuWording;
 
 type Props = CustomMenuInput & {
   /** The saved marquee, so the preview runs the same text the room will see. */
   marquee: string;
+  /** How the marquee runs (on or off, speed, colour), for the preview; left out, as it always has. */
+  marqueeStyle?: { on: boolean; speed: string; color: string };
+  /** The host's drink list, for the preview; null or left out, the printed menu. */
+  drinks?: DrinkList | null;
   /** The custom menu is on the live screen right now. */
   live: boolean;
   /** The live screen shows the QR (the Bad Decisions page is on), and so the line above it. */
@@ -27,17 +33,26 @@ type Props = CustomMenuInput & {
   save: (look: CustomMenuInput) => Promise<boolean>;
 };
 
-const EMPTY: CustomMenuInput = { color: "", headline: "", note: "", noteColor: "", font: "", bartender: "", bartenderFont: "", bartenderColor: "" };
+const EMPTY: CustomMenuInput = {
+  color: "", headline: "", note: "", noteColor: "", font: "", bartender: "", bartenderFont: "", bartenderColor: "",
+  qrCaption: "", qrTitle: "", qrLink: "", bartenderLabel: "",
+};
+
+/** Drawn as typed, so a change of capitals is a change; everything else on the board is in capitals (or a colour). */
+const AS_TYPED: (keyof CustomMenuInput)[] = ["bartender", "qrLink"];
 
 /**
  * The custom drink menu's differences from the standard one: its text colour
- * and font, the line above the QR code, and, in the empty space under the
- * first two columns, tonight's bartender and a note, each in its own colour.
- * Shows a preview of the board as the edits are made, before anything is saved.
+ * and font, the line above the QR code and the wording under it, and, in the
+ * empty space under the first two columns, tonight's bartender and a note,
+ * each in its own colour. Shows a preview of the board as the edits are made,
+ * before anything is saved.
  */
-export default function CustomMenuCard({ marquee, live, qr, busy, save, ...saved }: Props) {
+export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr, busy, save, ...saved }: Props) {
   // Only what the host has touched; everything else shows the saved value.
   const [draft, setDraft] = useState<Partial<CustomMenuInput>>({});
+  // How the drinks fit this board: a longer list, a bartender and a note all take room.
+  const [fit, setFit] = useState({ size: 1, fits: true });
   const edit = (change: Partial<CustomMenuInput>) => setDraft((current) => ({ ...current, ...change }));
   const value = { ...saved, ...draft };
 
@@ -52,6 +67,15 @@ export default function CustomMenuCard({ marquee, live, qr, busy, save, ...saved
     bartender: value.bartender,
     bartenderFont: isScriptFont(value.bartenderFont) ? value.bartenderFont : DEFAULT_SCRIPT_FONT,
     bartenderColor: value.bartenderColor || color,
+    ...customWording(value),
+  };
+  const shownDrinks = useMemo(() => visibleMenu(drinks ?? null), [drinks]);
+
+  // The printed wording, as a draft or saved value: saved as "" so it keeps following the printed wording.
+  const printed = (key: WordingKey) => {
+    const text = value[key].trim();
+    const fallback = MENU_WORDING[key].fallback;
+    return AS_TYPED.includes(key) ? text === fallback : text.toUpperCase() === fallback.toUpperCase();
   };
 
   // Saved with defaults as "", so a value left at its default keeps following it.
@@ -64,13 +88,19 @@ export default function CustomMenuCard({ marquee, live, qr, busy, save, ...saved
     bartender: value.bartender,
     bartenderFont: value.bartenderFont === DEFAULT_SCRIPT_FONT ? "" : value.bartenderFont,
     bartenderColor: value.bartenderColor,
+    qrCaption: printed("qrCaption") ? "" : value.qrCaption,
+    qrTitle: printed("qrTitle") ? "" : value.qrTitle,
+    qrLink: printed("qrLink") ? "" : value.qrLink,
+    bartenderLabel: printed("bartenderLabel") ? "" : value.bartenderLabel,
   });
   const next = toSave();
-  // Case only matters where the board shows it as typed: the bartender's name. Colours compare as hex, the rest is drawn in capitals.
+  // Case only matters where the board shows it as typed: the bartender's name and the web address. Colours compare as hex, the rest is drawn in capitals.
   const changed = (Object.keys(EMPTY) as (keyof CustomMenuInput)[])
-    .some((key) => key === "bartender"
+    .some((key) => AS_TYPED.includes(key)
       ? next[key].trim() !== saved[key].trim()
       : next[key].trim().toUpperCase() !== saved[key].trim().toUpperCase());
+  /** A wording box: the printed wording until the host types, and empty (the printed wording again) once they clear it. */
+  const wordingValue = (key: WordingKey) => value[key] || (draft[key] === undefined ? MENU_WORDING[key].fallback : "");
 
   const submit = async (input: CustomMenuInput) => {
     if (await save(input)) setDraft({});
@@ -111,8 +141,25 @@ export default function CustomMenuCard({ marquee, live, qr, busy, save, ...saved
       />
       {qr ? null : <p className="mt-1 text-xs text-amber-200">The Bad Decisions page is switched off, so the screen has no QR code, and this line stays off with it. Open questions to bring both back.</p>}
 
+      <p className="mt-4 text-xs text-neutral-400">Under the QR code (empty goes back to the printed wording)</p>
+      <div className="mt-1 grid gap-2 sm:grid-cols-2">
+        {(["qrCaption", "qrTitle", "qrLink"] as const).map((key) => (
+          <label key={key} className={`block text-xs text-neutral-500 ${key === "qrLink" ? "sm:col-span-2" : ""}`}>
+            {MENU_WORDING[key].label}{key === "qrLink" ? "" : " (in capitals)"}
+            <input
+              type="text"
+              value={wordingValue(key)}
+              onChange={(event) => edit({ [key]: event.target.value })}
+              maxLength={MENU_WORDING[key].max}
+              placeholder={MENU_WORDING[key].fallback}
+              className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+            />
+          </label>
+        ))}
+      </div>
+
       <div className="mt-4 rounded-md border border-white/15 p-3">
-        <label htmlFor="menu-bartender" className="block text-xs text-neutral-400">Bartender tonight (shows under &ldquo;Your bartender tonight&rdquo;)</label>
+        <label htmlFor="menu-bartender" className="block text-xs text-neutral-400">Bartender tonight (shows under &ldquo;{look.bartenderLabel}&rdquo;)</label>
         <input
           id="menu-bartender"
           type="text"
@@ -139,6 +186,17 @@ export default function CustomMenuCard({ marquee, live, qr, busy, save, ...saved
         </div>
         <ColorRow label="Name colour" value={look.bartenderColor} onPick={(pick) => edit({ bartenderColor: pick })} />
         <p className="mt-1 text-xs text-neutral-500">{value.bartender.trim() ? `${value.bartender.length}/${BARTENDER_MAX}` : "Empty means no bartender on the menu."}</p>
+        <label className="mt-3 block text-xs text-neutral-400">
+          {MENU_WORDING.bartenderLabel.label} (in capitals)
+          <input
+            type="text"
+            value={wordingValue("bartenderLabel")}
+            onChange={(event) => edit({ bartenderLabel: event.target.value })}
+            maxLength={MENU_WORDING.bartenderLabel.max}
+            placeholder={MENU_WORDING.bartenderLabel.fallback}
+            className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+          />
+        </label>
       </div>
 
       <label htmlFor="menu-note" className="mt-4 block text-xs text-neutral-400">Note in the empty space (under the bartender)</label>
@@ -155,8 +213,24 @@ export default function CustomMenuCard({ marquee, live, qr, busy, save, ...saved
       <ColorRow label="Note colour" value={look.noteColor} onPick={(pick) => edit({ noteColor: pick })} />
 
       <div className="relative mt-3 aspect-video w-full overflow-hidden rounded-md border border-white/15" aria-label="Preview of the custom menu">
-        <DrinkMenu contained qrSrc={qr ? "/api/decisions/live/qr" : undefined} marquee={marquee || DEFAULT_MARQUEE} custom={look} />
+        <DrinkMenu
+          contained
+          qrSrc={qr ? "/api/decisions/live/qr" : undefined}
+          marquee={marqueeStyle?.on === false ? null : marquee || DEFAULT_MARQUEE}
+          marqueeSpeed={marqueeSpeedOf(marqueeStyle?.speed)}
+          marqueeColor={marqueeStyle?.color}
+          custom={look}
+          drinks={shownDrinks}
+          onFit={setFit}
+        />
       </div>
+      {fit.fits && fit.size === 1 ? null : (
+        <p className={`mt-2 text-xs ${fit.fits ? "text-neutral-500" : "text-amber-200"}`}>
+          {fit.fits
+            ? `To fit everything on this menu, the drinks are set at ${Math.round(fit.size * 100)}% size.`
+            : "Too much to fit on this menu: the screen would cut some drinks off. Shorten the note, or hide a few drinks in the drink list."}
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="submit" disabled={busy || !changed} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
