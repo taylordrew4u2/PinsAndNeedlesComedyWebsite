@@ -795,6 +795,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 start={startSet}
                 stop={stopSet}
                 edit={editLineup}
+                editQuestion={editQuestion}
               />
             ) : null}
 

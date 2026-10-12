@@ -9,6 +9,8 @@ import {
 } from "@/lib/segment";
 import SetTimingCard from "./SetTimingCard";
 import CardTiming from "./CardTiming";
+import QuestionEditor from "./QuestionEditor";
+import type { QuestionChange } from "@/lib/questions";
 
 /** What is being dragged: a waiting question, or a question already in a card. */
 export type Drag = { from: "pile"; id: string } | { from: "slot"; performer: string; slot: number };
@@ -96,6 +98,8 @@ type Props = {
   stop: () => Promise<void>;
   /** A timing or tidying change the server makes to the whole lineup: posts `body`, then says `done`. */
   edit: (body: object, done: string, failed: string) => Promise<boolean>;
+  /** Fix a question's words or name while it waits in a card (the same edit as in the lists). */
+  editQuestion: (id: string, change: QuestionChange) => Promise<boolean>;
 };
 
 /**
@@ -103,8 +107,10 @@ type Props = {
  * and their questions, filled in ahead of time or during the show. Every set
  * runs the lineup's timing unless its card has its own.
  */
-export default function LineupPanel({ lineup, clock: time, waiting, busy, dragging, setDragging, save, start, stop, edit }: Props) {
+export default function LineupPanel({ lineup, clock: time, waiting, busy, dragging, setDragging, save, start, stop, edit, editQuestion }: Props) {
   const [dropOn, setDropOn] = useState<string | null>(null);
+  // The question whose editor is open, by id, so it follows the question if the slots move under it.
+  const [editingSlot, setEditingSlot] = useState<string | null>(null);
   // What the host is typing in each name box, until it is saved.
   const [names, setNames] = useState<Record<string, string>>({});
 
@@ -268,7 +274,11 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                         <span className="block font-semibold text-white">{clock(slotStartMs(i, timing))}</span>
                         {up ? "on screen" : past ? "done" : live ? `in ${clock(time.left - (timing.setMs - slotStartMs(i, timing)))}` : null}
                       </span>
-                      {slot ? (
+                      {slot && slot.submissionId === editingSlot ? (
+                        <div className="min-w-0 flex-1">
+                          <QuestionEditor question={slotQuestion(slot)} live={up} busy={busy} save={(change) => editQuestion(slot.submissionId, change)} close={() => setEditingSlot(null)} />
+                        </div>
+                      ) : slot ? (
                         <span
                           draggable={!past && !busy}
                           onDragStart={(event) => { event.dataTransfer.setData("text/plain", slot.question); setDragging({ from: "slot", performer: performer.id, slot: i }); }}
@@ -283,6 +293,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                         <span className="flex shrink-0 gap-1">
                           <button type="button" aria-label="Move up" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i - 1))} disabled={busy || i <= open} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
                           <button type="button" aria-label="Move down" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i + 1))} disabled={busy || i >= performer.slots.length - 1} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
+                          {slot && slot.submissionId !== editingSlot ? <button type="button" aria-label="Edit question" title="Fix the words or the name" onClick={() => setEditingSlot(slot.submissionId)} disabled={busy} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✎</button> : null}
                           {slot ? <button type="button" aria-label="Empty slot" onClick={() => editSlots(performer.id, (slots) => slots.map((entry, j) => (j === i ? null : entry)))} disabled={busy} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✕</button> : null}
                         </span>
                       ) : null}
@@ -322,4 +333,13 @@ function nextChange(time: Clock) {
   const next = switchAfter(time.timing, time.index);
   const elapsed = time.timing.setMs - time.left;
   return <> · {time.index === null ? "first question" : "next"} in <span className="tabular-nums">{clock(next - elapsed)}</span></>;
+}
+
+/**
+ * A card's copy of a question, as the editor takes it. The copy has no
+ * record of what the sender first wrote, so "Revert to original" is offered
+ * once the question is back in a list.
+ */
+function slotQuestion(slot: LiveSelection): Submission {
+  return { id: slot.submissionId, decision: slot.question, name: slot.name, createdAt: "", status: "open", drawnAt: "" };
 }
