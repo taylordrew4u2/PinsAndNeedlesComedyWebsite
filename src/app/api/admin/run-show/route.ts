@@ -254,7 +254,7 @@ export async function POST(request: Request) {
     if (!valid) return NextResponse.json({ error: "Invalid lineup" }, { status: 400, headers });
     try {
       const lineup = await readLineup(space);
-      // Each card holds as many questions as its timing says; a different count was made against a lineup that has since changed.
+      // Each card comes back with as many slots as it holds now; a different count was made against a lineup that has since changed.
       if ((raw as { id: string; slots: unknown[] }[]).some((entry) => entry.slots.length !== slotCountFor(lineup, entry.id))) {
         return NextResponse.json({ error: "The lineup just changed. Look it over and try again." }, { status: 409, headers });
       }

@@ -7,7 +7,7 @@ import { DEFAULT_MARQUEE, MARQUEE_MAX, type MenuStyle } from "@/lib/drink-menu";
 import CustomMenuCard, { type CustomMenuInput } from "./CustomMenuCard";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
-import { clockText, durationWords, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
+import { clockText, durationWords, parseLineup, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
 import LineupPanel, { applyDrop, clockFor, firstEmptySlot, type Drag, type LineupInput } from "./LineupPanel";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
@@ -120,7 +120,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
         }
       }
       known.current = new Set([...(known.current ?? []), ...ids]);
-      setState({ ...data, segmentAt: Date.now() });
+      // Read the lineup as the server does, so one missing a newer field (say, from an older build) still draws.
+      setState({ ...data, lineup: parseLineup(data.lineup), segmentAt: Date.now() });
       if (isNewerBuild(build, (data as { build?: unknown }).build)) setUpdated(true);
       setError("");
     } catch (failure) {
@@ -292,7 +293,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
   const takeLineup = (data: Change & Record<string, unknown>) => {
     if (!data.lineup || !data.segment) return;
-    const lineup = data.lineup;
+    const lineup = parseLineup(data.lineup);
     const segment = data.segment;
     setState((current) => current ? { ...current, lineup, segment, segmentAt: Date.now() } : current);
   };

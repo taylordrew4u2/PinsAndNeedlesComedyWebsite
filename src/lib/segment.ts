@@ -86,7 +86,7 @@ export function switchAfter(timing: SetTiming, index: number | null): number {
 export type Performer = {
   id: string;
   name: string;
-  /** One per question in this card's set (its timing's `questions`); null is an empty slot. */
+  /** One per question in this card's set (its timing's `questions`; the set on stage, as many as it started with); null is an empty slot. */
   slots: (LiveSelection | null)[];
   /** This card's own timing; null follows the lineup's. */
   timing: SetTiming | null;
@@ -133,10 +133,20 @@ export function timingOf(lineup: Lineup, performer: Performer): SetTiming {
   return performer.timing ?? lineup.timing;
 }
 
-/** How many questions a card holds; a card not in the lineup yet gets the lineup's number. */
+/**
+ * The timing a card's questions are laid out on: the one it would start with.
+ * A set that kept its questions when the lineup's number changed mid-set
+ * still holds them, on the timing it ran with, until the card is next saved.
+ */
+export function slotTimingOf(lineup: Lineup, performer: Performer): SetTiming {
+  const timing = timingOf(lineup, performer);
+  const ran = performer.ranWith;
+  return ran && performer.slots.length !== timing.questions && performer.slots.length === ran.questions ? ran : timing;
+}
+
+/** How many questions a card holds now; a card not in the lineup yet gets the lineup's number. */
 export function slotCountFor(lineup: Lineup, id: string): number {
-  const performer = lineup.performers.find((entry) => entry.id === id);
-  return (performer ? timingOf(lineup, performer) : lineup.timing).questions;
+  return lineup.performers.find((entry) => entry.id === id)?.slots.length ?? lineup.timing.questions;
 }
 
 export function cleanPerformerName(value: unknown): string {
@@ -176,15 +186,19 @@ export function parseLineup(raw: unknown): Lineup {
     seen.add(item.id);
     const own = parseTiming(item.timing);
     const startedAt = isoOrNull(item.startedAt);
+    // A set started before timing could change ran the standard twelve minutes.
+    const ranWith = startedAt ? parseTiming(item.ranWith) ?? DEFAULT_TIMING : null;
+    // A card on the lineup's timing that still holds the questions its set
+    // started with keeps them: the lineup's number changed while it was on stage.
+    const held = !own && ranWith && Array.isArray(item.slots) && item.slots.length === ranWith.questions ? ranWith : own ?? timing;
     performers.push({
       id: item.id,
       name: cleanPerformerName(item.name),
-      slots: parseSlots(item.slots, (own ?? timing).questions),
+      slots: parseSlots(item.slots, held.questions),
       timing: own,
       startedAt,
       stoppedAt: isoOrNull(item.stoppedAt),
-      // A set started before timing could change ran the standard twelve minutes.
-      ranWith: startedAt ? parseTiming(item.ranWith) ?? DEFAULT_TIMING : null,
+      ranWith,
     });
   }
   return { timing, performers };
@@ -241,9 +255,10 @@ export type PerformerInput = { id: string; name: string; slots: (LiveSelection |
 
 /**
  * The host's new lineup over the old one. Cards keep their run history and
- * their timing, and hold as many questions as their timing says. While a set
- * runs, its slots that have been on screen stay as they were and the card
- * cannot be removed; the clock is never touched.
+ * their timing, and hold as many questions as their timing says; the set on
+ * stage holds as many as it started with. While a set runs, its slots that
+ * have been on screen stay as they were and the card cannot be removed; the
+ * clock is never touched.
  */
 export function rearrange(lineup: Lineup, next: PerformerInput[], now: number): Lineup {
   const old = new Map(lineup.performers.map((performer) => [performer.id, performer]));
@@ -256,10 +271,12 @@ export function rearrange(lineup: Lineup, next: PerformerInput[], now: number): 
     const status = before ? performerStatus(before, now) : IDLE;
     const locked = status.running && status.index !== null ? status.index : 0;
     const timing = before?.timing ?? null;
+    // Once a set is over, its card fits its timing again.
+    const count = (status.timing ?? timing ?? lineup.timing).questions;
     performers.push({
       id: input.id,
       name: cleanPerformerName(input.name),
-      slots: emptySlots((timing ?? lineup.timing).questions).map((_, i) => (before && i < locked ? before.slots[i] ?? null : input.slots[i] ?? null)),
+      slots: emptySlots(count).map((_, i) => (before && i < locked ? before.slots[i] ?? null : input.slots[i] ?? null)),
       timing,
       startedAt: before?.startedAt ?? null,
       stoppedAt: before?.stoppedAt ?? null,
@@ -297,18 +314,15 @@ export function stopAll(lineup: Lineup, now: number): Lineup {
 /**
  * A new timing for the lineup. Cards that follow it take its number of
  * questions: added slots are empty, and questions in slots that go come out
- * of the card. The set on stage is never changed: if it was following the
- * lineup, it keeps the timing it started with as its own.
+ * of the card. The set on stage is never changed: it runs out on the timing
+ * it started with and keeps its questions, and it still follows the lineup,
+ * so its next set (and the next change here) takes the lineup's timing.
  */
 export function setLineupTiming(lineup: Lineup, timing: SetTiming, now: number): Lineup {
   return {
     timing,
     performers: lineup.performers.map((performer) => {
-      if (performer.timing) return performer;
-      if (performerStatus(performer, now).running) {
-        const ran = performer.ranWith ?? DEFAULT_TIMING;
-        return sameTiming(ran, timing) ? performer : { ...performer, timing: ran };
-      }
+      if (performer.timing || performerStatus(performer, now).running) return performer;
       return { ...performer, slots: fitSlots(performer.slots, timing.questions) };
     }),
   };

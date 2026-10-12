@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_TIMING, NAME_MS, QUESTIONS_MAX, QUESTION_MIN_MS, SEGMENT_MS, SEGMENT_SLOTS, SET_MINUTES_MAX, SET_MINUTES_MIN, SLOT_MS,
   clearFinished, clockText, droppedQuestions, durationWords, moveCard, nameMaxMs, parseCardTiming, parseLineup, parseTiming, rearrange,
-  scheduleText, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotAt, slotCountFor, slotStartMs, slottedIds, startPerformer,
+  scheduleText, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotAt, slotCountFor, slotStartMs, slotTimingOf, slottedIds, startPerformer,
   stopAll, switchAfter, timingOf, timingSentence, timingShort,
   type Lineup, type Performer, type SetTiming,
 } from "../src/lib/segment.ts";
@@ -191,6 +191,36 @@ test("parseLineup: timing round-trips; bad timing falls back without losing the 
   assert.deepEqual(parseLineup({ timing: "twelve", performers: [] }).timing, DEFAULT_TIMING);
 });
 
+test("parseLineup: only a card holding exactly the questions its set started with keeps that many", () => {
+  const parsed = parseLineup({
+    timing: timing(8, 60, 3),
+    performers: [
+      // On the lineup's timing, holding the four it started with: kept.
+      { id: "on", name: "On", slots: [q("a"), q("b"), q("c"), q("d")], timing: null, startedAt: at(start), ranWith: DEFAULT_TIMING },
+      // Holding some other number: fits the lineup.
+      { id: "odd", name: "Odd", slots: [q("e"), null, null, null, null], timing: null, startedAt: at(start), ranWith: DEFAULT_TIMING },
+      // Never started: fits the lineup whatever it holds.
+      { id: "new", name: "New", slots: [q("f"), null, null, null], timing: null, startedAt: null },
+      // Its own timing decides, whatever its last set ran with.
+      { id: "own", name: "Own", slots: [q("g"), null, null, null], timing: timing(5, 0, 2), startedAt: at(start), ranWith: DEFAULT_TIMING },
+    ],
+  });
+  assert.deepEqual(parsed.performers.map((performer) => performer.slots.length), [4, 3, 3, 2]);
+  assert.deepEqual(ids(parsed.performers[0]), ["a", "b", "c", "d"]);
+  assert.deepEqual(ids(parsed.performers[1]), ["e", null, null]);
+});
+
+test("parseLineup: a lineup from an older server reads in full, so the Control Center can draw it", () => {
+  // As an older build answers: no timing anywhere.
+  const parsed = parseLineup({ performers: [{ id: "sam", name: "Sam", slots: [q("a"), null, null, null], startedAt: at(start), stoppedAt: null }] });
+  assert.deepEqual(parsed.timing, DEFAULT_TIMING);
+  assert.equal(parsed.performers[0].timing, null);
+  assert.deepEqual(timingOf(parsed, parsed.performers[0]), DEFAULT_TIMING);
+  assert.deepEqual(slotTimingOf(parsed, parsed.performers[0]), DEFAULT_TIMING);
+  assert.equal(timingSentence(parsed.timing), "12 minutes each: their name for 2 minutes, then a question at 2:00, 4:30, 7:00 and 9:30.");
+  assert.deepEqual(parseLineup(undefined), { timing: DEFAULT_TIMING, performers: [] });
+});
+
 test("parseTiming: whole minutes 2 to 60, the name in whole seconds, 1 to 10 questions, 30 seconds each", () => {
   assert.deepEqual(parseTiming(DEFAULT_TIMING), DEFAULT_TIMING);
   assert.deepEqual(parseTiming({ ...timing(7, 45, 2), extra: true }), timing(7, 45, 2));
@@ -262,9 +292,10 @@ test("a set's clock never moves once it starts: not for the lineup's timing, not
   const now = start + slotStartMs(1) + 3_000;
   const before = segmentStatus(value, now);
   const next = setLineupTiming(value, timing(8, 60, 3), now);
-  // On stage: same clock, same questions, and it keeps the timing it started with as its own.
+  // On stage: same clock, same questions, and it still follows the lineup.
   assert.deepEqual(segmentStatus(next, now), before);
-  assert.deepEqual(next.performers[0].timing, DEFAULT_TIMING);
+  assert.equal(next.performers[0], value.performers[0]);
+  assert.equal(next.performers[0].timing, null);
   assert.deepEqual(ids(next.performers[0]), ["a", "b", "c", "d"]);
   for (const later of [now + 1_000, start + slotStartMs(3), start + SEGMENT_MS - 1]) assert.deepEqual(segmentStatus(next, later), segmentStatus(value, later));
   assert.equal(segmentStatus(next, start + SEGMENT_MS).running, false);
@@ -275,6 +306,56 @@ test("a set's clock never moves once it starts: not for the lineup's timing, not
   // The card on stage cannot be retimed.
   assert.equal(setCardTiming(value, "sam", timing(20, 0, 4), now), "running");
   assert.equal(setCardTiming(value, "sam", null, now), "running");
+});
+
+test("a card on stage when the lineup's timing changes follows the lineup again once its set is over", () => {
+  const value: Lineup = { timing: DEFAULT_TIMING, performers: [card("sam", "Sam", ["a", "b", "c", "d"], start), card("jo", "Jo", ["e", "f", "g", null])] };
+  const now = start + slotStartMs(1) + 3_000;
+  const next = setLineupTiming(value, timing(8, 60, 3), now);
+  // Nothing has its own timing: no badge, no "Some cards have their own timing".
+  assert.equal(next.performers.some((performer) => performer.timing), false);
+  // Mid-set the card holds the four questions it started with, and that is the count a save must send.
+  assert.equal(slotCountFor(next, "sam"), 4);
+  assert.equal(slotCountFor(next, "jo"), 3);
+  assert.equal(slotCountFor(next, "brand-new"), 3);
+  assert.deepEqual(slotTimingOf(next, next.performers[0]), DEFAULT_TIMING);
+  assert.deepEqual(slotTimingOf(next, next.performers[1]), timing(8, 60, 3));
+  // Saved and read back mid-set, the running card keeps all four and the clock runs on.
+  const stored = parseLineup(JSON.parse(JSON.stringify(next)));
+  assert.deepEqual(stored, next);
+  assert.equal(segmentScreen(stored, start + slotStartMs(3))?.selection?.submissionId, "d");
+  // A save mid-set keeps four slots on the set on stage, with the ones that have been up locked.
+  const moved = rearrange(next, [{ id: "sam", name: "Sam", slots: [q("x"), q("y"), q("c"), q("z")] }, { id: "jo", name: "Jo", slots: [q("e"), q("f"), q("g")] }], now);
+  assert.deepEqual(ids(moved.performers[0]), ["a", "y", "c", "z"]);
+  assert.equal(moved.performers[0].timing, null);
+  // The lineup back to the standard mid-set: still nothing of its own, still the same set.
+  const back = setLineupTiming(next, DEFAULT_TIMING, now + 1_000);
+  assert.equal(back.performers[0].timing, null);
+  assert.deepEqual(segmentStatus(back, now + 2_000), segmentStatus(value, now + 2_000));
+
+  const ended = start + SEGMENT_MS + 1;
+  assert.equal(segmentStatus(next, ended).running, false);
+  // Until it is next saved the finished card shows its questions on the timing they ran with.
+  assert.deepEqual(slotTimingOf(next, next.performers[0]), DEFAULT_TIMING);
+  assert.deepEqual(timingOf(next, next.performers[0]), timing(8, 60, 3));
+  // The first save after the set fits it to the lineup.
+  const saved = rearrange(next, [{ id: "sam", name: "Sam", slots: [q("a"), q("b"), q("c"), q("d")] }, { id: "jo", name: "Jo", slots: [q("e"), q("f"), q("g")] }], ended);
+  assert.deepEqual(ids(saved.performers[0]), ["a", "b", "c"]);
+  assert.deepEqual(slotTimingOf(saved, saved.performers[0]), timing(8, 60, 3));
+  assert.deepEqual(droppedQuestions(next, saved).map((slot) => slot.submissionId), ["d"]);
+  // "Again" runs the lineup's timing, not the one the last set ran with.
+  const again = startPerformer(next, "sam", ended);
+  assert.ok(again);
+  assert.deepEqual(again.performers[0].ranWith, timing(8, 60, 3));
+  assert.equal(again.performers[0].timing, null);
+  assert.deepEqual(ids(again.performers[0]), ["a", "b", "c"]);
+  assert.equal(segmentStatus(again, ended).remainingMs, 8 * 60_000);
+  // A later change to the lineup reaches it like any other card.
+  const later = setLineupTiming(next, timing(10, 0, 2), ended);
+  assert.equal(later.performers[0].timing, null);
+  assert.deepEqual(ids(later.performers[0]), ["a", "b"]);
+  assert.deepEqual(ids(later.performers[1]), ["e", "f"]);
+  assert.equal(slotCountFor(later, "sam"), 2);
 });
 
 test("a finished set stays finished when the timing grows", () => {
@@ -293,12 +374,13 @@ test("a finished set stays finished when the timing grows", () => {
   assert.equal(segmentStatus(setLineupTiming(stopped, timing(60, 0, 4), start + 61_000), start + 61_000).running, false);
 });
 
-test("setLineupTiming: cards with their own timing keep it; the set on stage is left alone when nothing changes for it", () => {
+test("setLineupTiming: cards with their own timing keep it; the set on stage is left alone", () => {
   const own = timing(20, 60, 6);
   const value: Lineup = { timing: DEFAULT_TIMING, performers: [card("sam", "Sam", ["a", "b", "c", "d"], start), card("own", "Own", ["x", null, null, null, null, null], null, own)] };
   const same = setLineupTiming(value, DEFAULT_TIMING, start + 1_000);
   assert.equal(same.performers[0], value.performers[0]);
   const longer = setLineupTiming(value, timing(15, 120, 5), start + 1_000);
+  assert.equal(longer.performers[0], value.performers[0]);
   assert.equal(longer.performers[1], value.performers[1]);
   assert.deepEqual(longer.timing, timing(15, 120, 5));
 });

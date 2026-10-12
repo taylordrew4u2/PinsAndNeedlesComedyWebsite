@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
 import {
-  DEFAULT_TIMING, PERFORMER_NAME_MAX, clockText, moveCard, slotAt, slotStartMs, switchAfter, timingOf, timingSentence, timingShort,
+  DEFAULT_TIMING, PERFORMER_NAME_MAX, clockText, moveCard, slotAt, slotStartMs, slotTimingOf, switchAfter, timingSentence, timingShort,
   type Lineup, type SegmentStatus, type SetTiming,
 } from "@/lib/segment";
 import SetTimingCard from "./SetTimingCard";
@@ -220,8 +220,8 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
           const live = time.running && time.performerId === performer.id;
           const open = firstOpen(time, performer.id);
           const ran = done(lineup, performer.id, time);
-          // The set on stage runs on the timing it started with; any other card shows the timing it would start with.
-          const timing = live ? time.timing : timingOf(lineup, performer);
+          // The set on stage runs on the timing it started with; any other card shows the timing its questions are laid out on.
+          const timing = live ? time.timing : slotTimingOf(lineup, performer);
           return (
             <div key={performer.id} className={`rounded-md border p-3 ${live ? "border-white bg-white/5" : ran ? "border-white/10 opacity-60" : "border-white/20"}`}>
               <div className="flex flex-wrap items-center gap-2">
