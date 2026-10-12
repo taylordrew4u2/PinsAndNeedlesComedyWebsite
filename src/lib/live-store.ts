@@ -9,6 +9,8 @@ import { parseMenuState, type MenuState } from "./drink-menu";
 import { parseExplainer } from "./explainer";
 import { parseLineup, type Lineup } from "./segment";
 import { storagePrefix, type Space } from "./space";
+import { changedScreen, parseScreenSettings, type ScreenSettings } from "./screen-settings";
+import { parseMessage, type ScreenMessage } from "./screen-message";
 
 /** live-show/selection.json for the show; rehearsal/live-show/… for practice. */
 function keyOf(space: Space): string {
@@ -128,4 +130,59 @@ export async function readLineup(space: Space = "live"): Promise<Lineup> {
 
 export async function writeLineup(lineup: Lineup, space: Space = "live"): Promise<void> {
   await writeRecord(segmentKeyOf(space), lineup, "Update the performer lineup");
+}
+
+/** live-show/screen.json: the host's settings for how the live screen behaves and what its fixed words say. */
+function screenKeyOf(space: Space): string {
+  return `${storagePrefix(space)}live-show/screen.json`;
+}
+
+export async function readScreen(space: Space = "live"): Promise<ScreenSettings> {
+  return parseScreenSettings(await readRecord(screenKeyOf(space)));
+}
+
+/** Change some settings and keep the rest. Only what differs from the defaults is stored, and a save that changes nothing writes nothing. */
+export async function writeScreen(change: Partial<ScreenSettings>, space: Space = "live"): Promise<ScreenSettings> {
+  const current = await readScreen(space);
+  const next = parseScreenSettings({ ...current, ...change });
+  const stored = changedScreen(next);
+  if (JSON.stringify(stored) !== JSON.stringify(changedScreen(current))) {
+    await writeRecord(screenKeyOf(space), stored, "Update the live screen settings");
+  }
+  return next;
+}
+
+/** live-show/message.json: the host's own message, its colour, and whether it is up. */
+function messageKeyOf(space: Space): string {
+  return `${storagePrefix(space)}live-show/message.json`;
+}
+
+export async function readMessage(space: Space = "live"): Promise<ScreenMessage> {
+  return parseMessage(await readRecord(messageKeyOf(space)));
+}
+
+export async function writeMessage(message: ScreenMessage, space: Space = "live"): Promise<void> {
+  await writeRecord(messageKeyOf(space), message, message.on ? "Put a message on the live screen" : "Take the message off the live screen");
+}
+
+/** Take the message down, keeping its words for next time. Writes only when one is up. */
+export async function clearMessage(space: Space = "live"): Promise<void> {
+  const current = await readMessage(space);
+  if (current.on) await writeMessage({ ...current, on: false }, space);
+}
+
+/** live-show/sound-test.json: when the host last pressed "Test sound". */
+function soundTestKeyOf(space: Space): string {
+  return `${storagePrefix(space)}live-show/sound-test.json`;
+}
+
+export async function readSoundTest(space: Space = "live"): Promise<string | null> {
+  // The same one-shot shape as the explainer's record: { at }.
+  return parseExplainer(await readRecord(soundTestKeyOf(space)));
+}
+
+export async function startSoundTest(space: Space = "live"): Promise<string> {
+  const at = new Date().toISOString();
+  await writeRecord(soundTestKeyOf(space), { at }, "Test the live screen's sound");
+  return at;
 }

@@ -17,6 +17,9 @@ test("quietScreen: reload only under the drink menu or a blank screen", () => {
   assert.equal(quietScreen({ menu: false, question: null, performer: "Sam" }), false);
   assert.equal(quietScreen({ menu: false, question: null, explainer: "2026-10-09T00:00:00Z" }), false);
   assert.equal(quietScreen({ menu: false, question: null, segment: { remainingMs: 1 } }), false);
+  // The host's own message is up: the room is reading it.
+  assert.equal(quietScreen({ menu: false, question: null, performer: null, explainer: null, segment: null, message: { text: "Last call!", color: "#FFFFFF" } }), false);
+  assert.equal(quietScreen({ menu: false, question: null, performer: null, explainer: null, segment: null, message: null }), true);
   assert.equal(quietScreen(null), false);
 });
 

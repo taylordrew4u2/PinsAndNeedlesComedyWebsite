@@ -12,6 +12,9 @@ import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { playIntroSound } from "@/lib/intro-sound";
 import Explainer from "@/components/Explainer";
 import { EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
+import { DEFAULT_LOOK, screenLook, type ScreenSettings } from "@/lib/screen-settings";
+import { readPublicMessage } from "@/lib/screen-message";
+import ScreenMessage from "@/components/ScreenMessage";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
@@ -24,8 +27,7 @@ const POLL_TIMEOUT_MS = 8_000;
 const RELOAD_KEY = "pnc-live-reloaded-for";
 /** After a tap there is no pointer to hide, so the controls stay long enough to reach. */
 const TOUCH_IDLE_MS = 5_000;
-/** A silent 3, 2, 1 before a newly picked question, so the room sees it coming. */
-const COUNTDOWN_FROM = 3;
+/** A silent 3, 2, 1 before a newly picked question, so the room sees it coming (the host can change the number or turn it off). */
 const COUNTDOWN_STEP_MS = 1_000;
 
 export default function LiveDisplay({ showQr, space = "live", build = "" }: { showQr: boolean; space?: Space; build?: string }) {
@@ -66,6 +68,13 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   const [fullscreen, setFullscreen] = useState(false);
   // Known only in the browser; the server renders without the button.
   const [canGoFullscreen, setCanGoFullscreen] = useState(false);
+  // The host's settings from the Control Center (the defaults until a poll says otherwise), and whether they muted the sting.
+  const [settings, setSettings] = useState<ScreenSettings>(DEFAULT_LOOK);
+  const muted = useRef(false);
+  // The host's own message, over the question or set until they take it down; and the last "Test sound" acted on.
+  const [message, setMessage] = useState<{ text: string; color: string } | null>(null);
+  const messageSeen = useRef<boolean | undefined>(undefined);
+  const soundTestSeen = useRef<string | null | undefined>(undefined);
   useWakeLock();
   const area = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -89,7 +98,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     let active = true;
     void document.fonts.ready.then(() => { if (active) fit(); });
     return () => { active = false; observer.disconnect(); };
-  }, [question, name, menu, intro]);
+  }, [question, name, menu, intro, countdown, message]);
 
   useEffect(() => {
     let disposed = false;
@@ -98,7 +107,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     /** Plays the sting if sound is on. A context the browser paused is asked to resume first; if it cannot, the beat passes silently. */
     const sting = () => {
       const context = audio.current;
-      if (!context) return;
+      if (!context || muted.current) return;
       if (context.state === "running") playIntroSound(context);
       else context.resume().then(() => { if (context.state === "running") playIntroSound(context); }, () => {});
     };
@@ -144,6 +153,11 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
             if (page?.response.ok && !disposed) { window.location.reload(); return; }
           }
         }
+        // The host's settings, missing from an older server's answer: then the defaults, the screen as it always was.
+        const setup = screenLook(data?.screen);
+        muted.current = !setup.sound;
+        setSettings((current) => JSON.stringify(current) === JSON.stringify(setup) ? current : setup);
+        const countFrom = setup.countdown ? setup.countdownFrom : 0;
         const next = typeof data?.question === "string" ? data.question : null;
         const previous = shown.current;
         shown.current = next;
@@ -154,25 +168,28 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           countdownTimers.current = [];
           setIntro(false);
           const fresh = previous !== undefined && next !== null;
-          setCountdown(fresh ? COUNTDOWN_FROM : null);
+          setCountdown(fresh && countFrom ? countFrom : null);
           if (fresh) {
             // Silent 3, 2, 1; the sting and the drum roll come in on the beat after "1".
-            for (let n = COUNTDOWN_FROM - 1; n >= 1; n -= 1) {
-              countdownTimers.current.push(setTimeout(() => setCountdown(n), (COUNTDOWN_FROM - n) * COUNTDOWN_STEP_MS));
+            for (let n = countFrom - 1; n >= 1; n -= 1) {
+              countdownTimers.current.push(setTimeout(() => setCountdown(n), (countFrom - n) * COUNTDOWN_STEP_MS));
             }
-            countdownTimers.current.push(setTimeout(() => {
+            const reveal = () => {
               setCountdown(null);
               sting();
-              const play = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+              const play = setup.intro && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
               setIntro(play);
               if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
-            }, COUNTDOWN_FROM * COUNTDOWN_STEP_MS));
+            };
+            // With the countdown off, straight in, in this same update, so the question never flashes up before its intro.
+            if (countFrom) countdownTimers.current.push(setTimeout(reveal, countFrom * COUNTDOWN_STEP_MS));
+            else reveal();
           }
           // A cleared screen wipes; a new question has its own countdown and intro.
           if (previous && next === null) setWipe((count) => count + 1);
         }
         setQuestion(next);
-        setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
+        setName(next && setup.names && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
         const nextPerformer = typeof data?.performer === "string" && data.performer.trim() ? data.performer.trim() : null;
         // A name going up or coming down wipes, like any other screen change.
         if (performerSeen.current !== undefined && nextPerformer !== performerSeen.current && !(performerSeen.current && next)) setWipe((count) => count + 1);
@@ -212,6 +229,18 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           const opening = explainerSeen.current === undefined;
           explainerSeen.current = explainerAt;
           if (explainerAt && !opening) runExplainer();
+        }
+        const nextMessage = readPublicMessage(data?.message);
+        // The host's message going up or coming down wipes, like the drink menu; new words while it is up just fade in.
+        if (messageSeen.current !== undefined && (nextMessage !== null) !== messageSeen.current) setWipe((count) => count + 1);
+        messageSeen.current = nextMessage !== null;
+        setMessage((current) => current && nextMessage && current.text === nextMessage.text && current.color === nextMessage.color ? current : nextMessage);
+        const soundTestAt = typeof data?.soundTest === "string" ? data.soundTest : null;
+        if (soundTestAt !== soundTestSeen.current) {
+          // "Test sound" plays the sting once, nothing else; like the Intro, a tap from before this screen opened is not replayed.
+          const opening = soundTestSeen.current === undefined;
+          soundTestSeen.current = soundTestAt;
+          if (soundTestAt && !opening) sting();
         }
       } catch {
         // Offline, timed out or aborted: leave the screen as it is.
@@ -338,7 +367,12 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       onDoubleClick={toggleFullscreen}
     >
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
-        {question && !intro && countdown === null ? (
+        {message ? (
+          // The host's own message goes over the question or the set until they take it down.
+          <div key={`${message.color}${message.text}`} className="pnc-screen-in h-full w-full">
+            <ScreenMessage text={message.text} color={message.color} />
+          </div>
+        ) : question && !intro && countdown === null ? (
           // Sized together, so a long question and its name both fit above the QR.
           <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
@@ -346,7 +380,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           </div>
         ) : !question && performer && !intro && countdown === null ? (
           <div key={performer} className="pnc-screen-in w-full text-center">
-            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">Now on stage</p>
+            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">{settings.stageLabel}</p>
             <h1 className="mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none">{performer}</h1>
           </div>
         ) : null}
@@ -364,21 +398,21 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       ) : null}
     </main>
     )}
-    {countdown !== null && !menu && !explainer ? (
+    {countdown !== null && !menu && !message && !explainer ? (
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-black text-white" aria-hidden="true">
         <span key={countdown} className="pnc-countdown font-[family-name:var(--pnc-heading)] font-bold tabular-nums leading-none">{countdown}</span>
       </div>
     ) : null}
-    {intro && !menu && !explainer ? <BadDecisionIntro /> : null}
-    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} /> : null}
-    {segmentEnd !== null ? (
+    {intro && !menu && !message && !explainer ? <BadDecisionIntro word={settings.introWord} /> : null}
+    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} look={settings} /> : null}
+    {segmentEnd !== null && settings.timer ? (
       <p className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1 font-[family-name:var(--pnc-heading)] text-lg tabular-nums text-white/80 sm:bottom-4 sm:text-2xl" aria-hidden="true">
         {segmentClock(segmentLeft)}
       </p>
     ) : null}
     {wipe ? <div key={wipe} className="pnc-wipe" aria-hidden="true" /> : null}
-    {/* Outside <main>, so it is not read out with the question. */}
-    {!mirrored && !soundOn ? (
+    {/* Outside <main>, so it is not read out with the question. Not while the host has muted the sound on purpose. */}
+    {!mirrored && !soundOn && settings.sound ? (
       <button
         type="button"
         onDoubleClick={(event) => event.stopPropagation()}

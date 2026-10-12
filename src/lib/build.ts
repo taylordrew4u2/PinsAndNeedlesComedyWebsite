@@ -17,11 +17,11 @@ export function isNewerBuild(pageBuild: string, serverBuild: unknown): serverBui
 /**
  * Whether the live screen can reload without the room noticing: the drink
  * menu is up, or nothing is on screen at all. Never with a question up, a
- * performer's name, the explainer or a set running.
+ * performer's name, the explainer, a set running or the host's message up.
  */
 export function quietScreen(data: unknown): boolean {
   if (!data || typeof data !== "object") return false;
-  const value = data as { menu?: unknown; question?: unknown; performer?: unknown; explainer?: unknown; segment?: unknown };
+  const value = data as { menu?: unknown; question?: unknown; performer?: unknown; explainer?: unknown; segment?: unknown; message?: unknown };
   if (value.menu === true) return true;
-  return !value.question && !value.performer && !value.explainer && !value.segment;
+  return !value.question && !value.performer && !value.explainer && !value.segment && !value.message;
 }

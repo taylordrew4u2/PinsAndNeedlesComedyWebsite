@@ -10,6 +10,9 @@ import { isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
 import { currentBuild } from "@/lib/build";
+import { clearMessage, readMessage, readScreen, startSoundTest, writeMessage, writeScreen } from "@/lib/live-store";
+import { parseScreenChange } from "@/lib/screen-settings";
+import { applyMessage, parseMessageChange } from "@/lib/screen-message";
 import type { Show, Submission } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +55,9 @@ export async function GET(request: Request) {
   if (!(await isAuthed())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
   const space = spaceFrom(request);
   try {
+    // The live screen's settings and the host's message, read alongside the rest and awaited below (a failure there still answers 503).
+    const screenReads = Promise.all([readScreen(space), readMessage(space)]);
+    screenReads.catch(() => {});
     const [pile, onScreen, content, menu, segment] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict(), readMenu(space), readLineup(space)]);
     const current = currentOnly(pile.submissions, content.shows, space);
     const now = Date.now();
@@ -76,6 +82,7 @@ export async function GET(request: Request) {
     }
     const live = current.filter((item) => item.status !== "archived");
     if (status.running) selected = fromSegment ?? null;
+    const [screen, message] = await screenReads;
     return NextResponse.json({
       // The deployment answering, so a Control Center left open across an update can say so.
       build: currentBuild(),
@@ -91,6 +98,9 @@ export async function GET(request: Request) {
       questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
       manualOpen: content.weekly.enabled && content.weekly.alwaysOpen,
       pageLive: content.weekly.enabled,
+      // The live screen's settings ("" words are the defaults) and the host's message, up or saved for later.
+      screen,
+      message,
     }, { headers });
   } catch (error) {
     console.error("[run-show] load failed", error);
@@ -107,6 +117,7 @@ async function show(submission: Submission | null, space: Space): Promise<LiveSe
   await writeLiveSelection(selected, space);
   if (selected) {
     await writeMenu({ on: false }, space).catch((error) => console.error("[run-show] menu off failed", error));
+    await clearMessage(space).catch((error) => console.error("[run-show] message off failed", error));
   }
   if (submission) {
     // The screen already changed; a failed mark only leaves it in the list.
@@ -145,6 +156,7 @@ export async function POST(request: Request) {
     try {
       // Only which menu is up: the question underneath stays and returns when the menu comes down.
       const menu = await writeMenu(style ? { on: body.menu, style } : { on: body.menu }, space);
+      if (body.menu) await clearMessage(space).catch((error) => console.error("[run-show] message off failed", error));
       return NextResponse.json(menuView(menu), { headers });
     } catch (error) {
       console.error("[run-show] menu failed", error);
@@ -235,6 +247,7 @@ export async function POST(request: Request) {
       // The set owns the screen now; when it ends, the screen is left clear.
       await writeLiveSelection(null, space).catch((error) => console.error("[run-show] clear for set failed", error));
       await writeMenu({ on: false }, space).catch((error) => console.error("[run-show] menu off failed", error));
+      await clearMessage(space).catch((error) => console.error("[run-show] message off failed", error));
       return NextResponse.json(lineupView(next), { headers });
     } catch (error) {
       console.error("[run-show] set failed", error);
@@ -303,6 +316,46 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("[run-show] preload failed", error);
       return NextResponse.json({ error: "Could not add those questions. Check the list and try again." }, { status: 503, headers });
+    }
+  }
+  if ("screen" in body) {
+    const change = parseScreenChange(body.screen);
+    if (!change) return NextResponse.json({ error: "Invalid screen settings" }, { status: 400, headers });
+    try {
+      // Merged into what is saved, so changing one setting keeps the rest. The live screen picks it up on its next poll.
+      return NextResponse.json({ screen: await writeScreen(change, space) }, { headers });
+    } catch (error) {
+      console.error("[run-show] screen settings failed", error);
+      return NextResponse.json({ error: "Could not save the live screen settings. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("message" in body) {
+    const change = parseMessageChange(body.message);
+    if (!change) return NextResponse.json({ error: "Invalid message" }, { status: 400, headers });
+    try {
+      const current = await readMessage(space);
+      const next = applyMessage(current, change);
+      if (change.on && !next.on) return NextResponse.json({ error: "Type a message first." }, { status: 400, headers });
+      if (JSON.stringify(next) !== JSON.stringify(current)) await writeMessage(next, space);
+      // The message and the drink menu take turns: putting the message up takes the menu down.
+      const menu = next.on ? await readMenu(space) : null;
+      if (menu?.on) await writeMenu({ on: false }, space);
+      return NextResponse.json({ message: next, ...(next.on ? { menu: false } : {}) }, { headers });
+    } catch (error) {
+      console.error("[run-show] message failed", error);
+      return NextResponse.json({ error: "Could not update the message. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("soundTest" in body) {
+    if (body.soundTest !== true) {
+      return NextResponse.json({ error: "Invalid sound test" }, { status: 400, headers });
+    }
+    try {
+      // A one-shot, like the Intro: the live screen plays the sting once and nothing else changes.
+      return NextResponse.json({ soundTest: await startSoundTest(space) }, { headers });
+    } catch (error) {
+      console.error("[run-show] sound test failed", error);
+      return NextResponse.json({ error: "Could not test the sound. Try again." }, { status: 503, headers });
     }
   }
   if ("putBack" in body) {

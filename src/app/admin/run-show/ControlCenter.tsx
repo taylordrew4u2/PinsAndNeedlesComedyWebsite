@@ -13,6 +13,11 @@ import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
 import { isNewerBuild } from "@/lib/build";
 import LiveMirror from "./LiveMirror";
+import MessageCard from "./MessageCard";
+import ScreenSettingsCard from "./ScreenSettingsCard";
+import TestSoundButton from "./TestSoundButton";
+import { parseScreenSettings, type ScreenSettings } from "@/lib/screen-settings";
+import { parseMessage, type ScreenMessage } from "@/lib/screen-message";
 
 type State = {
   /** The performers' cards: names and questions, filled in ahead. */
@@ -46,6 +51,10 @@ type State = {
   questionsOpen: boolean;
   manualOpen: boolean;
   pageLive: boolean;
+  /** How the live screen behaves and what it says ("" words are the defaults). Missing from an older server. */
+  screen?: ScreenSettings;
+  /** The host's own message for the live screen, up or saved for later. */
+  message?: ScreenMessage;
 };
 type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
 
@@ -193,6 +202,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       ...current,
       selected,
       menu: selected ? false : current.menu,
+      message: selected && current.message ? { ...current.message, on: false } : current.message,
       submissions: current.submissions.filter((entry) => entry.id !== id),
       shown: item ? [{ ...item, shownAt: new Date().toISOString() }, ...current.shown] : current.shown,
     };
@@ -256,6 +266,18 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       takeMenu(data);
       setNotice(data.menu && data.menuStyle === "custom" ? "Custom menu saved. The live screen has it now." : "Custom menu saved. It shows when you put the custom menu up.");
     }, "Could not save the custom menu.");
+
+  /** The live screen's own cards (settings, message, test sound): one change, then the server's word on what is saved and, when a message went up, the drink menu. */
+  const screenAction = (body: object, done: string, failed: string) =>
+    change(API, body, (data) => {
+      setState((current) => current ? {
+        ...current,
+        ...(data.screen ? { screen: parseScreenSettings(data.screen) } : {}),
+        ...(data.message ? { message: parseMessage(data.message) } : {}),
+        ...(typeof data.menu === "boolean" ? { menu: data.menu } : {}),
+      } : current);
+      setNotice(done);
+    }, failed);
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -394,6 +416,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
   const waiting = state?.submissions ?? [];
   const onScreenId = state?.selected?.submissionId ?? null;
+  const screenSettings = parseScreenSettings(state?.screen);
+  const screenMessage = parseMessage(state?.message);
 
   return (
     <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6">
@@ -426,7 +450,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
-                <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : state.selected ? "On screen" : "Screen cleared"}</p>
+                <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : screenMessage.on ? "Message on screen" : state.selected ? "On screen" : "Screen cleared"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -438,6 +462,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 >
                   {explaining ? "Intro playing…" : "Intro"}
                 </button>
+                <TestSoundButton sound={screenSettings.sound} busy={busy || !state} test={() => screenAction({ soundTest: true }, "The projector is playing the sound. Nothing heard? Click the live screen once to turn its sound on, then test again.", "Could not test the sound.")} />
                 {(["standard", "custom"] as const).map((style) => {
                   const up = Boolean(state?.menu) && state?.menuStyle === style;
                   const label = style === "custom" ? "custom menu" : "drink menu";
@@ -464,6 +489,12 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               <span>A copy of what the projector shows. It checks for changes every couple of seconds, same as the projector.</span>
               <button type="button" onClick={() => setMirrorVersion((value) => value + 1)} className="underline">Reload mirror</button>
             </div>
+            <MessageCard
+              message={screenMessage}
+              menu={Boolean(state?.menu)}
+              busy={busy || !state}
+              send={(message) => screenAction({ message }, message.on ? "Your message is on the live screen." : "Message taken down.", "Could not update the message.")}
+            />
             {state?.selected ? (
               <div className="mt-4 rounded-lg border border-white/20 p-4">
                 <p className="whitespace-pre-wrap break-words text-lg">{state.selected.question}</p>
@@ -532,6 +563,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 </p>
               ) : null}
             </div>
+
+            {state ? (
+              <ScreenSettingsCard
+                saved={screenSettings}
+                busy={busy}
+                save={(screen) => screenAction({ screen }, "Live screen settings saved. The projector picks them up within a couple of seconds.", "Could not save the live screen settings.")}
+              />
+            ) : null}
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
               <summary className="cursor-pointer text-sm">🔊 Sound on the live screen</summary>
