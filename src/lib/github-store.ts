@@ -196,6 +196,20 @@ export async function readFile(
   return result;
 }
 
+/** One PUT through the Contents API: no sha creates the file, a sha updates that version of it. */
+function putFile(config: GithubConfig, clean: string, bytes: Buffer, message: string, sha: string | null, fetchImpl: Fetcher) {
+  return fetchImpl(`${config.api}/repos/${config.owner}/${config.repo}/contents/${urlPath(clean)}`, {
+    method: "PUT",
+    headers: { ...headers(config, "application/vnd.github+json"), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      content: bytes.toString("base64"),
+      branch: config.branch,
+      ...(sha ? { sha } : {}),
+    }),
+  });
+}
+
 /**
  * Write one file, creating or updating it.
  *
@@ -228,20 +242,6 @@ export async function writeFile(
 
   const body = (await response.json()) as { content?: { sha?: string } };
   return body.content?.sha ?? "";
-}
-
-/** One PUT to the Contents API: an update with a sha, a new file without one. */
-function putFile(config: GithubConfig, clean: string, bytes: Buffer, message: string, sha: string | null, fetchImpl: Fetcher) {
-  return fetchImpl(`${config.api}/repos/${config.owner}/${config.repo}/contents/${urlPath(clean)}`, {
-    method: "PUT",
-    headers: { ...headers(config, "application/vnd.github+json"), "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message,
-      content: bytes.toString("base64"),
-      branch: config.branch,
-      ...(sha ? { sha } : {}),
-    }),
-  });
 }
 
 /**

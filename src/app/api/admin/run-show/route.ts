@@ -5,7 +5,10 @@ import { isAuthed } from "@/lib/auth";
 import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
 import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
 import { DEFAULT_TIMING, MAX_PERFORMERS, QUESTIONS_MAX, clearFinished, parseCardTiming, parseTiming, rearrange, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotCountFor, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
+import { readDrinks, writeDrinks } from "@/lib/live-store";
 import { cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, type MenuState } from "@/lib/drink-menu";
+import { WORDING_KEYS, isMarqueeSpeed, wordingChange } from "@/lib/drink-menu";
+import { cleanDrinkListInput, defaultDrinkList, parseDrinkList, sameList, setSoldOut } from "@/lib/drink-list";
 import { isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
@@ -44,6 +47,8 @@ function menuView(menu: MenuState) {
     menu: menu.on, menuStyle: menu.style, marquee: menu.marquee,
     menuColor: menu.color, menuHeadline: menu.headline, menuNote: menu.note, menuNoteColor: menu.noteColor,
     menuFont: menu.font, menuBartender: menu.bartender, menuBartenderFont: menu.bartenderFont, menuBartenderColor: menu.bartenderColor,
+    marqueeOn: menu.marqueeOn, marqueeSpeed: menu.marqueeSpeed, marqueeColor: menu.marqueeColor,
+    menuQrCaption: menu.qrCaption, menuQrTitle: menu.qrTitle, menuQrLink: menu.qrLink, menuBartenderLabel: menu.bartenderLabel,
   };
 }
 
@@ -110,6 +115,8 @@ export async function GET(request: Request) {
       staleScreen: staleScreen(await screenBuild, currentBuild(), now),
       // The host pressed "Close questions now" and it still holds.
       manualClosed: content.weekly.enabled && closedByHost(content.weekly),
+      // The host's drink list, null for the printed menu.
+      drinks: await readDrinks(space),
     }, { headers });
   } catch (error) {
     console.error("[run-show] load failed", error);
@@ -198,7 +205,8 @@ export async function POST(request: Request) {
       || badOptional(look.font, (value) => value !== "" && !isMenuFont(value))
       || badOptional(look.bartender, (value) => typeof value !== "string")
       || badOptional(look.bartenderFont, (value) => value !== "" && !isScriptFont(value))
-      || badOptional(look.bartenderColor, badColor)) {
+      || badOptional(look.bartenderColor, badColor)
+      || WORDING_KEYS.some((key) => badOptional(look[key], (value) => typeof value !== "string"))) {
       return NextResponse.json({ error: "Invalid custom menu" }, { status: 400, headers });
     }
     try {
@@ -211,6 +219,7 @@ export async function POST(request: Request) {
         ...(look.bartender !== undefined ? { bartender: cleanBartender(look.bartender) } : {}),
         ...(look.bartenderFont !== undefined ? { bartenderFont: look.bartenderFont as string } : {}),
         ...(look.bartenderColor !== undefined ? { bartenderColor: cleanColor(look.bartenderColor) } : {}),
+        ...wordingChange(look),
       }, space);
       return NextResponse.json(menuView(menu), { headers });
     } catch (error) {
@@ -479,6 +488,58 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("[run-show] restore failed", error);
       return NextResponse.json({ error: "Could not bring that question back. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("marqueeStyle" in body) {
+    const style = body.marqueeStyle as Record<string, unknown> | null;
+    if (!style || typeof style !== "object" || typeof style.on !== "boolean" || !isMarqueeSpeed(style.speed)
+      || typeof style.color !== "string" || Boolean(style.color.trim() && !cleanColor(style.color))) {
+      return NextResponse.json({ error: "Invalid marquee setting" }, { status: 400, headers });
+    }
+    try {
+      // On or off, speed and colour together; the text stays as it is. Off, the menu fills the screen.
+      const menu = await writeMenu({ marqueeOn: style.on, marqueeSpeed: style.speed, marqueeColor: cleanColor(style.color) }, space);
+      return NextResponse.json(menuView(menu), { headers });
+    } catch (error) {
+      console.error("[run-show] marquee style failed", error);
+      return NextResponse.json({ error: "Could not update the marquee. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("soldOut" in body) {
+    const mark = body.soldOut as Record<string, unknown> | null;
+    if (!mark || typeof mark !== "object" || typeof mark.id !== "string" || !ID.test(mark.id) || typeof mark.on !== "boolean") {
+      return NextResponse.json({ error: "Invalid sold-out mark" }, { status: 400, headers });
+    }
+    try {
+      // Just this one drink, on the list as saved now: a mark made from another screen a moment ago stays.
+      const next = setSoldOut((await readDrinks(space)) ?? defaultDrinkList(), mark.id, mark.on);
+      if (!next) return NextResponse.json({ error: "That drink is no longer on the list. Refresh and try again." }, { status: 404, headers });
+      await writeDrinks(next, space);
+      return NextResponse.json({ drinks: next }, { headers });
+    } catch (error) {
+      console.error("[run-show] sold out failed", error);
+      return NextResponse.json({ error: "Could not save the drink list. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("drinks" in body) {
+    // A whole list, three columns within the limits; null puts the printed menu back.
+    const list = body.drinks === null ? null : cleanDrinkListInput(body.drinks);
+    // The list the editor last saw saved (null: the printed menu), when it says; left out, nothing is checked.
+    const from = "from" in body ? body.from : undefined;
+    if ((body.drinks !== null && !list) || (from !== undefined && from !== null && !parseDrinkList(from))) {
+      return NextResponse.json({ error: "Invalid drink list" }, { status: 400, headers });
+    }
+    try {
+      // Changed from another screen since the editor last looked (a sold-out tap, say): saving would quietly undo that.
+      if (from !== undefined && !sameList((await readDrinks(space)) ?? defaultDrinkList(), parseDrinkList(from) ?? defaultDrinkList())) {
+        return NextResponse.json({ error: "The drink list was just changed on another screen. Look it over and press Save again." }, { status: 409, headers });
+      }
+      // Both menus draw from it, so a menu that is up changes with it.
+      await writeDrinks(list, space);
+      return NextResponse.json({ drinks: list }, { headers });
+    } catch (error) {
+      console.error("[run-show] drinks failed", error);
+      return NextResponse.json({ error: "Could not save the drink list. Try again." }, { status: 503, headers });
     }
   }
   if ("putBack" in body) {

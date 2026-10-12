@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { driver, requireGithub } from "./store";
 import { createFile as githubCreate, readFile as githubRead, writeFile as githubWrite } from "./github-store";
+import { parseDrinkList, type DrinkList } from "./drink-list";
 import { parseSelection, type LiveSelection } from "./live-selection";
 import { parseMenuState, type MenuState } from "./drink-menu";
 import { parseExplainer } from "./explainer";
@@ -110,7 +111,7 @@ export async function readMenu(space: Space = "live"): Promise<MenuState> {
 /** Change one part of the menu record and keep the rest, so the marquee and the custom look outlive the menu going down. */
 export async function writeMenu(change: Partial<MenuState>, space: Space = "live"): Promise<MenuState> {
   const next = parseMenuState({ ...(await readMenu(space)), ...change });
-  const message = "marquee" in change ? "Update the drink menu marquee"
+  const message = "marquee" in change || "marqueeOn" in change ? "Update the drink menu marquee"
     : "color" in change || "headline" in change || "note" in change || "font" in change || "bartender" in change ? "Update the custom drink menu"
     : next.on ? `Put the ${next.style} drink menu on screen` : "Take the drink menu off screen";
   await writeRecord(menuKeyOf(space), next, message);
@@ -228,4 +229,19 @@ export async function writeScreenBuild(build: string, space: Space = "live"): Pr
   const at = typeof current?.at === "string" ? Date.parse(current.at) : NaN;
   if (current?.build === build && Date.now() - at < SCREEN_BUILD_REWRITE_MS) return;
   await writeRecord(screenBuildKeyOf(space), { build, at: new Date().toISOString() }, "Note the live screen's version");
+}
+
+/** live-show/drinks.json: the host's drink list, shared by both menus. Never written (or null) is the printed menu. */
+function drinksKeyOf(space: Space): string {
+  return `${storagePrefix(space)}live-show/drinks.json`;
+}
+
+export async function readDrinks(space: Space = "live"): Promise<DrinkList | null> {
+  // Polled with the menu: started as null (the printed menu) so it never sits missing.
+  return parseDrinkList(await readRecord(drinksKeyOf(space), { value: null, message: "Start the drink list at the printed menu" }));
+}
+
+/** Null puts the printed menu back. */
+export async function writeDrinks(list: DrinkList | null, space: Space = "live"): Promise<void> {
+  await writeRecord(drinksKeyOf(space), list, list ? "Update the drink list" : "Put the printed drink list back");
 }

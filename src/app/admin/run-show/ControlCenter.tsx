@@ -5,6 +5,9 @@ import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
 import { DEFAULT_MARQUEE, MARQUEE_MAX, type MenuStyle } from "@/lib/drink-menu";
 import CustomMenuCard, { type CustomMenuInput } from "./CustomMenuCard";
+import DrinkListCard from "./DrinkListCard";
+import MarqueeCard, { type MarqueeStyleInput } from "./MarqueeCard";
+import { parseDrinkList, type DrinkList } from "@/lib/drink-list";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
 import { clockText, durationWords, parseLineup, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
@@ -62,6 +65,17 @@ type State = {
   staleScreen?: { at: string } | null;
   /** The host pressed "Close questions now" and it still holds. */
   manualClosed: boolean;
+  /** The marquee on or off, its speed ("" for Normal) and its own colour ("" to follow the menu's text colour). */
+  marqueeOn: boolean;
+  marqueeSpeed: string;
+  marqueeColor: string;
+  /** The custom menu's wording under the QR code and over the bartender; "" for the printed wording. */
+  menuQrCaption: string;
+  menuQrTitle: string;
+  menuQrLink: string;
+  menuBartenderLabel: string;
+  /** The host's drink list, shown by both menus; null while it is the printed menu. */
+  drinks: DrinkList | null;
 };
 /** The one open editor: which question, and where it was opened (the waiting list, the shown list, or the "On screen" box). */
 type Editing = { at: "pile" | "shown" | "screen"; id: string };
@@ -84,6 +98,26 @@ const POLL_TIMEOUT_MS = 15_000;
 const CHANGE_TIMEOUT_MS = 65_000;
 /** Given up on a press: the server may still have done it, so the host checks before pressing again. */
 const NO_ANSWER = "No answer from the server yet. It may still have gone through: check the screen and the lists before trying again.";
+
+/**
+ * A poll answer with the menu fields this version added filled in when they
+ * are missing, as they are from an older deployment after a rollback: the
+ * cards read them as given, and one missing would take the page down mid-show.
+ */
+function withDefaults(data: State): State {
+  const text = (value: unknown) => (typeof value === "string" ? value : "");
+  return {
+    ...data,
+    marqueeOn: data.marqueeOn !== false,
+    marqueeSpeed: text(data.marqueeSpeed),
+    marqueeColor: text(data.marqueeColor),
+    menuQrCaption: text(data.menuQrCaption),
+    menuQrTitle: text(data.menuQrTitle),
+    menuQrLink: text(data.menuQrLink),
+    menuBartenderLabel: text(data.menuBartenderLabel),
+    drinks: parseDrinkList(data.drinks),
+  };
+}
 
 /**
  * The show-night control center: the questions as they arrive, a mirror of
@@ -150,7 +184,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       }
       known.current = new Set([...(known.current ?? []), ...ids]);
       // Read the lineup as the server does, so one missing a newer field (say, from an older build) still draws.
-      setState({ ...data, lineup: parseLineup(data.lineup), segmentAt: Date.now() });
+      setState({ ...withDefaults(data), lineup: parseLineup(data.lineup), segmentAt: Date.now() });
       // An editor whose question has moved on (shown, put in a card, deleted on another device)
       // closes for good, rather than opening again wherever the question turns up next.
       setEditing((current) => (current && !stillThere(current, data) ? null : current));
@@ -265,6 +299,13 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       menuBartender: typeof data.menuBartender === "string" ? data.menuBartender : current.menuBartender,
       menuBartenderFont: typeof data.menuBartenderFont === "string" ? data.menuBartenderFont : current.menuBartenderFont,
       menuBartenderColor: typeof data.menuBartenderColor === "string" ? data.menuBartenderColor : current.menuBartenderColor,
+      marqueeOn: typeof data.marqueeOn === "boolean" ? data.marqueeOn : current.marqueeOn,
+      marqueeSpeed: typeof data.marqueeSpeed === "string" ? data.marqueeSpeed : current.marqueeSpeed,
+      marqueeColor: typeof data.marqueeColor === "string" ? data.marqueeColor : current.marqueeColor,
+      menuQrCaption: typeof data.menuQrCaption === "string" ? data.menuQrCaption : current.menuQrCaption,
+      menuQrTitle: typeof data.menuQrTitle === "string" ? data.menuQrTitle : current.menuQrTitle,
+      menuQrLink: typeof data.menuQrLink === "string" ? data.menuQrLink : current.menuQrLink,
+      menuBartenderLabel: typeof data.menuBartenderLabel === "string" ? data.menuBartenderLabel : current.menuBartenderLabel,
     } : current);
 
   const saveMarquee = (marquee: string) =>
@@ -272,7 +313,9 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       const saved = typeof data.marquee === "string" ? data.marquee : "";
       takeMenu(data);
       setMarqueeDraft(null);
-      setNotice(saved ? "Marquee saved. It runs around the drink menu." : `Marquee back to “${DEFAULT_MARQUEE}”.`);
+      // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
+      const off = data.marqueeOn === false ? " The marquee is switched off; it runs once you turn it back on." : "";
+      setNotice(saved ? `Marquee saved.${off || " It runs around the drink menu."}` : `Marquee back to “${DEFAULT_MARQUEE}”.${off}`);
     }, "Could not update the marquee.");
 
   const playExplainer = () =>
@@ -305,6 +348,32 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     }, failed);
   const sendMessage = (message: MessageChange) =>
     screenAction({ message }, message.on ? "Your message is on the live screen." : "Message taken down.", "Could not update the message.");
+
+  /** The marquee on or off, its speed and colour; its text stays as saved. */
+  const saveMarqueeStyle = (style: MarqueeStyleInput) =>
+    change(API, { marqueeStyle: style }, (data) => {
+      takeMenu(data);
+      setNotice(!style.on ? "Marquee off. The drink menu fills the screen." : data.menu ? "Marquee saved. The live screen has it now." : "Marquee saved. It runs when you show either drink menu.");
+    }, "Could not update the marquee.");
+
+  /** Take the server's word on the drink list after a change to it; `message` says what changed. */
+  const takeDrinks = (message: string) => (data: Change & Record<string, unknown>) => {
+    const saved = parseDrinkList(data.drinks);
+    setState((current) => current ? { ...current, drinks: saved } : current);
+    setNotice(message);
+  };
+
+  /**
+   * The whole drink list (null for the printed menu). `from` is the saved
+   * list the editor last saw: the server refuses the save if another screen
+   * has changed it since, rather than quietly undoing that change.
+   */
+  const saveDrinks = (drinks: DrinkList | null, message: string, from?: DrinkList | null) =>
+    change(API, from === undefined ? { drinks } : { drinks, from }, takeDrinks(message), "Could not save the drink list.");
+
+  /** One drink sold out or back; the server changes just that drink on the list as saved now. */
+  const markDrink = (id: string, on: boolean, message: string) =>
+    change(API, { soldOut: { id, on } }, takeDrinks(message), "Could not save the drink list.");
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -622,9 +691,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Use default</button>
               </div>
               <p className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-neutral-500">
-                <span>{state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show either drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}</span>
+                <span>
+                  {state && !state.marqueeOn
+                    ? `Marquee switched off: the menu fills the screen. ${state.marquee ? `Saved text: “${state.marquee}”.` : `Text: the default, “${DEFAULT_MARQUEE}”.`}`
+                    : state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show either drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}
+                </span>
                 <span aria-live="polite">{(marqueeDraft ?? state?.marquee ?? "").length}/{MARQUEE_MAX}</span>
               </p>
+              {state ? <MarqueeCard on={state.marqueeOn} speed={state.marqueeSpeed} color={state.marqueeColor} text={state.marquee} busy={busy} save={saveMarqueeStyle} /> : null}
             </form>
 
             {state ? (
@@ -642,8 +716,16 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 qr={state.pageLive}
                 busy={busy}
                 save={saveCustomMenu}
+                qrCaption={state.menuQrCaption}
+                qrTitle={state.menuQrTitle}
+                qrLink={state.menuQrLink}
+                bartenderLabel={state.menuBartenderLabel}
+                marqueeStyle={{ on: state.marqueeOn, speed: state.marqueeSpeed, color: state.marqueeColor }}
+                drinks={state.drinks}
               />
             ) : null}
+
+            {state ? <DrinkListCard saved={state.drinks} live={state.menu} qr={state.pageLive} busy={busy} save={saveDrinks} mark={markDrink} /> : null}
 
             <div className="mt-6 rounded-lg border border-white/20 p-4">
               <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : state.manualClosed ? "Questions are closed (you closed them)" : "Questions are closed"}</p>

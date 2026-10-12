@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { readExplainer, readLineup, readLiveSelection, readMenu } from "@/lib/live-store";
+import { readDrinks } from "@/lib/live-store";
 import { segmentScreen, segmentStatus } from "@/lib/segment";
 import { freshExplainer } from "@/lib/explainer";
 import { publicSelection } from "@/lib/live-selection";
-import { DEFAULT_MARQUEE, customLook } from "@/lib/drink-menu";
+import { customLook } from "@/lib/drink-menu";
+import { liveMarquee, liveMarqueeLook } from "@/lib/drink-menu";
+import { visibleMenu } from "@/lib/drink-list";
 import { spaceOf } from "@/lib/space";
 import { cleanBuild, currentBuild } from "@/lib/build";
 import { Throttle, clientAddress } from "@/lib/throttle";
@@ -38,7 +41,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ...publicSelection(selection),
       menu: menu.on,
-      marquee: menu.on ? menu.marquee || DEFAULT_MARQUEE : null,
+      marquee: liveMarquee(menu),
       menuCustom: menu.on ? customLook(menu) : null,
       explainer: freshExplainer(explainer, now),
       performer: screen?.performer ?? null,
@@ -49,6 +52,9 @@ export async function GET(request: Request) {
       screen: changedScreen(screenSettings),
       message: publicMessage(message),
       soundTest: freshSoundTest(soundTest, now),
+      // While a menu is up: how its marquee runs, and the drinks that show (none hidden, sold-out ones marked).
+      marqueeLook: liveMarqueeLook(menu),
+      drinks: menu.on ? visibleMenu(await readDrinks(space)) : null,
     }, { headers });
   } catch (error) {
     console.error("[live-show] read failed", error);
