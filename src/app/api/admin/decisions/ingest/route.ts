@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
-import { sanitizeSubmission, submissionWindow } from "@/lib/decisions";
+import { sanitizeSubmission, submissionWindow, textIntake } from "@/lib/decisions";
 import { looksLikeForwardedText, messageFromForward, textFromMime } from "@/lib/inbox";
 import { eachUnseen, type MailboxClient } from "@/lib/mailbox";
 import { getContent } from "@/lib/store";
@@ -58,9 +58,11 @@ export async function POST() {
 
   const content = await getContent();
   const { weekly } = content;
-  const gate = submissionWindow(weekly, content.shows);
-  if (!weekly.enabled || !gate.open) {
-    // Outside the window a text is read but not added, same as the form.
+  // In the window texts are added. While the host has closed questions they
+  // are read and dropped, as the form turns people away; otherwise they stay
+  // unread and come in once the window opens.
+  const intake = textIntake(weekly, submissionWindow(weekly, content.shows));
+  if (intake === "wait") {
     return NextResponse.json<Ingested & { ok: true }>({
       ok: true,
       configured: true,
@@ -89,7 +91,8 @@ export async function POST() {
       await eachUnseen(client as unknown as MailboxClient, BATCH, async (message) => {
         const from = message.envelope?.from?.[0]?.address || "";
         const subject = message.envelope?.subject || "";
-        if (!looksLikeForwardedText(from, subject)) {
+        // Not a text, or the host has closed questions: marked read all the same, so it never comes back.
+        if (intake === "drop" || !looksLikeForwardedText(from, subject)) {
           skipped += 1;
           return;
         }

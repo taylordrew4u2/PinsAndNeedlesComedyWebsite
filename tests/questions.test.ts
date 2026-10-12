@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SEARCH_MAX, editedSubmission, isEdited, lineupAfterEdit, matchesSearch, onScreenQuestion, originalOf,
+  SEARCH_MAX, copiesOnly, editedSubmission, isEdited, lineupAfterEdit, matchesSearch, onScreenQuestion, originalOf,
   parseQuestionEdit, selectionAfterEdit, withEdit,
 } from "../src/lib/questions.ts";
 import { DECISION_MAX, NAME_MAX, sanitizeSubmission } from "../src/lib/decisions.ts";
@@ -139,6 +139,17 @@ test("the On screen box edits the stored question, or the screen's own copy when
   const stray = onScreenQuestion(screen, [[], []]);
   assert.deepEqual(stray && { id: stray.id, decision: stray.decision, name: stray.name }, { id: ID, decision: "On screen", name: "" });
   assert.equal(stray && isEdited(stray), false);
+});
+
+test("a question deleted while its set runs can still be fixed on screen, but not reverted", () => {
+  const stand = copiesOnly(ID, { decision: "Fixed", name: "" });
+  assert.ok(stand);
+  const slot: LiveSelection = { submissionId: ID, question: sent.decision, name: "Sam" };
+  const lineup: Lineup = { performers: [{ id: "sam", name: "Sam", slots: [slot, null, null, null], startedAt: null, stoppedAt: null }] };
+  assert.deepEqual(lineupAfterEdit(lineup, stand)?.performers[0].slots[0], { submissionId: ID, question: "Fixed", name: "" });
+  assert.deepEqual(selectionAfterEdit(slot, stand), { submissionId: ID, question: "Fixed", name: "" });
+  // The sender's words went with the record: there is nothing to go back to.
+  assert.equal(copiesOnly(ID, { revert: true }), null);
 });
 
 test("search finds every word, in any order and any case, in the question or the name", () => {

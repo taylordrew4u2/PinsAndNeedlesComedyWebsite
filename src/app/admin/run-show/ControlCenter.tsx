@@ -52,6 +52,8 @@ type State = {
   /** The host pressed "Close questions now" and it still holds. */
   manualClosed: boolean;
 };
+/** The one open editor: which question, and where it was opened (the waiting list, the shown list, or the "On screen" box). */
+type Editing = { at: "pile" | "shown" | "screen"; id: string };
 type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
 
 const API = "/api/admin/run-show";
@@ -88,8 +90,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   const [preloadText, setPreloadText] = useState("");
   const [preloadName, setPreloadName] = useState("");
   const [dragging, setDragging] = useState<Drag | null>(null);
-  // The one question whose editor is open: its id, or "screen:<id>" for the "On screen" box.
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
   // What the host typed to find a waiting question; only narrows the list on this page.
   const [search, setSearch] = useState("");
   // Ticks while the segment runs, so its clock counts down between polls.
@@ -130,6 +131,9 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       }
       known.current = new Set([...(known.current ?? []), ...ids]);
       setState({ ...data, segmentAt: Date.now() });
+      // An editor whose question has moved on (shown, put in a card, deleted on another device)
+      // closes for good, rather than opening again wherever the question turns up next.
+      setEditing((current) => (current && !stillThere(current, data) ? null : current));
       if (isNewerBuild(build, (data as { build?: unknown }).build)) setUpdated(true);
       setError("");
     } catch (failure) {
@@ -216,7 +220,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     });
 
   const draw = () =>
-    change(API, { draw: true }, (data) => {
+    // Never the question open in an editor: it waits until the edit is saved or cancelled.
+    change(API, { draw: true, ...(editing?.at === "pile" ? { skip: editing.id } : {}) }, (data) => {
       const drawn = data.drawn;
       if (!drawn) return;
       forget(drawn.id);
@@ -436,7 +441,11 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
   const waiting = state?.submissions ?? [];
   const onScreenId = state?.selected?.submissionId ?? null;
-  const listed = waiting.filter((item) => matchesSearch(item, search));
+  const isEditing = (at: Editing["at"], id: string) => editing?.at === at && editing.id === id;
+  // A waiting question with its editor open stays put: listed whatever the search, and out of reach of
+  // Show on screen, + Set, Draw one and Fill empty, so the typing is never thrown away under the host.
+  const held = editing?.at === "pile" ? editing.id : null;
+  const listed = waiting.filter((item) => item.id === held || matchesSearch(item, search));
   const onScreenItem = state ? onScreenQuestion(state.selected, [state.shown, state.submissions, state.archived]) : null;
 
   return (
@@ -499,7 +508,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                     </button>
                   );
                 })}
-                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.length} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
+                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.some((item) => item.id !== held)} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
                 <button type="button" onClick={() => void select(null)} disabled={busy || running || !state?.selected} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
               </div>
             </div>
@@ -512,10 +521,10 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               <div className="mt-4 rounded-lg border border-white/20 p-4">
                 <p className="whitespace-pre-wrap break-words text-lg">{state.selected.question}</p>
                 {state.selected.name ? <p className="mt-1 text-sm text-neutral-300">— {state.selected.name} (shown on screen)</p> : null}
-                {onScreenItem && editing === `screen:${onScreenItem.id}` ? (
+                {onScreenItem && isEditing("screen", onScreenItem.id) ? (
                   <QuestionEditor question={onScreenItem} live busy={busy} save={(edit) => editQuestion(onScreenItem.id, edit)} close={() => setEditing(null)} />
                 ) : onScreenItem ? (
-                  <button type="button" onClick={() => setEditing(`screen:${onScreenItem.id}`)} disabled={busy} className="mt-3 rounded-md border border-white/30 px-3 py-1.5 text-sm disabled:opacity-50">Edit</button>
+                  <button type="button" onClick={() => setEditing({ at: "screen", id: onScreenItem.id })} disabled={busy} className="mt-3 rounded-md border border-white/30 px-3 py-1.5 text-sm disabled:opacity-50">Edit</button>
                 ) : null}
               </div>
             ) : null}
@@ -616,7 +625,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               <LineupPanel
                 lineup={state.lineup}
                 clock={setClock}
-                waiting={waiting}
+                waiting={held ? waiting.filter((item) => item.id !== held) : waiting}
                 busy={busy}
                 dragging={dragging}
                 setDragging={setDragging}
@@ -650,7 +659,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   return (
                     <li
                       key={item.id}
-                      draggable={!busy && editing !== item.id}
+                      draggable={!busy && item.id !== held}
                       onDragStart={(event) => { event.dataTransfer.setData("text/plain", item.decision); setDragging({ from: "pile", id: item.id }); }}
                       onDragEnd={() => setDragging(null)}
                       className={`cursor-grab rounded-lg border p-4 transition-colors ${isNew ? "border-emerald-400/70 bg-emerald-950/30" : "border-white/15"}`}
@@ -659,14 +668,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                       <p className="whitespace-pre-wrap break-words text-lg leading-relaxed">{item.decision}</p>
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                         <span className="text-sm text-neutral-400">{item.name || "Anonymous"}{item.createdAt ? ` · ${timeOf(item.createdAt)}` : ""}</span>
-                        <span className="flex gap-2">
-                          <button type="button" onClick={() => setEditing(item.id)} disabled={busy || editing === item.id} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
+                        <span className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => setEditing({ at: "pile", id: item.id })} disabled={busy || item.id === held} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                           <button type="button" onClick={() => void remove(item)} disabled={busy} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Delete</button>
-                          <button type="button" onClick={() => addToSet(item)} disabled={busy || !state || !firstEmptySlot(state.lineup, setClock)} title="Into the next empty slot: the set on stage first, then the next performer" className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Set</button>
-                          <button type="button" disabled={busy || running} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
+                          <button type="button" onClick={() => addToSet(item)} disabled={busy || !state || item.id === held || !firstEmptySlot(state.lineup, setClock)} title={item.id === held ? "Save or cancel the edit first" : "Into the next empty slot: the set on stage first, then the next performer"} className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Set</button>
+                          <button type="button" disabled={busy || running || item.id === held} title={item.id === held ? "Save or cancel the edit first" : undefined} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
                         </span>
                       </div>
-                      {editing === item.id ? <QuestionEditor question={item} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /> : null}
+                      {item.id === held ? <QuestionEditor question={item} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /> : null}
                     </li>
                   );
                 })}
@@ -709,7 +718,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               <summary className="cursor-pointer text-sm">Already shown tonight{state ? ` (${state.shown.length})` : ""}</summary>
               {state?.shown.length ? (
                 <div role="list" className="mt-3 space-y-2">
-                  {state.shown.map((item) => editing === item.id ? (
+                  {state.shown.map((item) => isEditing("shown", item.id) ? (
                     <div role="listitem" key={item.id}><QuestionEditor question={item} live={item.id === onScreenId} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /></div>
                   ) : (
                     <div role="listitem" key={item.id} className={`flex items-start justify-between gap-3 rounded-md border px-3 py-2 ${item.id === onScreenId ? "border-white bg-white/10" : "border-white/10"}`}>
@@ -718,7 +727,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                         <span className="block text-xs text-neutral-500">{item.name || "Anonymous"}{item.id === onScreenId ? " · on screen now" : ""}</span>
                       </span>
                       <span className="flex shrink-0 gap-1">
-                        <button type="button" onClick={() => setEditing(item.id)} disabled={busy} className="px-2 py-1.5 text-xs text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
+                        <button type="button" onClick={() => setEditing({ at: "shown", id: item.id })} disabled={busy} className="px-2 py-1.5 text-xs text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                         {item.id === onScreenId ? null : (
                           <button type="button" onClick={() => void putBack(item.id)} disabled={busy} className="rounded-md border border-white/20 px-3 py-1.5 text-xs disabled:opacity-50">Put it back</button>
                         )}
@@ -773,6 +782,13 @@ function QrCode() {
       </div>
     </div>
   );
+}
+
+/** The question an editor was opened on is still where it was opened. */
+function stillThere(editing: Editing, board: Pick<State, "submissions" | "shown" | "selected">): boolean {
+  if (editing.at === "pile") return board.submissions.some((item) => item.id === editing.id);
+  if (editing.at === "shown") return board.shown.some((item) => item.id === editing.id);
+  return board.selected?.submissionId === editing.id;
 }
 
 /**

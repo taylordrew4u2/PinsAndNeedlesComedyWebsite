@@ -368,6 +368,23 @@ export function closeQuestions(
   return { alwaysOpen: false, closedUntil: tonight ? scheduled.closesAt : "" };
 }
 
+/**
+ * What the mailbox intake does with a forwarded text right now. In the window
+ * it is added. While the host has questions closed it is read and dropped, the
+ * same as the form turning someone away, so opening again later never floods
+ * the pile with everything sent meanwhile. Otherwise (outside the hours, or
+ * the page switched off) the mailbox is left alone, and the text comes in once
+ * the window opens.
+ */
+export function textIntake(
+  weekly: Pick<WeeklyPage, "enabled">,
+  window: Pick<SubmissionWindow, "open" | "closedByHost">
+): "add" | "drop" | "wait" {
+  if (!weekly.enabled) return "wait";
+  if (window.open) return "add";
+  return window.closedByHost ? "drop" : "wait";
+}
+
 /** What the form says while the host has questions closed. */
 export const HOST_CLOSED_TEXT = "Submissions are closed right now.";
 

@@ -125,9 +125,23 @@ export function withEdit<T extends Board>(board: T, submission: Submission): T {
 }
 
 /**
+ * The edit to make when the question's record is gone but a copy of it is
+ * still up. A running set keeps its own copy in the performer's card, so
+ * deleting the question does not take it off the screen; the copies take the
+ * new words, so the host can still fix what the room is reading. Null for
+ * "Revert to original": the sender's words went with the record.
+ */
+export function copiesOnly(submissionId: string, change: QuestionChange): Submission | null {
+  if ("revert" in change) return null;
+  return { id: submissionId, decision: change.decision, name: change.name, createdAt: "", status: "open", drawnAt: "" };
+}
+
+/**
  * The question on the projector as it is stored, so its editor can offer the
  * sender's original words. Built from the screen's own copy when it sits in
- * none of the lists, which still lets the host fix what the room is reading.
+ * none of the lists (a pile too long to list, or deleted while its set runs),
+ * which still lets the host fix what the room is reading: the server edits
+ * the record if there is one, and the screen's copies either way.
  */
 export function onScreenQuestion(selection: LiveSelection | null, lists: Submission[][]): Submission | null {
   if (!selection) return null;

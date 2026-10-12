@@ -13,7 +13,7 @@ import { currentBuild } from "@/lib/build";
 import type { Show, Submission } from "@/lib/types";
 import { closeQuestions, closedByHost } from "@/lib/decisions";
 import { editSubmission } from "@/lib/submissions";
-import { lineupAfterEdit, parseQuestionEdit, selectionAfterEdit } from "@/lib/questions";
+import { copiesOnly, lineupAfterEdit, parseQuestionEdit, selectionAfterEdit } from "@/lib/questions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -290,7 +290,9 @@ export async function POST(request: Request) {
       const [pile, current, content, segment] = await Promise.all([listPile({ fresh: true }, space), readLiveSelection(space), getContentStrict(), readLineup(space)]);
       if (segmentStatus(segment, Date.now()).running) return NextResponse.json({ error: "A set is running. Stop it to pick by hand." }, { status: 409, headers });
       const lined = slottedIds(segment);
-      const picked = pickRandom(drawable(currentOnly(pile.submissions, content.shows, space), current?.submissionId).filter((item) => !lined.has(item.id)));
+      // The question the host has open in an editor stays in the pile until they save or cancel.
+      const skip = "skip" in body && typeof body.skip === "string" ? body.skip : "";
+      const picked = pickRandom(drawable(currentOnly(pile.submissions, content.shows, space), current?.submissionId).filter((item) => !lined.has(item.id) && item.id !== skip));
       if (!picked) return NextResponse.json({ error: "No questions waiting to draw." }, { status: 404, headers });
       const selected = await show(picked, space);
       return NextResponse.json({ selected, drawn: picked }, { headers });
@@ -337,11 +339,16 @@ export async function POST(request: Request) {
     const edit = parseQuestionEdit(body.editQuestion);
     if (!edit) return NextResponse.json({ error: "Write the question first." }, { status: 400, headers });
     try {
-      const submission = await editSubmission(edit.submissionId, edit.change, space);
+      const stored = await editSubmission(edit.submissionId, edit.change, space);
+      // Deleted from the pile but still up in a running set: its copies still take the fix.
+      const submission = stored ?? copiesOnly(edit.submissionId, edit.change);
       if (!submission) return NextResponse.json({ error: "That question is gone." }, { status: 404, headers });
       // The projector and the performer cards hold their own copies: bring
       // them up to date so the screen shows the fix on its next poll.
       const [selection, lineup] = await Promise.all([readLiveSelection(space), readLineup(space)]);
+      if (!stored && selection?.submissionId !== submission.id && !slottedIds(lineup).has(submission.id)) {
+        return NextResponse.json({ error: "That question is gone." }, { status: 404, headers });
+      }
       const screen = selectionAfterEdit(selection, submission);
       if (screen) await writeLiveSelection(screen, space);
       const cards = lineupAfterEdit(lineup, submission);

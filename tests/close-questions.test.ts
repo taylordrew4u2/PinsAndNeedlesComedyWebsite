@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HOST_CLOSED_TEXT, closeQuestions, closedByHost, closedMessage, submissionWindow, windowFor } from "../src/lib/decisions.ts";
+import { HOST_CLOSED_TEXT, closeQuestions, closedByHost, closedMessage, submissionWindow, textIntake, windowFor } from "../src/lib/decisions.ts";
 import type { WeeklyPage } from "../src/lib/types.ts";
 
 // Only the fields the window reads: a Thursday 9 PM show, open from 8 PM to 1 AM.
@@ -91,4 +91,16 @@ test("the rehearsal form stays open whatever the host did to the live one", () =
   const closed = { ...weekly, closedUntil: TONIGHT_CLOSE };
   assert.equal(windowFor("rehearsal", closed, [], MID_SHOW).open, true);
   assert.equal(windowFor("live", closed, [], MID_SHOW).open, false);
+});
+
+test("texts from the forwarding mailbox: added while open, dropped while the host has it closed, held otherwise", () => {
+  assert.equal(textIntake(weekly, submissionWindow(weekly, [], MID_SHOW)), "add");
+  // Closed by the host: read and dropped, so opening again does not bring them all in at once.
+  const closed = { ...weekly, closedUntil: TONIGHT_CLOSE };
+  assert.equal(textIntake(closed, submissionWindow(closed, [], MID_SHOW)), "drop");
+  // Outside the hours, or with the page switched off, the mailbox is left for later.
+  const monday = new Date("2026-09-07T16:00:00Z");
+  assert.equal(textIntake(weekly, submissionWindow(weekly, [], monday)), "wait");
+  const off = { ...closed, enabled: false };
+  assert.equal(textIntake(off, submissionWindow(off, [], MID_SHOW)), "wait");
 });
