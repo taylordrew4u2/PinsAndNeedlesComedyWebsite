@@ -13,6 +13,9 @@ import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
 import { isNewerBuild } from "@/lib/build";
 import LiveMirror from "./LiveMirror";
+import QuestionEditor from "./QuestionEditor";
+import QuestionSearch from "./QuestionSearch";
+import { matchesSearch, onScreenQuestion, withEdit, type QuestionChange } from "@/lib/questions";
 
 type State = {
   /** The performers' cards: names and questions, filled in ahead. */
@@ -46,6 +49,8 @@ type State = {
   questionsOpen: boolean;
   manualOpen: boolean;
   pageLive: boolean;
+  /** The host pressed "Close questions now" and it still holds. */
+  manualClosed: boolean;
 };
 type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
 
@@ -83,6 +88,10 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   const [preloadText, setPreloadText] = useState("");
   const [preloadName, setPreloadName] = useState("");
   const [dragging, setDragging] = useState<Drag | null>(null);
+  // The one question whose editor is open: its id, or "screen:<id>" for the "On screen" box.
+  const [editing, setEditing] = useState<string | null>(null);
+  // What the host typed to find a waiting question; only narrows the list on this page.
+  const [search, setSearch] = useState("");
   // Ticks while the segment runs, so its clock counts down between polls.
   const [now, setNow] = useState(() => Date.now());
   const ping = useSyncExternalStore(subscribePing, readPing, () => false);
@@ -352,9 +361,42 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     change(API, { manualOpen }, (data) => {
       setState((current) => current ? {
         ...current, questionsOpen: Boolean(data.questionsOpen), manualOpen: Boolean(data.manualOpen), pageLive: Boolean(data.pageLive),
+        manualClosed: Boolean(data.manualClosed),
       } : current);
       setNotice(manualOpen ? "Questions are open now and will stay open until you return to the schedule." : "Questions are following the schedule again.");
     }, "Could not update questions.");
+
+  /** Stop new questions mid-show (the pile is full): the form says it is closed until you open it again or tonight's hours end. */
+  const closeQuestionsNow = () =>
+    change(API, { manualClosed: true }, (data) => {
+      setState((current) => current ? {
+        ...current, questionsOpen: Boolean(data.questionsOpen), manualOpen: Boolean(data.manualOpen), pageLive: Boolean(data.pageLive), manualClosed: Boolean(data.manualClosed),
+      } : current);
+      setNotice(data.manualClosed
+        ? "Questions are closed. The form stays closed until you open it again or tonight's hours end; next week opens on schedule."
+        : "Questions are closed. They open again at the scheduled time.");
+    }, "Could not update questions.");
+
+  /** Save a fix to a question's words or name (or put back what was sent), wherever it sits. */
+  const editQuestion = (id: string, edit: QuestionChange) =>
+    change(API, { editQuestion: { submissionId: id, ...edit } }, (data) => {
+      const item = data.submission;
+      if (!item) return;
+      setState((current) => current ? withEdit(current, item) : current);
+      setNotice(`${"revert" in edit ? "Back to what they sent." : "Saved."}${item.id === state?.selected?.submissionId ? " The live screen shows it within a few seconds." : ""}`);
+    }, "Could not save that question.");
+
+  /** An archived question back to the waiting list. */
+  const restore = (id: string) =>
+    change(API, { restore: id }, (data) => {
+      const item = data.submission;
+      setState((current) => current ? {
+        ...current,
+        archived: current.archived.filter((entry) => entry.id !== id),
+        submissions: item ? [item, ...current.submissions] : current.submissions,
+      } : current);
+      setNotice("Back in the waiting list.");
+    }, "Could not bring that question back.");
 
   const remove = async (item: Submission) => {
     if (!window.confirm(`Delete this question for good?\n\n${item.decision.slice(0, 120)}`)) return;
@@ -394,6 +436,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
   const waiting = state?.submissions ?? [];
   const onScreenId = state?.selected?.submissionId ?? null;
+  const listed = waiting.filter((item) => matchesSearch(item, search));
+  const onScreenItem = state ? onScreenQuestion(state.selected, [state.shown, state.submissions, state.archived]) : null;
 
   return (
     <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6">
@@ -468,6 +512,11 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               <div className="mt-4 rounded-lg border border-white/20 p-4">
                 <p className="whitespace-pre-wrap break-words text-lg">{state.selected.question}</p>
                 {state.selected.name ? <p className="mt-1 text-sm text-neutral-300">— {state.selected.name} (shown on screen)</p> : null}
+                {onScreenItem && editing === `screen:${onScreenItem.id}` ? (
+                  <QuestionEditor question={onScreenItem} live busy={busy} save={(edit) => editQuestion(onScreenItem.id, edit)} close={() => setEditing(null)} />
+                ) : onScreenItem ? (
+                  <button type="button" onClick={() => setEditing(`screen:${onScreenItem.id}`)} disabled={busy} className="mt-3 rounded-md border border-white/30 px-3 py-1.5 text-sm disabled:opacity-50">Edit</button>
+                ) : null}
               </div>
             ) : null}
 
@@ -516,7 +565,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             ) : null}
 
             <div className="mt-6 rounded-lg border border-white/20 p-4">
-              <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : "Questions are closed"}</p>
+              <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : state.manualClosed ? "Questions are closed (you closed them)" : "Questions are closed"}</p>
               <p className="mt-1 text-sm text-neutral-400">
                 {state && !state.pageLive
                   ? "The Bad Decisions page is switched off, so the QR goes nowhere. Open questions now switches it on."
@@ -524,7 +573,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               </p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <button type="button" onClick={() => void setManualOpen(true)} disabled={busy || !state || state.manualOpen} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Open questions now</button>
-                {state?.manualOpen ? <button type="button" onClick={() => void setManualOpen(false)} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Use scheduled hours</button> : null}
+                {state?.questionsOpen ? <button type="button" onClick={() => void closeQuestionsNow()} disabled={busy} title="Stops new questions, for example when the pile is full. The form says it is closed." className="rounded-md border border-red-500/60 px-4 py-2 text-sm text-red-200 disabled:opacity-50">Close questions now</button> : null}
+                {state?.manualOpen || state?.manualClosed ? <button type="button" onClick={() => void setManualOpen(false)} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Use scheduled hours</button> : null}
               </div>
               {texting.on ? (
                 <p className={`mt-3 text-xs ${texting.error ? "text-amber-200" : "text-neutral-500"}`}>
@@ -586,6 +636,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 <button type="button" onClick={() => void refresh()} disabled={busy} className="px-3 py-2 text-sm underline disabled:opacity-40">Refresh</button>
               </div>
             </div>
+            <QuestionSearch value={search} onChange={setSearch} total={waiting.length} matching={listed.length} />
             {fresh.size ? (
               <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/50 bg-emerald-950/40 px-4 py-2 text-sm text-emerald-200">
                 <span>{fresh.size === 1 ? "1 new question" : `${fresh.size} new questions`} since you last looked</span>
@@ -594,12 +645,12 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             ) : null}
             {!state ? <p role="status" className="text-neutral-400">Loading questions…</p> : waiting.length === 0 ? <p className="text-neutral-400">No questions waiting. New submissions appear here by themselves.</p> : (
               <ul className="space-y-3">
-                {waiting.map((item) => {
+                {listed.map((item) => {
                   const isNew = fresh.has(item.id);
                   return (
                     <li
                       key={item.id}
-                      draggable={!busy}
+                      draggable={!busy && editing !== item.id}
                       onDragStart={(event) => { event.dataTransfer.setData("text/plain", item.decision); setDragging({ from: "pile", id: item.id }); }}
                       onDragEnd={() => setDragging(null)}
                       className={`cursor-grab rounded-lg border p-4 transition-colors ${isNew ? "border-emerald-400/70 bg-emerald-950/30" : "border-white/15"}`}
@@ -609,11 +660,13 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                         <span className="text-sm text-neutral-400">{item.name || "Anonymous"}{item.createdAt ? ` · ${timeOf(item.createdAt)}` : ""}</span>
                         <span className="flex gap-2">
+                          <button type="button" onClick={() => setEditing(item.id)} disabled={busy || editing === item.id} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                           <button type="button" onClick={() => void remove(item)} disabled={busy} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Delete</button>
                           <button type="button" onClick={() => addToSet(item)} disabled={busy || !state || !firstEmptySlot(state.lineup, setClock)} title="Into the next empty slot: the set on stage first, then the next performer" className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Set</button>
                           <button type="button" disabled={busy || running} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
                         </span>
                       </div>
+                      {editing === item.id ? <QuestionEditor question={item} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /> : null}
                     </li>
                   );
                 })}
@@ -656,13 +709,16 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               <summary className="cursor-pointer text-sm">Already shown tonight{state ? ` (${state.shown.length})` : ""}</summary>
               {state?.shown.length ? (
                 <div role="list" className="mt-3 space-y-2">
-                  {state.shown.map((item) => (
+                  {state.shown.map((item) => editing === item.id ? (
+                    <div role="listitem" key={item.id}><QuestionEditor question={item} live={item.id === onScreenId} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /></div>
+                  ) : (
                     <div role="listitem" key={item.id} className={`flex items-start justify-between gap-3 rounded-md border px-3 py-2 ${item.id === onScreenId ? "border-white bg-white/10" : "border-white/10"}`}>
                       <span className="min-w-0">
                         <span className="block whitespace-pre-wrap break-words text-sm">{item.decision}</span>
                         <span className="block text-xs text-neutral-500">{item.name || "Anonymous"}{item.id === onScreenId ? " · on screen now" : ""}</span>
                       </span>
                       <span className="flex shrink-0 gap-1">
+                        <button type="button" onClick={() => setEditing(item.id)} disabled={busy} className="px-2 py-1.5 text-xs text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                         {item.id === onScreenId ? null : (
                           <button type="button" onClick={() => void putBack(item.id)} disabled={busy} className="rounded-md border border-white/20 px-3 py-1.5 text-xs disabled:opacity-50">Put it back</button>
                         )}
@@ -684,7 +740,10 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   {state.archived.map((item) => (
                     <div role="listitem" key={item.id} className="flex items-start justify-between gap-3 text-sm text-neutral-400">
                       <span className="whitespace-pre-wrap break-words">{item.decision}{item.name ? <span className="text-neutral-600"> — {item.name}</span> : null}</span>
+                      <span className="flex shrink-0 gap-1">
+                      <button type="button" onClick={() => void restore(item.id)} disabled={busy} title="Back to the waiting list" className="shrink-0 px-2 py-1 text-xs hover:text-white disabled:opacity-50">Restore</button>
                       <button type="button" onClick={() => void remove(item)} disabled={busy} className="shrink-0 px-2 py-1 text-xs hover:text-white disabled:opacity-50">Delete</button>
+                      </span>
                     </div>
                   ))}
                 </div>

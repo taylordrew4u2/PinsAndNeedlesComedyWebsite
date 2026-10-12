@@ -11,6 +11,7 @@ import {
 } from "./github-store";
 import { countIdsSince, sortSubmissions, submissionId } from "./decisions";
 import { mapWithLimit, planReads, pruneTo, type PileEntry } from "./pile";
+import { editedSubmission, type QuestionChange } from "./questions";
 import { storagePrefix, type Space } from "./space";
 import type { Submission, SubmissionStatus } from "./types";
 
@@ -139,6 +140,9 @@ function parse(bytes: string | Buffer): Submission | null {
       status: value.status === "drawn" || value.status === "archived" ? value.status : "open",
       drawnAt: typeof value.drawnAt === "string" ? value.drawnAt : "",
       shownAt: typeof value.shownAt === "string" ? value.shownAt : "",
+      // The sender's own words, kept once the host has edited them.
+      ...(typeof value.originalDecision === "string" ? { originalDecision: value.originalDecision } : {}),
+      ...(typeof value.originalName === "string" ? { originalName: value.originalName } : {}),
     };
   } catch {
     return null;
@@ -334,12 +338,33 @@ export async function markShown(id: string, space: Space = "live"): Promise<Subm
 /**
  * Offer a question again after it has been on screen: back in the pile, off
  * the control center's "already shown" list. The projector is not touched.
+ * The same move brings an archived question back to the waiting list.
  */
 export async function putBack(id: string, space: Space = "live"): Promise<Submission | null> {
   const { submission, sha } = await readOne(id, space);
   if (!submission) return null;
   const next: Submission = { ...submission, status: "open" };
   delete next.shownAt;
+  caches[space].delete(submission.id);
+  await write(next, sha, space);
+  return next;
+}
+
+/**
+ * The host's fix to a question's wording or name (or back to what was sent),
+ * on whichever driver holds the pile. The sender's original stays in the
+ * record. Nothing is written when nothing changed: on GitHub a write is a
+ * commit. Null when the question is gone.
+ */
+export async function editSubmission(
+  id: string,
+  change: QuestionChange,
+  space: Space = "live"
+): Promise<Submission | null> {
+  const { submission, sha } = await readOne(id, space);
+  if (!submission) return null;
+  const next = editedSubmission(submission, change);
+  if (JSON.stringify(next) === JSON.stringify(submission)) return submission;
   caches[space].delete(submission.id);
   await write(next, sha, space);
   return next;

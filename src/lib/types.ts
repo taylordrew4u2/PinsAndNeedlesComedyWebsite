@@ -272,6 +272,14 @@ export type WeeklyPage = {
   closeMinutesAfter: number;
   /** Host override: keep the form open regardless of the clock. */
   alwaysOpen: boolean;
+  /**
+   * Host override the other way, from the Control Center's "Close questions
+   * now": the form refuses new questions until this ISO instant, whatever the
+   * clock or alwaysOpen say. It is the end of the night's window it was
+   * closed in, so a close nobody undid cannot shut next week's show too.
+   * "" or absent when the host has not closed it.
+   */
+  closedUntil?: string;
   /** Shown in place of the form outside the window. */
   closedText: string;
   /**
@@ -312,6 +320,13 @@ export type Submission = {
   drawnAt: string;
   /** Set the first time the host puts it on the live screen; empty until then. */
   shownAt?: string;
+  /**
+   * What the sender actually sent, kept from the host's first edit of the
+   * wording or the name so a fix can always be undone. Absent until then,
+   * and dropped again when the host reverts to it.
+   */
+  originalDecision?: string;
+  originalName?: string;
 };
 
 export type ShowsPage = {
