@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { readExplainer, readLineup, readLiveSelection, readMenu } from "@/lib/live-store";
 import { readDrinks } from "@/lib/live-store";
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
     const [screenSettings, message, soundTest] = await screenReads;
     return NextResponse.json({
       ...publicSelection(selection),
+      // Which question is up, without saying which submission it is, so a fix to its words is not taken for a new one.
+      questionKey: selection ? createHash("sha256").update(selection.submissionId).digest("base64url").slice(0, 16) : null,
       menu: menu.on,
       marquee: liveMarquee(menu),
       menuCustom: menu.on ? customLook(menu) : null,

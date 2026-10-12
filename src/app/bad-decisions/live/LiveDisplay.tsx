@@ -199,8 +199,10 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         const nextMessage = readPublicMessage(data?.message);
         covered.current = nextMenu || nextMessage !== null;
         const next = typeof data?.question === "string" ? data.question : null;
+        // Which question it is, not its words: the host fixing a typo on screen is the same question, with no second countdown or sting.
+        const nextKey = next === null ? null : typeof data?.questionKey === "string" && data.questionKey ? data.questionKey : next;
         const previous = shown.current;
-        shown.current = next;
+        shown.current = nextKey;
         /** The countdown, then the sting and the drum roll: a new question arriving where the room can see it. */
         const arrive = () => {
           held.current = false;
@@ -223,7 +225,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           if (countFrom) countdownTimers.current.push(setTimeout(reveal, countFrom * COUNTDOWN_STEP_MS));
           else reveal();
         };
-        if (next !== previous) {
+        if (nextKey !== previous) {
           // A changed screen ends any countdown or intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
           countdownTimers.current.forEach(clearTimeout);
