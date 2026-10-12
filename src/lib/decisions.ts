@@ -286,6 +286,8 @@ export type SubmissionWindow = {
   closesAt: string;
   /** "Thursday at 8:00 PM" — for the closed panel on the page. */
   opensLabel: string;
+  /** Shut by the host's "Close questions now", not by the clock. */
+  closedByHost?: boolean;
 };
 
 /**
@@ -311,6 +313,12 @@ export function submissionWindow(
       ? occurrence(weekly, addDays(first.date, 7), undefined)
       : first;
 
+  // The host closed questions from the Control Center. No countdown either:
+  // the door is not opening by itself, so the page must not promise a time.
+  if (closedByHost(weekly, now)) {
+    return { open: false, date: current.date, opensAt: "", closesAt: "", opensLabel: "", closedByHost: true };
+  }
+
   const openNow = weekly.alwaysOpen
     ? true
     : Boolean(
@@ -330,6 +338,55 @@ export function submissionWindow(
       : "",
   };
 }
+
+/**
+ * True while the host's "Close questions now" holds. A stamp that does not
+ * parse holds nothing, so a damaged record can only ever leave the form on
+ * its schedule, never shut it for good.
+ */
+export function closedByHost(weekly: Pick<WeeklyPage, "closedUntil">, now: Date = new Date()): boolean {
+  const until = Date.parse(weekly.closedUntil || "");
+  return Number.isFinite(until) && now.getTime() < until;
+}
+
+/**
+ * What "Close questions now" saves over the weekly settings.
+ *
+ * The manual open goes. The close itself lasts until the end of tonight's
+ * scheduled window — the host is stopping tonight's pile, and a close nobody
+ * remembered to undo must not quietly shut next week's show as well. On a day
+ * with no window left (another day, or after the door has shut) the schedule
+ * already keeps the form closed, so there is nothing to hold.
+ */
+export function closeQuestions(
+  weekly: WeeklyPage,
+  shows: Show[],
+  now: Date = new Date()
+): { alwaysOpen: false; closedUntil: string } {
+  const scheduled = submissionWindow({ ...weekly, alwaysOpen: false, closedUntil: "" }, shows, now);
+  const tonight = scheduled.open || scheduled.date === nyToday(now);
+  return { alwaysOpen: false, closedUntil: tonight ? scheduled.closesAt : "" };
+}
+
+/**
+ * What the mailbox intake does with a forwarded text right now. In the window
+ * it is added. While the host has questions closed it is read and dropped, the
+ * same as the form turning someone away, so opening again later never floods
+ * the pile with everything sent meanwhile. Otherwise (outside the hours, or
+ * the page switched off) the mailbox is left alone, and the text comes in once
+ * the window opens.
+ */
+export function textIntake(
+  weekly: Pick<WeeklyPage, "enabled">,
+  window: Pick<SubmissionWindow, "open" | "closedByHost">
+): "add" | "drop" | "wait" {
+  if (!weekly.enabled) return "wait";
+  if (window.open) return "add";
+  return window.closedByHost ? "drop" : "wait";
+}
+
+/** What the form says while the host has questions closed. */
+export const HOST_CLOSED_TEXT = "Submissions are closed right now.";
 
 /**
  * The window for a space. The live show keeps its clock; the dress rehearsal
@@ -401,6 +458,8 @@ function labelFor(
  * placeholder cleanly when the weekly has no start time to count back from.
  */
 export function closedMessage(weekly: WeeklyPage, window: SubmissionWindow): string {
+  // "Opens tonight at 8" would be wrong here: it opens when the host says so.
+  if (window.closedByHost) return HOST_CLOSED_TEXT;
   const text = weekly.closedText || "";
   if (!text.includes("{when}")) return text;
   if (!window.opensLabel) {

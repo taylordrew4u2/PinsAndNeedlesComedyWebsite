@@ -14,6 +14,9 @@ import { clearMessage, readMessage, readScreen, readScreenBuild, startSoundTest,
 import { parseScreenChange } from "@/lib/screen-settings";
 import { applyMessage, parseMessageChange } from "@/lib/screen-message";
 import type { Show, Submission } from "@/lib/types";
+import { closeQuestions, closedByHost } from "@/lib/decisions";
+import { editSubmission } from "@/lib/submissions";
+import { copiesOnly, lineupAfterEdit, parseQuestionEdit, selectionAfterEdit } from "@/lib/questions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -105,6 +108,8 @@ export async function GET(request: Request) {
       message,
       // The TV is running an older version of the site and could not reload itself: the host reloads it between sets.
       staleScreen: staleScreen(await screenBuild, currentBuild(), now),
+      // The host pressed "Close questions now" and it still holds.
+      manualClosed: content.weekly.enabled && closedByHost(content.weekly),
     }, { headers });
   } catch (error) {
     console.error("[run-show] load failed", error);
@@ -222,11 +227,14 @@ export async function POST(request: Request) {
       const content = await patchContent({ weekly: {
         alwaysOpen: body.manualOpen,
         ...(body.manualOpen ? { enabled: true } : {}),
+        // Open now, or back to the schedule: either way a "Close questions now" ends.
+        closedUntil: "",
       } });
       return NextResponse.json({
         questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
         manualOpen: content.weekly.enabled && content.weekly.alwaysOpen,
         pageLive: content.weekly.enabled,
+        manualClosed: false,
       }, { headers });
     } catch (error) {
       console.error("[run-show] question setting failed", error);
@@ -306,7 +314,9 @@ export async function POST(request: Request) {
       const [pile, current, content, segment] = await Promise.all([listPile({ fresh: true }, space), readLiveSelection(space), getContentStrict(), readLineup(space)]);
       if (segmentStatus(segment, Date.now()).running) return NextResponse.json({ error: "A set is running. Stop it to pick by hand." }, { status: 409, headers });
       const lined = slottedIds(segment);
-      const picked = pickRandom(drawable(currentOnly(pile.submissions, content.shows, space), current?.submissionId).filter((item) => !lined.has(item.id)));
+      // The question the host has open in an editor stays in the pile until they save or cancel.
+      const skip = "skip" in body && typeof body.skip === "string" ? body.skip : "";
+      const picked = pickRandom(drawable(currentOnly(pile.submissions, content.shows, space), current?.submissionId).filter((item) => !lined.has(item.id) && item.id !== skip));
       if (!picked) return NextResponse.json({ error: "No questions waiting to draw." }, { status: 404, headers });
       const selected = await show(picked, space);
       return NextResponse.json({ selected, drawn: picked }, { headers });
@@ -410,6 +420,65 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("[run-show] clear finished failed", error);
       return NextResponse.json({ error: "Could not clear the finished cards. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("manualClosed" in body) {
+    if (typeof body.manualClosed !== "boolean") {
+      return NextResponse.json({ error: "Invalid question setting" }, { status: 400, headers });
+    }
+    try {
+      // Like manualOpen, only question availability. The close holds until the
+      // end of tonight's window, worked out from the settings as they are now.
+      const current = await getContentStrict();
+      const content = await patchContent({ weekly: body.manualClosed ? closeQuestions(current.weekly, current.shows) : { closedUntil: "" } });
+      return NextResponse.json({
+        questionsOpen: content.weekly.enabled && submissionWindow(content.weekly, content.shows).open,
+        manualOpen: content.weekly.enabled && content.weekly.alwaysOpen,
+        pageLive: content.weekly.enabled,
+        manualClosed: content.weekly.enabled && closedByHost(content.weekly),
+      }, { headers });
+    } catch (error) {
+      console.error("[run-show] close questions failed", error);
+      return NextResponse.json({ error: "Could not update questions. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("editQuestion" in body) {
+    const edit = parseQuestionEdit(body.editQuestion);
+    if (!edit) return NextResponse.json({ error: "Write the question first." }, { status: 400, headers });
+    try {
+      const stored = await editSubmission(edit.submissionId, edit.change, space);
+      // Deleted from the pile but still up in a running set: its copies still take the fix.
+      const submission = stored ?? copiesOnly(edit.submissionId, edit.change);
+      if (!submission) return NextResponse.json({ error: "That question is gone." }, { status: 404, headers });
+      // The projector and the performer cards hold their own copies: bring
+      // them up to date so the screen shows the fix on its next poll.
+      const [selection, lineup] = await Promise.all([readLiveSelection(space), readLineup(space)]);
+      if (!stored && selection?.submissionId !== submission.id && !slottedIds(lineup).has(submission.id)) {
+        return NextResponse.json({ error: "That question is gone." }, { status: 404, headers });
+      }
+      const screen = selectionAfterEdit(selection, submission);
+      if (screen) await writeLiveSelection(screen, space);
+      const cards = lineupAfterEdit(lineup, submission);
+      if (cards) await writeLineup(cards, space);
+      return NextResponse.json({ submission }, { headers });
+    } catch (error) {
+      console.error("[run-show] edit question failed", error);
+      return NextResponse.json({ error: "Could not save that question. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("restore" in body) {
+    const id = body.restore;
+    if (typeof id !== "string" || !ID.test(id)) {
+      return NextResponse.json({ error: "Invalid question" }, { status: 400, headers });
+    }
+    try {
+      // Out of the archive and back to waiting: open again, never shown.
+      const submission = await putBack(id, space);
+      if (!submission) return NextResponse.json({ error: "That question is gone." }, { status: 404, headers });
+      return NextResponse.json({ submission }, { headers });
+    } catch (error) {
+      console.error("[run-show] restore failed", error);
+      return NextResponse.json({ error: "Could not bring that question back. Try again." }, { status: 503, headers });
     }
   }
   if ("putBack" in body) {
