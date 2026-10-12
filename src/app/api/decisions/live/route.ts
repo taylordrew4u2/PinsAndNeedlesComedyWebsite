@@ -5,8 +5,9 @@ import { freshExplainer } from "@/lib/explainer";
 import { publicSelection } from "@/lib/live-selection";
 import { DEFAULT_MARQUEE, customLook } from "@/lib/drink-menu";
 import { spaceOf } from "@/lib/space";
-import { currentBuild } from "@/lib/build";
-import { readMessage, readScreen, readSoundTest } from "@/lib/live-store";
+import { cleanBuild, currentBuild } from "@/lib/build";
+import { Throttle, clientAddress } from "@/lib/throttle";
+import { readMessage, readScreen, readSoundTest, writeScreenBuild } from "@/lib/live-store";
 import { changedScreen, freshSoundTest } from "@/lib/screen-settings";
 import { publicMessage } from "@/lib/screen-message";
 
@@ -52,5 +53,35 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("[live-show] read failed", error);
     return NextResponse.json({ question: null }, { status: 503, headers });
+  }
+}
+
+/** A screen reports every few minutes at most; anything faster is not a screen. */
+const reports = new Throttle(10, 10 * 60_000);
+
+/**
+ * The live screen saying which build it is running: it reports while it is
+ * out of date and could not reload itself (in full screen, say), and once
+ * more when it is up to date again, so the Control Center can tell the host
+ * to reload the TV by hand between sets. Public like the GET, so it only
+ * takes a build id, and writes only when the report is news.
+ */
+export async function POST(request: Request) {
+  const space = spaceOf(new URL(request.url).searchParams.get("mode"));
+  const address = clientAddress(request);
+  if (reports.retryAfter(address)) return new NextResponse(null, { status: 429, headers });
+  reports.record(address);
+  let body: unknown;
+  try { body = await request.json(); } catch {
+    return new NextResponse(null, { status: 400, headers });
+  }
+  const build = cleanBuild((body as { build?: unknown } | null)?.build);
+  if (!build || !currentBuild()) return new NextResponse(null, { status: 400, headers });
+  try {
+    await writeScreenBuild(build, space);
+    return new NextResponse(null, { status: 204, headers });
+  } catch (error) {
+    console.error("[live-show] screen build report failed", error);
+    return new NextResponse(null, { status: 503, headers });
   }
 }

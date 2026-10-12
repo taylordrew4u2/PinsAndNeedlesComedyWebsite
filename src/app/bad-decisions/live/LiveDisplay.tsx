@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
-import { isNewerBuild, quietScreen } from "@/lib/build";
+import { isNewerBuild, maySelfReload, quietScreen, screenSignature } from "@/lib/build";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import type { CustomLook } from "@/lib/drink-menu";
@@ -11,7 +11,7 @@ import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont } from
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { playIntroSound } from "@/lib/intro-sound";
 import Explainer from "@/components/Explainer";
-import { EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
+import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
 import { DEFAULT_LOOK, screenLook, type ScreenSettings } from "@/lib/screen-settings";
 import { readPublicMessage } from "@/lib/screen-message";
 import ScreenMessage from "@/components/ScreenMessage";
@@ -25,6 +25,14 @@ const POINTER_IDLE_MS = 2_500;
 const POLL_TIMEOUT_MS = 8_000;
 /** Remembers which update this screen last reloaded itself for, so it never reloads twice for the same one. */
 const RELOAD_KEY = "pnc-live-reloaded-for";
+/** What was on screen just before a reload of its own, so whatever goes up meanwhile still gets its countdown, sting or Intro. */
+const CARRY_KEY = "pnc-live-carry";
+/** Set once this screen has told the site it is out of date, so it says so again when it is up to date. */
+const REPORTED_KEY = "pnc-live-reported-old";
+/** How often an out-of-date screen that cannot reload itself reminds the Control Center. */
+const REPORT_EVERY_MS = 5 * 60_000;
+/** The page is fetched before a reload, to be sure it answers; that check counts for this long. */
+const PAGE_READY_MS = 30_000;
 /** After a tap there is no pointer to hide, so the controls stay long enough to reach. */
 const TOUCH_IDLE_MS = 5_000;
 /** A silent 3, 2, 1 before a newly picked question, so the room sees it coming (the host can change the number or turn it off). */
@@ -57,6 +65,10 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   const [segmentLeft, setSegmentLeft] = useState(0);
   // Browsers only allow sound after someone taps or clicks the page once; until then the button below asks for it.
   const audio = useRef<AudioContext | null>(null);
+  // Sound that only started after a tap: a reload could lose it (Safari and iPads want a tap on every page), so the screen won't reload itself.
+  const soundByTap = useRef(false);
+  // Until then, a countdown, intro, explainer or sound test is playing: no reload over it.
+  const busyUntil = useRef(0);
   // The host's "Intro" explainer: which step is up, and the start time last acted on (undefined until the first poll).
   const [explainer, setExplainer] = useState<ExplainerStep | null>(null);
   const explainerSeen = useRef<string | null | undefined>(undefined);
@@ -115,6 +127,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     const runExplainer = () => {
       explainerTimers.current.forEach(clearTimeout);
       explainerTimers.current = [];
+      busyUntil.current = Date.now() + EXPLAINER_MS + 1_000;
       setWipe((count) => count + 1);
       let delay = 0;
       for (const { step, ms } of EXPLAINER_STEPS) {
@@ -131,6 +144,33 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     };
     // A poll lined up for the moment the next segment slot goes up, so it lands on time rather than up to a poll late.
     let switchTimer: ReturnType<typeof setTimeout> | undefined;
+    // Out of date: since when the screen has been quiet and unchanged, and when the page last answered a check.
+    let quiet: { signature: string; since: number } | null = null;
+    let pageReadyAt = 0;
+    let lastPageCheck = 0;
+    let lastReport = 0;
+    let noStorage = false;
+    // Just reloaded itself: pick up what was on screen before, so anything that went up during the reload is still new.
+    try {
+      const carried = JSON.parse(sessionStorage.getItem(CARRY_KEY) || "null");
+      sessionStorage.removeItem(CARRY_KEY);
+      if (carried && Date.now() - carried.at < 60_000) {
+        shown.current = carried.question ?? null;
+        performerSeen.current = carried.performer ?? null;
+        explainerSeen.current = carried.explainer ?? null;
+        messageSeen.current = Boolean(carried.message);
+        soundTestSeen.current = carried.soundTest ?? null;
+        menuSeen.current = typeof carried.menu === "string" ? carried.menu : undefined;
+      }
+    } catch { /* storage blocked or garbled: start fresh */ }
+    // The Control Center's mirror is not the TV: it never reports, and leaves the TV's note alone.
+    const framed = window.self !== window.top;
+    /** Tell the site which build this screen runs, for the Control Center. */
+    const report = (running: string) => {
+      void fetch(`/api/decisions/live${modeQuery(space)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ build: running }),
+      }).catch(() => {});
+    };
     const refresh = async () => {
       if (pending) return;
       pending = true;
@@ -142,17 +182,6 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         if (!response.ok) return;
         const data = JSON.parse(text);
         if (disposed) return;
-        // The site was updated while this screen was open: its code is old, and new
-        // features would never show. Reload once, at a moment the room won't notice,
-        // and only after the page itself answers, so a wifi drop can't leave an error page up.
-        if (isNewerBuild(build, data?.build) && quietScreen(data)) {
-          let tried = false;
-          try { tried = sessionStorage.getItem(RELOAD_KEY) === data.build; sessionStorage.setItem(RELOAD_KEY, data.build); } catch { /* storage blocked: still reload once */ }
-          if (!tried) {
-            const page = await fetchWithin(window.location.href, { cache: "no-store" }, POLL_TIMEOUT_MS, controller.signal).catch(() => null);
-            if (page?.response.ok && !disposed) { window.location.reload(); return; }
-          }
-        }
         // The host's settings, missing from an older server's answer: then the defaults, the screen as it always was.
         const setup = screenLook(data?.screen);
         muted.current = !setup.sound;
@@ -170,6 +199,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           const fresh = previous !== undefined && next !== null;
           setCountdown(fresh && countFrom ? countFrom : null);
           if (fresh) {
+            busyUntil.current = Date.now() + countFrom * COUNTDOWN_STEP_MS + INTRO_MS + 1_000;
             // Silent 3, 2, 1; the sting and the drum roll come in on the beat after "1".
             for (let n = countFrom - 1; n >= 1; n -= 1) {
               countdownTimers.current.push(setTimeout(() => setCountdown(n), (countFrom - n) * COUNTDOWN_STEP_MS));
@@ -240,7 +270,52 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           // "Test sound" plays the sting once, nothing else; like the Intro, a tap from before this screen opened is not replayed.
           const opening = soundTestSeen.current === undefined;
           soundTestSeen.current = soundTestAt;
-          if (soundTestAt && !opening) sting();
+          if (soundTestAt && !opening) {
+            busyUntil.current = Date.now() + 4_000;
+            sting();
+          }
+        }
+        // The site was updated while this screen was open: its code is old, and new features would never show.
+        if (isNewerBuild(build, data?.build)) {
+          const now = Date.now();
+          const signature = screenSignature(data);
+          if (!quietScreen(data)) quiet = null;
+          else if (quiet?.signature !== signature) quiet = { signature, since: now };
+          // Without storage there is no guard against reloading over and over: then it never reloads itself, and the Control Center says so.
+          let tried = noStorage;
+          try { tried ||= sessionStorage.getItem(RELOAD_KEY) === data.build; } catch { tried = noStorage = true; }
+          const fullscreen = Boolean(fullscreenElement());
+          const may = maySelfReload({ tried, fullscreen, soundByTap: soundByTap.current, busy: now < busyUntil.current, quietForMs: quiet ? now - quiet.since : 0 });
+          if (may && now - pageReadyAt < PAGE_READY_MS) {
+            // Reload at a moment the room won't notice, carrying what is up now so nothing that goes up meanwhile loses its intro.
+            try {
+              sessionStorage.setItem(RELOAD_KEY, data.build);
+              sessionStorage.setItem(CARRY_KEY, JSON.stringify({
+                at: now, question: shown.current ?? null, performer: performerSeen.current ?? null, explainer: explainerSeen.current ?? null,
+                message: messageSeen.current ?? false, soundTest: soundTestSeen.current ?? null, menu: menuSeen.current ?? null,
+              }));
+              window.location.reload();
+              return;
+            } catch { noStorage = true; }
+          }
+          if (may && now - lastPageCheck > PAGE_READY_MS) {
+            // First make sure the page answers, so a wifi drop can't leave an error page up; the reload waits for a later poll.
+            lastPageCheck = now;
+            void fetchWithin(window.location.href, { cache: "no-store" }, POLL_TIMEOUT_MS, controller.signal)
+              .then(({ response }) => { if (response.ok) pageReadyAt = Date.now(); }, () => {});
+          }
+          // It won't reload itself: in full screen, sound that needed a tap, or already tried. The Control Center tells the host.
+          if (!framed && (tried || fullscreen || soundByTap.current) && now - lastReport > REPORT_EVERY_MS) {
+            lastReport = now;
+            report(build);
+            try { localStorage.setItem(REPORTED_KEY, "1"); } catch { /* the reminder fades from the Control Center on its own */ }
+          }
+        } else if (!framed && build && data?.build === build) {
+          quiet = null;
+          // Up to date again after saying it was not: say so, and the Control Center's reminder goes away.
+          let reported = false;
+          try { reported = localStorage.getItem(REPORTED_KEY) === "1"; if (reported) localStorage.removeItem(REPORTED_KEY); } catch { /* nothing to clear */ }
+          if (reported) report(build);
         }
       } catch {
         // Offline, timed out or aborted: leave the screen as it is.
@@ -292,17 +367,24 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       }
       const context = audio.current;
       context.resume().then(
-        () => { if (audio.current === context) setSoundOn(context.state === "running"); },
+        () => {
+          if (audio.current !== context) return;
+          setSoundOn(context.state === "running");
+          // Sound started only once someone touched the page: a reload could lose it, so the screen leaves reloading to the host.
+          if (context.state === "running" && tapped) soundByTap.current = true;
+        },
         () => { if (audio.current === context) setSoundOn(false); },
       );
     };
     // Try at once: a browser set to allow autoplay here starts sound with no tap. A blocked one just waits for the first tap.
+    let tapped = false;
+    const tap = () => { tapped = true; unlock(); };
     unlock();
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("keydown", unlock);
+    window.addEventListener("pointerdown", tap);
+    window.addEventListener("keydown", tap);
     return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("pointerdown", tap);
+      window.removeEventListener("keydown", tap);
       const context = audio.current;
       audio.current = null;
       void context?.close();

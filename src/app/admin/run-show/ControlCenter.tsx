@@ -55,6 +55,8 @@ type State = {
   screen?: ScreenSettings;
   /** The host's own message for the live screen, up or saved for later. */
   message?: ScreenMessage;
+  /** The TV said it runs an older version of the site and could not reload itself; null when it is up to date. */
+  staleScreen?: { at: string } | null;
 };
 type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
 
@@ -67,6 +69,14 @@ const INGEST_EVERY_MS = 30_000;
 const PING_KEY = "pnc-control-center-ping";
 /** A poll still unanswered after this is given up, so one stalled request never freezes the page. */
 const POLL_TIMEOUT_MS = 15_000;
+/**
+ * A press is given up after this: just past the longest the server lets an
+ * action run, so a slow one (archiving a big pile, adding many questions)
+ * still lands, and only a request that will never answer frees the buttons.
+ */
+const CHANGE_TIMEOUT_MS = 65_000;
+/** Given up on a press: the server may still have done it, so the host checks before pressing again. */
+const NO_ANSWER = "No answer from the server yet. It may still have gone through: check the screen and the lists before trying again.";
 
 /**
  * The show-night control center: the questions as they arrive, a mirror of
@@ -172,14 +182,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       // A change that never answers must not hold every button: give up, and the next poll shows what landed.
       const { response, text } = await fetchWithin(endpoint, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      }, POLL_TIMEOUT_MS);
+      }, CHANGE_TIMEOUT_MS);
       if (response.status === 401) { setAuthLost(true); return false; }
       const data = JSON.parse(text);
       if (!response.ok || data.ok === false) throw new Error(data.error || failed);
       done(data);
       ok = true;
     } catch (failure) {
-      setError(plainError(failure, failed));
+      setError(gaveUp(failure) ? NO_ANSWER : plainError(failure, failed));
     } finally {
       revision.current += 1;
       changing.current = false;
@@ -398,13 +408,18 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     // The server archives a batch at a time so a big pile cannot outlast one
     // request; keep asking until it says nothing is left. Bounded, so a server
     // that stopped making progress cannot spin here.
+    let done = false;
     for (let pass = 0; pass < 40; pass += 1) {
       let remaining = 0;
       const ok = await change(PILE_API, { action: "archive-all" }, (data) => { remaining = Number(data.remaining) || 0; }, "Could not archive the pile.");
-      if (!ok || !remaining) break;
+      if (!ok) break;
+      if (!remaining) { done = true; break; }
     }
-    setFresh(new Set());
-    setNotice("Tonight's pile is archived. The screen is clear.");
+    // Only a finished archive says so; a failed pass leaves its own message up.
+    if (done) {
+      setFresh(new Set());
+      setNotice("Tonight's pile is archived. The screen is clear.");
+    }
     await refresh();
   };
 
@@ -437,8 +452,13 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
         {updated ? (
           <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-400/60 bg-sky-950/40 px-4 py-2 text-sm text-sky-100">
-            <span>The site was just updated. Reload this page to get the newest Control Center (save anything you are typing first). The live screen updates itself.</span>
+            <span>The site was just updated. Reload this page to get the newest Control Center (save anything you are typing first). The live screen updates itself when it can; if it can&rsquo;t, a note here says so.</span>
             <button type="button" onClick={() => window.location.reload()} className="rounded-md bg-sky-300 px-3 py-1.5 font-semibold text-black">Reload</button>
+          </div>
+        ) : null}
+        {state?.staleScreen ? (
+          <div role="status" className="mb-4 rounded-lg border border-amber-300/60 bg-amber-950/40 px-4 py-2 text-sm text-amber-100">
+            The live screen (the TV) is running an older version of the site, so new features may not show. It can&rsquo;t update itself while it is in full screen. Between sets, on the TV laptop press <kbd className="rounded border border-amber-200/40 px-1">F5</kbd> (<kbd className="rounded border border-amber-200/40 px-1">⌘R</kbd> on a Mac), then <kbd className="rounded border border-amber-200/40 px-1">F</kbd> for full screen and click once for sound.
           </div>
         ) : null}
         {notice ? <p role="status" className="mb-4 text-emerald-300">{notice}</p> : null}
@@ -772,6 +792,11 @@ async function collectTexts(setTexting: (value: { on: boolean; error: string }) 
 }
 
 /** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */
+/** The request was given up on (or the page is leaving), not refused. */
+function gaveUp(failure: unknown): boolean {
+  return failure instanceof Error && (failure.name === "AbortError" || failure.name === "TimeoutError");
+}
+
 function plainError(failure: unknown, fallback: string): string {
   if (!(failure instanceof Error) || failure.name === "AbortError" || failure.name === "TimeoutError" || failure instanceof SyntaxError) return fallback;
   return failure.message;

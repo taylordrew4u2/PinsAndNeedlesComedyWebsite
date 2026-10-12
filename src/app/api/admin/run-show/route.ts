@@ -9,8 +9,8 @@ import { cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, typ
 import { isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
-import { currentBuild } from "@/lib/build";
-import { clearMessage, readMessage, readScreen, startSoundTest, writeMessage, writeScreen } from "@/lib/live-store";
+import { currentBuild, staleScreen } from "@/lib/build";
+import { clearMessage, readMessage, readScreen, readScreenBuild, startSoundTest, writeMessage, writeScreen } from "@/lib/live-store";
 import { parseScreenChange } from "@/lib/screen-settings";
 import { applyMessage, parseMessageChange } from "@/lib/screen-message";
 import type { Show, Submission } from "@/lib/types";
@@ -58,6 +58,8 @@ export async function GET(request: Request) {
     // The live screen's settings and the host's message, read alongside the rest and awaited below (a failure there still answers 503).
     const screenReads = Promise.all([readScreen(space), readMessage(space)]);
     screenReads.catch(() => {});
+    // Which build the TV last said it runs. Only a hint for the host: a failed read just shows no hint.
+    const screenBuild = readScreenBuild(space).catch(() => null);
     const [pile, onScreen, content, menu, segment] = await Promise.all([listPile({}, space), readLiveSelection(space), getContentStrict(), readMenu(space), readLineup(space)]);
     const current = currentOnly(pile.submissions, content.shows, space);
     const now = Date.now();
@@ -101,6 +103,8 @@ export async function GET(request: Request) {
       // The live screen's settings ("" words are the defaults) and the host's message, up or saved for later.
       screen,
       message,
+      // The TV is running an older version of the site and could not reload itself: the host reloads it between sets.
+      staleScreen: staleScreen(await screenBuild, currentBuild(), now),
     }, { headers });
   } catch (error) {
     console.error("[run-show] load failed", error);

@@ -186,3 +186,31 @@ export async function startSoundTest(space: Space = "live"): Promise<string> {
   await writeRecord(soundTestKeyOf(space), { at }, "Test the live screen's sound");
   return at;
 }
+
+/**
+ * live-show/screen-build.json: the build the live screen last said it is
+ * running, so the Control Center can tell the host when the TV is out of date
+ * and could not reload itself (it was in full screen, say).
+ */
+function screenBuildKeyOf(space: Space): string {
+  return `${storagePrefix(space)}live-show/screen-build.json`;
+}
+
+export async function readScreenBuild(space: Space = "live"): Promise<unknown> {
+  return readRecord(screenBuildKeyOf(space));
+}
+
+/** How long a report stands before the same screen saying the same thing is written again. */
+const SCREEN_BUILD_REWRITE_MS = 4 * 60_000;
+
+/**
+ * Note which build a live screen is running. A screen reports every few
+ * minutes while it is out of date, and once more when it is up to date
+ * again: a report the record already holds, made recently, writes nothing.
+ */
+export async function writeScreenBuild(build: string, space: Space = "live"): Promise<void> {
+  const current = await readScreenBuild(space) as { build?: unknown; at?: unknown } | null;
+  const at = typeof current?.at === "string" ? Date.parse(current.at) : NaN;
+  if (current?.build === build && Date.now() - at < SCREEN_BUILD_REWRITE_MS) return;
+  await writeRecord(screenBuildKeyOf(space), { build, at: new Date().toISOString() }, "Note the live screen's version");
+}
