@@ -3,14 +3,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { driver, requireGithub } from "./store";
-import { readFile as githubRead, writeFile as githubWrite } from "./github-store";
+import { createFile as githubCreate, readFile as githubRead, writeFile as githubWrite } from "./github-store";
 import { parseSelection, type LiveSelection } from "./live-selection";
 import { parseMenuState, type MenuState } from "./drink-menu";
 import { parseExplainer } from "./explainer";
 import { parseLineup, type Lineup } from "./segment";
 import { storagePrefix, type Space } from "./space";
 import { changedScreen, parseScreenSettings, type ScreenSettings } from "./screen-settings";
-import { parseMessage, type ScreenMessage } from "./screen-message";
+import { NO_MESSAGE, parseMessage, type ScreenMessage } from "./screen-message";
 
 /** live-show/selection.json for the show; rehearsal/live-show/… for practice. */
 function keyOf(space: Space): string {
@@ -20,12 +20,25 @@ function keyOf(space: Space): string {
 /**
  * One small JSON record under live-show/, on whichever driver holds content.
  * Null when it has never been written.
+ *
+ * `initial` is for a record the live screen polls. On the GitHub driver a
+ * file that does not exist costs a full, counted request on every read: a
+ * 304 "not modified" is free, but a 404 leaves nothing to compare against.
+ * Polled every couple of seconds, that alone would use up the hourly limit
+ * during a show. So the first read creates the record with its starting
+ * value, and from then on polls get free 304s. It is only ever created,
+ * never overwritten, so a real save landing at the same moment wins.
  */
-export async function readRecord(key: string): Promise<unknown> {
+export async function readRecord(key: string, initial?: { value: unknown; message: string }): Promise<unknown> {
   let bytes: string;
   if (driver === "github") {
-    const result = await githubRead(requireGithub(), key);
-    if (!result.bytes) return null;
+    const config = requireGithub();
+    const result = await githubRead(config, key);
+    if (!result.bytes) {
+      // The read itself worked; a failed create just leaves it missing until the next poll tries again.
+      if (initial) await githubCreate(config, key, Buffer.from(JSON.stringify(initial.value)), initial.message).catch((error) => console.error(`[live-show] could not create ${key}`, error));
+      return null;
+    }
     bytes = result.bytes.toString("utf8");
   } else if (driver === "blob") {
     const { get } = await import("@vercel/blob");
@@ -138,7 +151,8 @@ function screenKeyOf(space: Space): string {
 }
 
 export async function readScreen(space: Space = "live"): Promise<ScreenSettings> {
-  return parseScreenSettings(await readRecord(screenKeyOf(space)));
+  // Polled by the live screen: started as {} (every default) so it never sits missing.
+  return parseScreenSettings(await readRecord(screenKeyOf(space), { value: {}, message: "Start the live screen settings" }));
 }
 
 /** Change some settings and keep the rest. Only what differs from the defaults is stored, and a save that changes nothing writes nothing. */
@@ -158,7 +172,8 @@ function messageKeyOf(space: Space): string {
 }
 
 export async function readMessage(space: Space = "live"): Promise<ScreenMessage> {
-  return parseMessage(await readRecord(messageKeyOf(space)));
+  // Polled by the live screen: started as no message so it never sits missing.
+  return parseMessage(await readRecord(messageKeyOf(space), { value: NO_MESSAGE, message: "Start the live screen message" }));
 }
 
 export async function writeMessage(message: ScreenMessage, space: Space = "live"): Promise<void> {
@@ -177,8 +192,8 @@ function soundTestKeyOf(space: Space): string {
 }
 
 export async function readSoundTest(space: Space = "live"): Promise<string | null> {
-  // The same one-shot shape as the explainer's record: { at }.
-  return parseExplainer(await readRecord(soundTestKeyOf(space)));
+  // The same one-shot shape as the explainer's record: { at }. Polled by the live screen, so started as never pressed.
+  return parseExplainer(await readRecord(soundTestKeyOf(space), { value: { at: null }, message: "Start the live screen sound test" }));
 }
 
 export async function startSoundTest(space: Space = "live"): Promise<string> {

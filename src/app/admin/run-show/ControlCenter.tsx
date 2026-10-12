@@ -17,7 +17,7 @@ import MessageCard from "./MessageCard";
 import ScreenSettingsCard from "./ScreenSettingsCard";
 import TestSoundButton from "./TestSoundButton";
 import { parseScreenSettings, type ScreenSettings } from "@/lib/screen-settings";
-import { parseMessage, type ScreenMessage } from "@/lib/screen-message";
+import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
 
 type State = {
   /** The performers' cards: names and questions, filled in ahead. */
@@ -278,6 +278,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       } : current);
       setNotice(done);
     }, failed);
+  const sendMessage = (message: MessageChange) =>
+    screenAction({ message }, message.on ? "Your message is on the live screen." : "Message taken down.", "Could not update the message.");
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -453,6 +455,12 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : screenMessage.on ? "Message on screen" : state.selected ? "On screen" : "Screen cleared"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {screenMessage.on ? (
+                  // Always in reach, even with the message card folded away (say, after a reload mid-show).
+                  <button type="button" onClick={() => void sendMessage({ on: false })} disabled={busy || !state} className="rounded-md bg-sky-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">
+                    Take message down
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => void playExplainer()}
@@ -493,12 +501,12 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               message={screenMessage}
               menu={Boolean(state?.menu)}
               busy={busy || !state}
-              send={(message) => screenAction({ message }, message.on ? "Your message is on the live screen." : "Message taken down.", "Could not update the message.")}
+              send={sendMessage}
             />
             {state?.selected ? (
               <div className="mt-4 rounded-lg border border-white/20 p-4">
                 <p className="whitespace-pre-wrap break-words text-lg">{state.selected.question}</p>
-                {state.selected.name ? <p className="mt-1 text-sm text-neutral-300">— {state.selected.name} (shown on screen)</p> : null}
+                {state.selected.name ? <p className="mt-1 text-sm text-neutral-300">— {state.selected.name} {screenSettings.names ? "(shown on screen)" : "(name hidden on screen)"}</p> : null}
               </div>
             ) : null}
 
