@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { driver, requireGithub } from "./store";
-import { readFile as githubRead, writeFile as githubWrite } from "./github-store";
+import { createFile as githubCreate, readFile as githubRead, writeFile as githubWrite } from "./github-store";
 import { parseSelection, type LiveSelection } from "./live-selection";
 import { parseMenuState, type MenuState } from "./drink-menu";
 import { parseDrinkList, type DrinkList } from "./drink-list";
@@ -16,31 +16,36 @@ function keyOf(space: Space): string {
   return `${storagePrefix(space)}live-show/selection.json`;
 }
 
-/**
- * One small JSON record under live-show/, on whichever driver holds content.
- * Null when it has never been written.
- */
-export async function readRecord(key: string): Promise<unknown> {
+/** A record's stored JSON, or undefined when it has never been written. */
+async function readStored(key: string): Promise<unknown> {
   let bytes: string;
   if (driver === "github") {
     const result = await githubRead(requireGithub(), key);
-    if (!result.bytes) return null;
+    if (!result.bytes) return undefined;
     bytes = result.bytes.toString("utf8");
   } else if (driver === "blob") {
     const { get } = await import("@vercel/blob");
     const result = await get(key, { access: "private", useCache: false });
-    if (!result) return null;
+    if (!result) return undefined;
     if (result.statusCode !== 200) throw new Error(`${key} unavailable`);
     bytes = await new Response(result.stream).text();
   } else {
     try {
       bytes = await fs.readFile(path.join(process.cwd(), "data", key), "utf8");
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
       throw error;
     }
   }
   return JSON.parse(bytes);
+}
+
+/**
+ * One small JSON record under live-show/, on whichever driver holds content.
+ * Null when it has never been written.
+ */
+export async function readRecord(key: string): Promise<unknown> {
+  return (await readStored(key)) ?? null;
 }
 
 export async function writeRecord(key: string, value: unknown, message: string): Promise<void> {
@@ -136,8 +141,28 @@ function drinksKeyOf(space: Space): string {
   return `${storagePrefix(space)}live-show/drinks.json`;
 }
 
+/** Drinks records this server has already tried to put in place, so a write that fails is not retried on every poll. */
+const placed = new Set<string>();
+
+/**
+ * Never saving the list is the normal case, but on GitHub reading a file
+ * that is not there is never free: a 404 carries no ETag, so it cannot get
+ * the free "not modified" answer, and the Control Center, the projector and
+ * its mirror would each spend counted requests on it every few seconds. So
+ * the first read that finds it missing saves `null` (the printed menu) in its
+ * place, and from then on polls are answered 304. Create-only: a list the
+ * host saved in the same moment is kept, not written over.
+ */
 export async function readDrinks(space: Space = "live"): Promise<DrinkList | null> {
-  return parseDrinkList(await readRecord(drinksKeyOf(space)));
+  const key = drinksKeyOf(space);
+  const stored = await readStored(key);
+  if (stored === undefined && driver === "github" && !placed.has(key)) {
+    placed.add(key);
+    // The read still answers if this fails; another server tries again.
+    await githubCreate(requireGithub(), key, Buffer.from("null"), "Start the drink list at the printed menu")
+      .catch((error) => console.error("[live-store] drink list placeholder failed", error));
+  }
+  return parseDrinkList(stored ?? null);
 }
 
 /** Null puts the printed menu back. */

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   checkAccess,
   contentTypeFor,
+  createFile,
   forgetReads,
   githubConfig,
   listDir,
@@ -155,6 +156,26 @@ test("a write that keeps failing raises rather than reporting success", async ()
     () => writeFile(config, "content/content.json", Buffer.from("hi"), "msg", "x", fetchImpl),
     /403/
   );
+});
+
+test("createFile creates a missing file without a sha", async () => {
+  const { fetchImpl, calls } = fakeGithub([{ status: 201, body: { content: { sha: "first" } } }]);
+  assert.equal(await createFile(config, "live-show/drinks.json", Buffer.from("null"), "msg", fetchImpl), true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "PUT");
+  assert.equal("sha" in (calls[0].body as object), false);
+});
+
+test("createFile leaves a file that is already there alone, rather than retrying over it", async () => {
+  // A host's real save can land between a read finding nothing and this write.
+  const { fetchImpl, calls } = fakeGithub([{ status: 422, body: { message: "\"sha\" wasn't supplied." } }]);
+  assert.equal(await createFile(config, "live-show/drinks.json", Buffer.from("null"), "msg", fetchImpl), false);
+  assert.equal(calls.length, 1);
+});
+
+test("createFile raises on any other failure", async () => {
+  const { fetchImpl } = fakeGithub([{ status: 403, body: { message: "Resource not accessible by personal access token" } }]);
+  await assert.rejects(() => createFile(config, "live-show/drinks.json", Buffer.from("null"), "msg", fetchImpl), /403/);
 });
 
 test("uploads are served from this site, not from the private repo", () => {

@@ -240,6 +240,17 @@ export function updateDrink(list: DrinkList, drinkId: string, change: Partial<Om
     : section));
 }
 
+/**
+ * One drink marked sold out or back, the rest of the list as it is; null
+ * when that drink is no longer in the list. The server applies a quick tap
+ * this way to the list as saved now, so a mark made from another screen a
+ * moment ago stays.
+ */
+export function setSoldOut(list: DrinkList, drinkId: string, soldOut: boolean): DrinkList | null {
+  if (!list.columns.flat().some((section) => section.drinks.some((drink) => drink.id === drinkId))) return null;
+  return updateDrink(list, drinkId, { soldOut });
+}
+
 /** A new empty drink at the bottom of a section; the list as it was when the section is full or the list is. */
 export function addDrink(list: DrinkList, sectionId: string, id: string): DrinkList {
   if (drinkCount(list) >= MAX_DRINKS) return list;

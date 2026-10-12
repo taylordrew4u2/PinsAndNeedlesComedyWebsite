@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   DRINK_COLUMNS, DRINK_DETAIL_MAX, DRINK_NAME_MAX, DRINK_PRICE_MAX, MAX_DRINKS, MAX_DRINKS_PER_SECTION, MAX_SECTIONS_PER_COLUMN, SECTION_TITLE_MAX,
   addDrink, addSection, cleanDrinkListInput, cleanPrice, defaultDrinkList, drinkCount, findSection, listIds, moveDrink, moveSection, newListId,
-  parseDrinkList, parseLiveBoard, parseVisibleMenu, removeDrink, removeSection, sameList, sectionToColumn, updateDrink, updateSection, visibleMenu,
+  parseDrinkList, parseLiveBoard, parseVisibleMenu, removeDrink, removeSection, sameList, sectionToColumn, setSoldOut, updateDrink, updateSection, visibleMenu,
   type DrinkList, type ListDrink, type ListSection,
 } from "../src/lib/drink-list.ts";
 import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, type DrinkSection } from "../src/lib/drink-menu.ts";
@@ -238,6 +238,17 @@ test("new ids are short, unused, and survive a save", () => {
   const added = addDrink(list, "s1", id);
   const named = updateDrink(added, id, { name: "New one" });
   assert.equal(parseDrinkList(JSON.parse(JSON.stringify(named)))?.columns[0][0].drinks.at(-1)?.id, id);
+});
+
+test("a quick sold-out tap changes that one drink on the list as saved now, and nothing else", () => {
+  // Another screen marked the first drink a moment ago; this tap marks the second and keeps that mark.
+  const saved = updateDrink(defaultDrinkList(), "s1-1", { soldOut: true });
+  const next = setSoldOut(saved, "s1-2", true);
+  assert.ok(next);
+  assert.deepEqual(next.columns.flat().flatMap((entry) => entry.drinks).filter((entry) => entry.soldOut).map((entry) => entry.id), ["s1-1", "s1-2"]);
+  assert.equal(setSoldOut(next, "s1-1", false)?.columns[0][0].drinks[0].soldOut, false);
+  // A drink removed from another screen is not brought back.
+  assert.equal(setSoldOut(saved, "gone", true), null);
 });
 
 test("sameList: only a change that would save differently counts", () => {

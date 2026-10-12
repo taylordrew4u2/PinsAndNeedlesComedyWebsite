@@ -17,7 +17,10 @@ type Props = {
   /** The live screen shows the QR code, so the preview does too. */
   qr: boolean;
   busy: boolean;
-  save: (drinks: DrinkList | null, message: string) => Promise<boolean>;
+  /** The whole list; `from` is the saved list this screen last saw, so the server can refuse when another screen changed it since. */
+  save: (drinks: DrinkList | null, message: string, from?: DrinkList | null) => Promise<boolean>;
+  /** One drink sold out or back, applied by the server to the list as saved now. */
+  mark: (drinkId: string, soldOut: boolean, message: string) => Promise<boolean>;
 };
 
 type Edit = (change: (list: DrinkList) => DrinkList) => void;
@@ -32,9 +35,12 @@ const INPUT = "rounded-md border border-white/30 bg-black px-2.5 py-1.5 text-sm 
  * to edit, with a preview of the board, saved only with Save. "Back to the
  * printed menu" puts the venue's printed list back.
  */
-export default function DrinkListCard({ saved, live, qr, busy, save }: Props) {
+export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Props) {
   // The whole list as the host is editing it; null until they change something, so the saved list shows.
   const [draft, setDraft] = useState<DrinkList | null>(null);
+  // The saved list that edit started from (null: the printed menu), plus this screen's own quick taps since,
+  // to tell when another screen has changed the list underneath it.
+  const [from, setFrom] = useState<DrinkList | null>(null);
   // How the preview fitted the list: the drinks' type size, and whether it fits at all.
   const [fit, setFit] = useState({ size: 1, fits: true });
   const base = useMemo(() => saved ?? defaultDrinkList(), [saved]);
@@ -45,19 +51,31 @@ export default function DrinkListCard({ saved, live, qr, busy, save }: Props) {
   // A list with nothing left to show would leave the drinks side of the board blank: it cannot be saved.
   const empty = !shown.flat().length;
   const count = drinkCount(value);
-  const edit: Edit = (change) => setDraft((current) => change(current ?? base));
+  const edit: Edit = (change) => {
+    if (!draft) setFrom(saved);
+    setDraft((current) => change(current ?? base));
+  };
 
-  /** Sold out or back, straight to the screen. A list being edited below takes the same mark, so its Save does not undo it. */
+  /**
+   * Sold out or back, straight to the screen. Only this drink is sent, so a
+   * tap from another screen a moment ago is kept. A list being edited below
+   * takes the same mark, so its Save does not undo it.
+   */
   const markSoldOut = async (drink: ListDrink) => {
     const soldOut = !drink.soldOut;
-    const ok = await save(updateDrink(base, drink.id, { soldOut }), soldOut ? `“${drink.name}” is marked sold out.` : `“${drink.name}” is back on the menu.`);
-    if (ok) setDraft((current) => current && updateDrink(current, drink.id, { soldOut }));
+    const ok = await mark(drink.id, soldOut, soldOut ? `“${drink.name}” is marked sold out.` : `“${drink.name}” is back on the menu.`);
+    if (!ok) return;
+    setDraft((current) => current && updateDrink(current, drink.id, { soldOut }));
+    setFrom((current) => updateDrink(current ?? defaultDrinkList(), drink.id, { soldOut }));
   };
 
   const submit = async () => {
     if (!draft || empty) return;
+    // Saving the whole list would quietly undo whatever another screen changed after this edit began.
+    if (!sameList(from ?? defaultDrinkList(), base)
+      && !window.confirm("The drink list was changed on another screen since you started editing (a drink marked sold out, say). Save your list over it anyway?")) return;
     if (!fit.fits && !window.confirm("This list is too long for the screen: the bottom of it will be cut off. Save it anyway?")) return;
-    if (await save(draft, live ? "Drink list saved. The live screen has it now." : "Drink list saved. Both drink menus use it.")) setDraft(null);
+    if (await save(draft, live ? "Drink list saved. The live screen has it now." : "Drink list saved. Both drink menus use it.", saved)) setDraft(null);
   };
 
   const backToPrinted = async () => {
@@ -117,6 +135,7 @@ export default function DrinkListCard({ saved, live, qr, busy, save }: Props) {
                   key={section.id}
                   section={section}
                   column={column}
+                  index={index}
                   first={index === 0}
                   last={index === sections.length - 1}
                   full={value.columns.map((entry) => entry.length >= MAX_SECTIONS_PER_COLUMN)}
@@ -131,7 +150,7 @@ export default function DrinkListCard({ saved, live, qr, busy, save }: Props) {
               disabled={sections.length >= MAX_SECTIONS_PER_COLUMN}
               className="mt-2 rounded-md border border-dashed border-white/30 px-3 py-1.5 text-sm text-neutral-300 disabled:opacity-40"
             >
-              + Add a section{sections.length >= MAX_SECTIONS_PER_COLUMN ? ` (${MAX_SECTIONS_PER_COLUMN} is the most)` : ""}
+              + Add a section<span className="sr-only"> to the {COLUMN_NAMES[column].toLowerCase()}</span>{sections.length >= MAX_SECTIONS_PER_COLUMN ? ` (${MAX_SECTIONS_PER_COLUMN} is the most)` : ""}
             </button>
           </fieldset>
         ))}
@@ -159,9 +178,11 @@ export default function DrinkListCard({ saved, live, qr, busy, save }: Props) {
 }
 
 /** One section to edit: its heading, where it sits, its shared price, and its drinks. */
-function SectionEditor({ section, column, first, last, full, listFull, edit }: {
+function SectionEditor({ section, column, index, first, last, full, listFull, edit }: {
   section: ListSection;
   column: number;
+  /** Its place in the column, to name a section with no heading yet. */
+  index: number;
   first: boolean;
   last: boolean;
   /** Which columns have no room for another section. */
@@ -176,35 +197,37 @@ function SectionEditor({ section, column, first, last, full, listFull, edit }: {
     edit((list) => removeSection(list, section.id));
   };
   const sectionFull = section.drinks.length >= MAX_DRINKS_PER_SECTION;
+  // Every section has the same controls, so each one's label says which section it is for.
+  const name = section.title.trim() || `untitled section ${index + 1} in the ${COLUMN_NAMES[column].toLowerCase()}`;
 
   return (
     <div className={`rounded-md border p-3 ${section.hidden ? "border-dashed border-white/20" : "border-white/20"}`}>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           type="text"
-          aria-label="Section heading"
+          aria-label={`Heading of section ${index + 1} in the ${COLUMN_NAMES[column].toLowerCase()}`}
           value={section.title}
           onChange={(event) => edit((list) => updateSection(list, section.id, { title: event.target.value }))}
           maxLength={SECTION_TITLE_MAX}
           placeholder="Section heading, e.g. Beers"
           className={`${INPUT} min-w-0 flex-1 basis-40 font-semibold uppercase ${section.hidden ? "opacity-50" : ""}`}
         />
-        <Small label="Move section up" onClick={() => edit((list) => moveSection(list, section.id, -1))} disabled={first}>↑</Small>
-        <Small label="Move section down" onClick={() => edit((list) => moveSection(list, section.id, 1))} disabled={last}>↓</Small>
+        <Small label={`Move ${name} up`} onClick={() => edit((list) => moveSection(list, section.id, -1))} disabled={first}>↑</Small>
+        <Small label={`Move ${name} down`} onClick={() => edit((list) => moveSection(list, section.id, 1))} disabled={last}>↓</Small>
         <select
-          aria-label="Column"
+          aria-label={`Column for ${name}`}
           value={column}
           onChange={(event) => edit((list) => sectionToColumn(list, section.id, Number(event.target.value)))}
           className="rounded-md border border-white/30 bg-black px-2 py-1.5 text-sm text-white"
         >
-          {COLUMN_NAMES.map((name, index) => (
-            <option key={name} value={index} disabled={index !== column && full[index]}>{name}{index !== column && full[index] ? " (full)" : ""}</option>
+          {COLUMN_NAMES.map((label, to) => (
+            <option key={label} value={to} disabled={to !== column && full[to]}>{label}{to !== column && full[to] ? " (full)" : ""}</option>
           ))}
         </select>
-        <Toggle on={section.hidden} onClick={() => edit((list) => updateSection(list, section.id, { hidden: !section.hidden }))} title="Keep the section in the list but off the menu">
+        <Toggle on={section.hidden} onClick={() => edit((list) => updateSection(list, section.id, { hidden: !section.hidden }))} title="Keep the section in the list but off the menu" name={name}>
           {section.hidden ? "Hidden" : "Hide"}
         </Toggle>
-        <Small label="Remove section" onClick={remove}>Remove</Small>
+        <Small label={`Remove ${name}`} onClick={remove}>Remove</Small>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
@@ -215,12 +238,12 @@ function SectionEditor({ section, column, first, last, full, listFull, edit }: {
             onChange={(event) => edit((list) => updateSection(list, section.id, { shared: event.target.checked }))}
             className="h-4 w-4 accent-amber-300"
           />
-          One price for every drink here
+          <span><span className="sr-only">{name}: </span>One price for every drink here</span>
         </label>
         {section.shared ? (
           <input
             type="text"
-            aria-label="Price for the whole section"
+            aria-label={`Price for every drink in ${name}`}
             value={section.price}
             onChange={(event) => edit((list) => updateSection(list, section.id, { price: event.target.value }))}
             maxLength={DRINK_PRICE_MAX}
@@ -231,13 +254,15 @@ function SectionEditor({ section, column, first, last, full, listFull, edit }: {
       </div>
 
       <ul className="mt-2 space-y-2">
-        {section.drinks.map((drink, index) => (
+        {section.drinks.map((drink, place) => (
           <DrinkEditor
             key={drink.id}
             drink={drink}
+            index={place}
+            section={name}
             shared={section.shared}
-            first={index === 0}
-            last={index === section.drinks.length - 1}
+            first={place === 0}
+            last={place === section.drinks.length - 1}
             edit={edit}
           />
         ))}
@@ -248,21 +273,32 @@ function SectionEditor({ section, column, first, last, full, listFull, edit }: {
         disabled={sectionFull || listFull}
         className="mt-2 rounded-md border border-dashed border-white/30 px-3 py-1.5 text-sm text-neutral-300 disabled:opacity-40"
       >
-        + Add a drink{sectionFull ? ` (${MAX_DRINKS_PER_SECTION} is the most in a section)` : listFull ? ` (${MAX_DRINKS} is the most on the menu)` : ""}
+        + Add a drink<span className="sr-only"> to {name}</span>{sectionFull ? ` (${MAX_DRINKS_PER_SECTION} is the most in a section)` : listFull ? ` (${MAX_DRINKS} is the most on the menu)` : ""}
       </button>
     </div>
   );
 }
 
 /** One drink to edit: name, price (unless the section shares one), details, and its place, sold-out and hidden marks. */
-function DrinkEditor({ drink, shared, first, last, edit }: { drink: ListDrink; shared: boolean; first: boolean; last: boolean; edit: Edit }) {
+function DrinkEditor({ drink, index, section, shared, first, last, edit }: {
+  drink: ListDrink;
+  /** Its place in the section, and the section's name, to name a drink with no name yet. */
+  index: number;
+  section: string;
+  shared: boolean;
+  first: boolean;
+  last: boolean;
+  edit: Edit;
+}) {
   const change = (update: Partial<Omit<ListDrink, "id">>) => edit((list) => updateDrink(list, drink.id, update));
+  // Every drink has the same controls, so each one's label says which drink it is for.
+  const name = drink.name.trim() || `unnamed drink ${index + 1} in ${section}`;
   return (
     <li className={`rounded-md border border-white/10 p-2 ${drink.hidden ? "border-dashed" : ""}`}>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           type="text"
-          aria-label="Drink name"
+          aria-label={`Name of drink ${index + 1} in ${section}`}
           value={drink.name}
           onChange={(event) => change({ name: event.target.value })}
           maxLength={DRINK_NAME_MAX}
@@ -272,7 +308,7 @@ function DrinkEditor({ drink, shared, first, last, edit }: { drink: ListDrink; s
         {shared ? null : (
           <input
             type="text"
-            aria-label={`Price of ${drink.name || "this drink"}`}
+            aria-label={`Price of ${name}`}
             value={drink.price}
             onChange={(event) => change({ price: event.target.value })}
             maxLength={DRINK_PRICE_MAX}
@@ -280,15 +316,15 @@ function DrinkEditor({ drink, shared, first, last, edit }: { drink: ListDrink; s
             className={`${INPUT} w-20`}
           />
         )}
-        <Small label="Move drink up" onClick={() => edit((list) => moveDrink(list, drink.id, -1))} disabled={first}>↑</Small>
-        <Small label="Move drink down" onClick={() => edit((list) => moveDrink(list, drink.id, 1))} disabled={last}>↓</Small>
-        <Toggle on={drink.soldOut} onClick={() => change({ soldOut: !drink.soldOut })} title="Crossed out on the menu with a SOLD OUT tag">Sold out</Toggle>
-        <Toggle on={drink.hidden} onClick={() => change({ hidden: !drink.hidden })} title="Kept in the list but off the menu">{drink.hidden ? "Hidden" : "Hide"}</Toggle>
-        <Small label="Remove drink" onClick={() => edit((list) => removeDrink(list, drink.id))}>✕</Small>
+        <Small label={`Move ${name} up`} onClick={() => edit((list) => moveDrink(list, drink.id, -1))} disabled={first}>↑</Small>
+        <Small label={`Move ${name} down`} onClick={() => edit((list) => moveDrink(list, drink.id, 1))} disabled={last}>↓</Small>
+        <Toggle on={drink.soldOut} onClick={() => change({ soldOut: !drink.soldOut })} title="Crossed out on the menu with a SOLD OUT tag" name={name}>Sold out</Toggle>
+        <Toggle on={drink.hidden} onClick={() => change({ hidden: !drink.hidden })} title="Kept in the list but off the menu" name={name}>{drink.hidden ? "Hidden" : "Hide"}</Toggle>
+        <Small label={`Remove ${name}`} onClick={() => edit((list) => removeDrink(list, drink.id))}>✕</Small>
       </div>
       <input
         type="text"
-        aria-label={`Details for ${drink.name || "this drink"}`}
+        aria-label={`Details for ${name}`}
         value={drink.detail}
         onChange={(event) => change({ detail: event.target.value })}
         maxLength={DRINK_DETAIL_MAX}
@@ -307,7 +343,8 @@ function Small({ label, onClick, disabled, children }: { label: string; onClick:
   );
 }
 
-function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => void; title: string; children: ReactNode }) {
+/** `name` says which drink or section it is for: read out after the visible word, which stays first. */
+function Toggle({ on, onClick, title, name, children }: { on: boolean; onClick: () => void; title: string; name: string; children: ReactNode }) {
   return (
     <button
       type="button"
@@ -316,7 +353,7 @@ function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => 
       onClick={onClick}
       className={`rounded-md border px-2.5 py-1.5 text-sm ${on ? "border-amber-300 bg-amber-300/15 text-white" : "border-white/25 text-neutral-200"}`}
     >
-      {children}
+      {children}<span className="sr-only">: {name}</span>
     </button>
   );
 }
