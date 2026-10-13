@@ -3,14 +3,20 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
+import { isNewerBuild, maySelfReload, quietScreen, screenSignature } from "@/lib/build";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import type { CustomLook } from "@/lib/drink-menu";
+import { customWording } from "@/lib/drink-menu";
+import { parseLiveBoard, type LiveBoard } from "@/lib/drink-list";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { playIntroSound } from "@/lib/intro-sound";
 import Explainer from "@/components/Explainer";
-import { EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
+import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
+import { DEFAULT_LOOK, screenLook, type ScreenSettings } from "@/lib/screen-settings";
+import { readPublicMessage } from "@/lib/screen-message";
+import ScreenMessage from "@/components/ScreenMessage";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
@@ -19,13 +25,22 @@ const POINTER_IDLE_MS = 2_500;
  * never stop the screen updating.
  */
 const POLL_TIMEOUT_MS = 8_000;
+/** Remembers which update this screen last reloaded itself for, so it never reloads twice for the same one. */
+const RELOAD_KEY = "pnc-live-reloaded-for";
+/** What was on screen just before a reload of its own, so whatever goes up meanwhile still gets its countdown, sting or Intro. */
+const CARRY_KEY = "pnc-live-carry";
+/** Set once this screen has told the site it is out of date, so it says so again when it is up to date. */
+const REPORTED_KEY = "pnc-live-reported-old";
+/** How often an out-of-date screen that cannot reload itself reminds the Control Center. */
+const REPORT_EVERY_MS = 5 * 60_000;
+/** The page is fetched before a reload, to be sure it answers; that check counts for this long. */
+const PAGE_READY_MS = 30_000;
 /** After a tap there is no pointer to hide, so the controls stay long enough to reach. */
 const TOUCH_IDLE_MS = 5_000;
-/** A silent 3, 2, 1 before a newly picked question, so the room sees it coming. */
-const COUNTDOWN_FROM = 3;
+/** A silent 3, 2, 1 before a newly picked question, so the room sees it coming (the host can change the number or turn it off). */
 const COUNTDOWN_STEP_MS = 1_000;
 
-export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolean; space?: Space }) {
+export default function LiveDisplay({ showQr, space = "live", build = "" }: { showQr: boolean; space?: Space; build?: string }) {
   const [question, setQuestion] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   // The control center can put the drink menu up over everything, between sets.
@@ -37,6 +52,8 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [marquee, setMarquee] = useState<string | null>(null);
   // The custom menu's colour and line above the QR; null for the standard menu.
   const [menuCustom, setMenuCustom] = useState<CustomLook | null>(null);
+  // The host's drinks and the marquee's speed and colour; the printed menu at the usual pace until the first poll says otherwise.
+  const [board, setBoard] = useState<LiveBoard>(() => parseLiveBoard(null));
   // A newly picked question gets a drum roll first; the screen opening on one does not.
   const [intro, setIntro] = useState(false);
   const shown = useRef<string | null | undefined>(undefined);
@@ -52,6 +69,10 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [segmentLeft, setSegmentLeft] = useState(0);
   // Browsers only allow sound after someone taps or clicks the page once; until then the button below asks for it.
   const audio = useRef<AudioContext | null>(null);
+  // Sound that only started after a tap: a reload could lose it (Safari and iPads want a tap on every page), so the screen won't reload itself.
+  const soundByTap = useRef(false);
+  // Until then, a countdown, intro, explainer or sound test is playing: no reload over it.
+  const busyUntil = useRef(0);
   // The host's "Intro" explainer: which step is up, and the start time last acted on (undefined until the first poll).
   const [explainer, setExplainer] = useState<ExplainerStep | null>(null);
   const explainerSeen = useRef<string | null | undefined>(undefined);
@@ -63,6 +84,16 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
   const [fullscreen, setFullscreen] = useState(false);
   // Known only in the browser; the server renders without the button.
   const [canGoFullscreen, setCanGoFullscreen] = useState(false);
+  // The host's settings from the Control Center (the defaults until a poll says otherwise), and whether they muted the sting.
+  const [settings, setSettings] = useState<ScreenSettings>(DEFAULT_LOOK);
+  const muted = useRef(false);
+  // The host's own message, over the question or set until they take it down; and the last "Test sound" acted on.
+  const [message, setMessage] = useState<{ text: string; color: string } | null>(null);
+  const messageSeen = useRef<boolean | undefined>(undefined);
+  const soundTestSeen = useRef<string | null | undefined>(undefined);
+  // The message or the drink menu is over the question (as of the last poll), and a new question is waiting under them for its countdown.
+  const covered = useRef(false);
+  const held = useRef(false);
   useWakeLock();
   const area = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -86,7 +117,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     let active = true;
     void document.fonts.ready.then(() => { if (active) fit(); });
     return () => { active = false; observer.disconnect(); };
-  }, [question, name, menu, intro]);
+  }, [question, name, menu, intro, countdown, message]);
 
   useEffect(() => {
     let disposed = false;
@@ -95,7 +126,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     /** Plays the sting if sound is on. A context the browser paused is asked to resume first; if it cannot, the beat passes silently. */
     const sting = () => {
       const context = audio.current;
-      if (!context) return;
+      if (!context || muted.current) return;
       if (context.state === "running") playIntroSound(context);
       else context.resume().then(() => { if (context.state === "running") playIntroSound(context); }, () => {});
     };
@@ -103,6 +134,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     const runExplainer = () => {
       explainerTimers.current.forEach(clearTimeout);
       explainerTimers.current = [];
+      busyUntil.current = Date.now() + EXPLAINER_MS + 1_000;
       setWipe((count) => count + 1);
       let delay = 0;
       for (const { step, ms } of EXPLAINER_STEPS) {
@@ -119,6 +151,34 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     };
     // A poll lined up for the moment the next segment slot goes up, so it lands on time rather than up to a poll late.
     let switchTimer: ReturnType<typeof setTimeout> | undefined;
+    // Out of date: since when the screen has been quiet and unchanged, and when the page last answered a check.
+    let quiet: { signature: string; since: number } | null = null;
+    let pageReadyAt = 0;
+    let lastPageCheck = 0;
+    let lastReport = 0;
+    let noStorage = false;
+    // Just reloaded itself: pick up what was on screen before, so anything that went up during the reload is still new.
+    try {
+      const carried = JSON.parse(sessionStorage.getItem(CARRY_KEY) || "null");
+      sessionStorage.removeItem(CARRY_KEY);
+      if (carried && Date.now() - carried.at < 60_000) {
+        shown.current = carried.question ?? null;
+        performerSeen.current = carried.performer ?? null;
+        explainerSeen.current = carried.explainer ?? null;
+        messageSeen.current = Boolean(carried.message);
+        soundTestSeen.current = carried.soundTest ?? null;
+        menuSeen.current = typeof carried.menu === "string" ? carried.menu : undefined;
+        held.current = carried.held === true;
+      }
+    } catch { /* storage blocked or garbled: start fresh */ }
+    // The Control Center's mirror is not the TV: it never reports, and leaves the TV's note alone.
+    const framed = window.self !== window.top;
+    /** Tell the site which build this screen runs, for the Control Center. */
+    const report = (running: string) => {
+      void fetch(`/api/decisions/live${modeQuery(space)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ build: running }),
+      }).catch(() => {});
+    };
     const refresh = async () => {
       if (pending) return;
       pending = true;
@@ -130,41 +190,67 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         if (!response.ok) return;
         const data = JSON.parse(text);
         if (disposed) return;
+        // The host's settings, missing from an older server's answer: then the defaults, the screen as it always was.
+        const setup = screenLook(data?.screen);
+        muted.current = !setup.sound;
+        setSettings((current) => JSON.stringify(current) === JSON.stringify(setup) ? current : setup);
+        const countFrom = setup.countdown ? setup.countdownFrom : 0;
+        const nextMenu = data?.menu === true;
+        const nextMessage = readPublicMessage(data?.message);
+        covered.current = nextMenu || nextMessage !== null;
         const next = typeof data?.question === "string" ? data.question : null;
+        // Which question it is, not its words: the host fixing a typo on screen is the same question, with no second countdown or sting.
+        const nextKey = next === null ? null : typeof data?.questionKey === "string" && data.questionKey ? data.questionKey : next;
         const previous = shown.current;
-        shown.current = next;
-        if (next !== previous) {
+        shown.current = nextKey;
+        /** The countdown, then the sting and the drum roll: a new question arriving where the room can see it. */
+        const arrive = () => {
+          held.current = false;
+          busyUntil.current = Date.now() + countFrom * COUNTDOWN_STEP_MS + INTRO_MS + 1_000;
+          setCountdown(countFrom || null);
+          // Silent 3, 2, 1; the sting and the drum roll come in on the beat after "1".
+          for (let n = countFrom - 1; n >= 1; n -= 1) {
+            countdownTimers.current.push(setTimeout(() => setCountdown(n), (countFrom - n) * COUNTDOWN_STEP_MS));
+          }
+          const reveal = () => {
+            setCountdown(null);
+            // The host put a message or the menu up during the countdown: no sting under it; it all starts again when they come down.
+            if (covered.current) { held.current = true; return; }
+            sting();
+            const play = setup.intro && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            setIntro(play);
+            if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
+          };
+          // With the countdown off, straight in, in this same update, so the question never flashes up before its intro.
+          if (countFrom) countdownTimers.current.push(setTimeout(reveal, countFrom * COUNTDOWN_STEP_MS));
+          else reveal();
+        };
+        if (nextKey !== previous) {
           // A changed screen ends any countdown or intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
           countdownTimers.current.forEach(clearTimeout);
           countdownTimers.current = [];
           setIntro(false);
-          const fresh = previous !== undefined && next !== null;
-          setCountdown(fresh ? COUNTDOWN_FROM : null);
-          if (fresh) {
-            // Silent 3, 2, 1; the sting and the drum roll come in on the beat after "1".
-            for (let n = COUNTDOWN_FROM - 1; n >= 1; n -= 1) {
-              countdownTimers.current.push(setTimeout(() => setCountdown(n), (COUNTDOWN_FROM - n) * COUNTDOWN_STEP_MS));
-            }
-            countdownTimers.current.push(setTimeout(() => {
-              setCountdown(null);
-              sting();
-              const play = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-              setIntro(play);
-              if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
-            }, COUNTDOWN_FROM * COUNTDOWN_STEP_MS));
+          setCountdown(null);
+          held.current = false;
+          // One that comes up under the host's message or the drink menu (a set moving on, or the moment before they come down) waits for them.
+          if (previous !== undefined && next !== null) {
+            if (covered.current) held.current = true;
+            else arrive();
           }
           // A cleared screen wipes; a new question has its own countdown and intro.
           if (previous && next === null) setWipe((count) => count + 1);
+        } else if (held.current && next !== null && !covered.current) {
+          // What covered it came down: now its countdown and sting, as the room first sees it.
+          arrive();
         }
         setQuestion(next);
-        setName(next && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
+        setName(next && setup.names && typeof data?.name === "string" && data.name.trim() ? data.name.trim() : null);
         const nextPerformer = typeof data?.performer === "string" && data.performer.trim() ? data.performer.trim() : null;
         // A name going up or coming down wipes, like any other screen change.
         if (performerSeen.current !== undefined && nextPerformer !== performerSeen.current && !(performerSeen.current && next)) setWipe((count) => count + 1);
         performerSeen.current = nextPerformer;
         setPerformer(nextPerformer);
-        const nextMenu = data?.menu === true;
         const look = data?.menuCustom;
         const custom: CustomLook | null = nextMenu && look && typeof look.color === "string" && typeof look.headline === "string"
           ? {
@@ -175,6 +261,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
             bartender: typeof look.bartender === "string" ? look.bartender : "",
             bartenderFont: isScriptFont(look.bartenderFont) ? look.bartenderFont : DEFAULT_SCRIPT_FONT,
             bartenderColor: typeof look.bartenderColor === "string" ? look.bartenderColor : look.color,
+            ...customWording(look),
           }
           : null;
         const which = nextMenu ? (custom ? "custom" : "standard") : "off";
@@ -184,6 +271,8 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
         setMenuCustom((current) => current && custom && JSON.stringify(current) === JSON.stringify(custom) ? current : custom);
         setMenu(nextMenu);
         setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
+        const nextBoard = parseLiveBoard(data);
+        setBoard((current) => (JSON.stringify(current) === JSON.stringify(nextBoard) ? current : nextBoard));
         const segment = data?.segment && typeof data.segment.remainingMs === "number" ? data.segment as { remainingMs: number; nextSwitchMs: number } : null;
         setSegmentEnd(segment ? Date.now() + segment.remainingMs : null);
         clearTimeout(switchTimer);
@@ -198,6 +287,62 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
           const opening = explainerSeen.current === undefined;
           explainerSeen.current = explainerAt;
           if (explainerAt && !opening) runExplainer();
+        }
+        // The host's message going up or coming down wipes, like the drink menu; new words while it is up just fade in.
+        if (messageSeen.current !== undefined && (nextMessage !== null) !== messageSeen.current) setWipe((count) => count + 1);
+        messageSeen.current = nextMessage !== null;
+        setMessage((current) => current && nextMessage && current.text === nextMessage.text && current.color === nextMessage.color ? current : nextMessage);
+        const soundTestAt = typeof data?.soundTest === "string" ? data.soundTest : null;
+        if (soundTestAt !== soundTestSeen.current) {
+          // "Test sound" plays the sting once, nothing else; like the Intro, a tap from before this screen opened is not replayed.
+          const opening = soundTestSeen.current === undefined;
+          soundTestSeen.current = soundTestAt;
+          if (soundTestAt && !opening) {
+            busyUntil.current = Date.now() + 4_000;
+            sting();
+          }
+        }
+        // The site was updated while this screen was open: its code is old, and new features would never show.
+        if (isNewerBuild(build, data?.build)) {
+          const now = Date.now();
+          const signature = screenSignature(data);
+          if (!quietScreen(data)) quiet = null;
+          else if (quiet?.signature !== signature) quiet = { signature, since: now };
+          // Without storage there is no guard against reloading over and over: then it never reloads itself, and the Control Center says so.
+          let tried = noStorage;
+          try { tried ||= sessionStorage.getItem(RELOAD_KEY) === data.build; } catch { tried = noStorage = true; }
+          const fullscreen = Boolean(fullscreenElement());
+          const may = maySelfReload({ tried, fullscreen, soundByTap: soundByTap.current, busy: now < busyUntil.current, quietForMs: quiet ? now - quiet.since : 0 });
+          if (may && now - pageReadyAt < PAGE_READY_MS) {
+            // Reload at a moment the room won't notice, carrying what is up now so nothing that goes up meanwhile loses its intro.
+            try {
+              sessionStorage.setItem(RELOAD_KEY, data.build);
+              sessionStorage.setItem(CARRY_KEY, JSON.stringify({
+                at: now, question: shown.current ?? null, performer: performerSeen.current ?? null, explainer: explainerSeen.current ?? null,
+                message: messageSeen.current ?? false, soundTest: soundTestSeen.current ?? null, menu: menuSeen.current ?? null, held: held.current,
+              }));
+              window.location.reload();
+              return;
+            } catch { noStorage = true; }
+          }
+          if (may && now - lastPageCheck > PAGE_READY_MS) {
+            // First make sure the page answers, so a wifi drop can't leave an error page up; the reload waits for a later poll.
+            lastPageCheck = now;
+            void fetchWithin(window.location.href, { cache: "no-store" }, POLL_TIMEOUT_MS, controller.signal)
+              .then(({ response }) => { if (response.ok) pageReadyAt = Date.now(); }, () => {});
+          }
+          // It won't reload itself: in full screen, sound that needed a tap, or already tried. The Control Center tells the host.
+          if (!framed && (tried || fullscreen || soundByTap.current) && now - lastReport > REPORT_EVERY_MS) {
+            lastReport = now;
+            report(build);
+            try { localStorage.setItem(REPORTED_KEY, "1"); } catch { /* the reminder fades from the Control Center on its own */ }
+          }
+        } else if (!framed && build && data?.build === build) {
+          quiet = null;
+          // Up to date again after saying it was not: say so, and the Control Center's reminder goes away.
+          let reported = false;
+          try { reported = localStorage.getItem(REPORTED_KEY) === "1"; if (reported) localStorage.removeItem(REPORTED_KEY); } catch { /* nothing to clear */ }
+          if (reported) report(build);
         }
       } catch {
         // Offline, timed out or aborted: leave the screen as it is.
@@ -219,7 +364,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
     };
-  }, [space]);
+  }, [space, build]);
 
   // The segment clock ticks on its own between polls.
   useEffect(() => {
@@ -249,17 +394,24 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       }
       const context = audio.current;
       context.resume().then(
-        () => { if (audio.current === context) setSoundOn(context.state === "running"); },
+        () => {
+          if (audio.current !== context) return;
+          setSoundOn(context.state === "running");
+          // Sound started only once someone touched the page: a reload could lose it, so the screen leaves reloading to the host.
+          if (context.state === "running" && tapped) soundByTap.current = true;
+        },
         () => { if (audio.current === context) setSoundOn(false); },
       );
     };
     // Try at once: a browser set to allow autoplay here starts sound with no tap. A blocked one just waits for the first tap.
+    let tapped = false;
+    const tap = () => { tapped = true; unlock(); };
     unlock();
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("keydown", unlock);
+    window.addEventListener("pointerdown", tap);
+    window.addEventListener("keydown", tap);
     return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("pointerdown", tap);
+      window.removeEventListener("keydown", tap);
       const context = audio.current;
       audio.current = null;
       void context?.close();
@@ -313,7 +465,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
     <>
     {menu ? (
       <main className={`pnc-screen-in select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
-        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} marquee={marquee} custom={menuCustom} />
+        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} />
       </main>
     ) : (
     <main
@@ -324,7 +476,12 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       onDoubleClick={toggleFullscreen}
     >
       <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
-        {question && !intro && countdown === null ? (
+        {message ? (
+          // The host's own message goes over the question or the set until they take it down.
+          <div key={`${message.color}${message.text}`} className="pnc-screen-in h-full w-full">
+            <ScreenMessage text={message.text} color={message.color} />
+          </div>
+        ) : question && !intro && countdown === null ? (
           // Sized together, so a long question and its name both fit above the QR.
           <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
@@ -332,7 +489,7 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
           </div>
         ) : !question && performer && !intro && countdown === null ? (
           <div key={performer} className="pnc-screen-in w-full text-center">
-            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">Now on stage</p>
+            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">{settings.stageLabel}</p>
             <h1 className="mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none">{performer}</h1>
           </div>
         ) : null}
@@ -350,21 +507,21 @@ export default function LiveDisplay({ showQr, space = "live" }: { showQr: boolea
       ) : null}
     </main>
     )}
-    {countdown !== null && !menu && !explainer ? (
+    {countdown !== null && !menu && !message && !explainer ? (
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-black text-white" aria-hidden="true">
         <span key={countdown} className="pnc-countdown font-[family-name:var(--pnc-heading)] font-bold tabular-nums leading-none">{countdown}</span>
       </div>
     ) : null}
-    {intro && !menu && !explainer ? <BadDecisionIntro /> : null}
-    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} /> : null}
-    {segmentEnd !== null ? (
+    {intro && !menu && !message && !explainer ? <BadDecisionIntro word={settings.introWord} /> : null}
+    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} look={settings} /> : null}
+    {segmentEnd !== null && settings.timer ? (
       <p className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1 font-[family-name:var(--pnc-heading)] text-lg tabular-nums text-white/80 sm:bottom-4 sm:text-2xl" aria-hidden="true">
         {segmentClock(segmentLeft)}
       </p>
     ) : null}
     {wipe ? <div key={wipe} className="pnc-wipe" aria-hidden="true" /> : null}
-    {/* Outside <main>, so it is not read out with the question. */}
-    {!mirrored && !soundOn ? (
+    {/* Outside <main>, so it is not read out with the question. Not while the host has muted the sound on purpose. */}
+    {!mirrored && !soundOn && settings.sound ? (
       <button
         type="button"
         onDoubleClick={(event) => event.stopPropagation()}

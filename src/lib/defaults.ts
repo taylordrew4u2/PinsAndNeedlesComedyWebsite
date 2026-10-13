@@ -377,6 +377,7 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
     openMinutesBefore: 60,
     closeMinutesAfter: 240,
     alwaysOpen: false,
+    closedUntil: "",
     closedText: "Submissions open an hour before the show. The next one is {when}.",
     smsNumber: "",
     smsNote: "Not scanning anything? Text it to {number}.",

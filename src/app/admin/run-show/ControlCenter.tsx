@@ -5,13 +5,25 @@ import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
 import { DEFAULT_MARQUEE, MARQUEE_MAX, type MenuStyle } from "@/lib/drink-menu";
 import CustomMenuCard, { type CustomMenuInput } from "./CustomMenuCard";
+import DrinkListCard from "./DrinkListCard";
+import MarqueeCard, { type MarqueeStyleInput } from "./MarqueeCard";
+import { parseDrinkList, type DrinkList } from "@/lib/drink-list";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
-import type { Lineup, SegmentStatus } from "@/lib/segment";
+import { clockText, durationWords, parseLineup, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
 import LineupPanel, { applyDrop, clockFor, firstEmptySlot, type Drag, type LineupInput } from "./LineupPanel";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
+import { isNewerBuild } from "@/lib/build";
 import LiveMirror from "./LiveMirror";
+import MessageCard from "./MessageCard";
+import ScreenSettingsCard from "./ScreenSettingsCard";
+import TestSoundButton from "./TestSoundButton";
+import { parseScreenSettings, type ScreenSettings } from "@/lib/screen-settings";
+import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
+import QuestionEditor from "./QuestionEditor";
+import QuestionSearch from "./QuestionSearch";
+import { matchesSearch, onScreenQuestion, withEdit, type QuestionChange } from "@/lib/questions";
 
 type State = {
   /** The performers' cards: names and questions, filled in ahead. */
@@ -45,7 +57,28 @@ type State = {
   questionsOpen: boolean;
   manualOpen: boolean;
   pageLive: boolean;
+  /** How the live screen behaves and what it says ("" words are the defaults). Missing from an older server. */
+  screen?: ScreenSettings;
+  /** The host's own message for the live screen, up or saved for later. */
+  message?: ScreenMessage;
+  /** The TV said it runs an older version of the site and could not reload itself; null when it is up to date. */
+  staleScreen?: { at: string } | null;
+  /** The host pressed "Close questions now" and it still holds. */
+  manualClosed: boolean;
+  /** The marquee on or off, its speed ("" for Normal) and its own colour ("" to follow the menu's text colour). */
+  marqueeOn: boolean;
+  marqueeSpeed: string;
+  marqueeColor: string;
+  /** The custom menu's wording under the QR code and over the bartender; "" for the printed wording. */
+  menuQrCaption: string;
+  menuQrTitle: string;
+  menuQrLink: string;
+  menuBartenderLabel: string;
+  /** The host's drink list, shown by both menus; null while it is the printed menu. */
+  drinks: DrinkList | null;
 };
+/** The one open editor: which question, and where it was opened (the waiting list, the shown list, or the "On screen" box). */
+type Editing = { at: "pile" | "shown" | "screen"; id: string };
 type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
 
 const API = "/api/admin/run-show";
@@ -57,17 +90,47 @@ const INGEST_EVERY_MS = 30_000;
 const PING_KEY = "pnc-control-center-ping";
 /** A poll still unanswered after this is given up, so one stalled request never freezes the page. */
 const POLL_TIMEOUT_MS = 15_000;
+/**
+ * A press is given up after this: just past the longest the server lets an
+ * action run, so a slow one (archiving a big pile, adding many questions)
+ * still lands, and only a request that will never answer frees the buttons.
+ */
+const CHANGE_TIMEOUT_MS = 65_000;
+/** Given up on a press: the server may still have done it, so the host checks before pressing again. */
+const NO_ANSWER = "No answer from the server yet. It may still have gone through: check the screen and the lists before trying again.";
+
+/**
+ * A poll answer with the menu fields this version added filled in when they
+ * are missing, as they are from an older deployment after a rollback: the
+ * cards read them as given, and one missing would take the page down mid-show.
+ */
+function withDefaults(data: State): State {
+  const text = (value: unknown) => (typeof value === "string" ? value : "");
+  return {
+    ...data,
+    marqueeOn: data.marqueeOn !== false,
+    marqueeSpeed: text(data.marqueeSpeed),
+    marqueeColor: text(data.marqueeColor),
+    menuQrCaption: text(data.menuQrCaption),
+    menuQrTitle: text(data.menuQrTitle),
+    menuQrLink: text(data.menuQrLink),
+    menuBartenderLabel: text(data.menuBartenderLabel),
+    drinks: parseDrinkList(data.drinks),
+  };
+}
 
 /**
  * The show-night control center: the questions as they arrive, a mirror of
  * the live screen, and every control for the pile. Only reachable signed in.
  */
-export default function ControlCenter() {
+export default function ControlCenter({ build = "" }: { build?: string }) {
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [authLost, setAuthLost] = useState(false);
+  // The site was updated while this page was open; it says so rather than reloading over unsaved typing.
+  const [updated, setUpdated] = useState(false);
   const [mirrorVersion, setMirrorVersion] = useState(0);
   // Ids that arrived while this page was open and have not been looked at yet.
   const [fresh, setFresh] = useState<Set<string>>(() => new Set());
@@ -80,6 +143,9 @@ export default function ControlCenter() {
   const [preloadText, setPreloadText] = useState("");
   const [preloadName, setPreloadName] = useState("");
   const [dragging, setDragging] = useState<Drag | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  // What the host typed to find a waiting question; only narrows the list on this page.
+  const [search, setSearch] = useState("");
   // Ticks while the segment runs, so its clock counts down between polls.
   const [now, setNow] = useState(() => Date.now());
   const ping = useSyncExternalStore(subscribePing, readPing, () => false);
@@ -117,12 +183,17 @@ export default function ControlCenter() {
         }
       }
       known.current = new Set([...(known.current ?? []), ...ids]);
-      setState({ ...data, segmentAt: Date.now() });
+      // Read the lineup as the server does, so one missing a newer field (say, from an older build) still draws.
+      setState({ ...withDefaults(data), lineup: parseLineup(data.lineup), segmentAt: Date.now() });
+      // An editor whose question has moved on (shown, put in a card, deleted on another device)
+      // closes for good, rather than opening again wherever the question turns up next.
+      setEditing((current) => (current && !stillThere(current, data) ? null : current));
+      if (isNewerBuild(build, (data as { build?: unknown }).build)) setUpdated(true);
       setError("");
     } catch (failure) {
-      if (started === revision.current) setError(failure instanceof Error ? failure.message : "Could not load questions.");
+      if (started === revision.current) setError(plainError(failure, "Could not load questions."));
     } finally { loading.current = false; }
-  }, []);
+  }, [build]);
 
   useEffect(() => {
     // refresh reads external server state, rather than deriving state from props.
@@ -156,16 +227,17 @@ export default function ControlCenter() {
     setNotice("");
     let ok = false;
     try {
-      const response = await fetch(endpoint, {
+      // A change that never answers must not hold every button: give up, and the next poll shows what landed.
+      const { response, text } = await fetchWithin(endpoint, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      }, CHANGE_TIMEOUT_MS);
       if (response.status === 401) { setAuthLost(true); return false; }
-      const data = await response.json();
+      const data = JSON.parse(text);
       if (!response.ok || data.ok === false) throw new Error(data.error || failed);
       done(data);
       ok = true;
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : failed);
+      setError(gaveUp(failure) ? NO_ANSWER : plainError(failure, failed));
     } finally {
       revision.current += 1;
       changing.current = false;
@@ -188,6 +260,7 @@ export default function ControlCenter() {
       ...current,
       selected,
       menu: selected ? false : current.menu,
+      message: selected && current.message ? { ...current.message, on: false } : current.message,
       submissions: current.submissions.filter((entry) => entry.id !== id),
       shown: item ? [{ ...item, shownAt: new Date().toISOString() }, ...current.shown] : current.shown,
     };
@@ -202,7 +275,8 @@ export default function ControlCenter() {
     });
 
   const draw = () =>
-    change(API, { draw: true }, (data) => {
+    // Never the question open in an editor: it waits until the edit is saved or cancelled.
+    change(API, { draw: true, ...(editing?.at === "pile" ? { skip: editing.id } : {}) }, (data) => {
       const drawn = data.drawn;
       if (!drawn) return;
       forget(drawn.id);
@@ -225,6 +299,13 @@ export default function ControlCenter() {
       menuBartender: typeof data.menuBartender === "string" ? data.menuBartender : current.menuBartender,
       menuBartenderFont: typeof data.menuBartenderFont === "string" ? data.menuBartenderFont : current.menuBartenderFont,
       menuBartenderColor: typeof data.menuBartenderColor === "string" ? data.menuBartenderColor : current.menuBartenderColor,
+      marqueeOn: typeof data.marqueeOn === "boolean" ? data.marqueeOn : current.marqueeOn,
+      marqueeSpeed: typeof data.marqueeSpeed === "string" ? data.marqueeSpeed : current.marqueeSpeed,
+      marqueeColor: typeof data.marqueeColor === "string" ? data.marqueeColor : current.marqueeColor,
+      menuQrCaption: typeof data.menuQrCaption === "string" ? data.menuQrCaption : current.menuQrCaption,
+      menuQrTitle: typeof data.menuQrTitle === "string" ? data.menuQrTitle : current.menuQrTitle,
+      menuQrLink: typeof data.menuQrLink === "string" ? data.menuQrLink : current.menuQrLink,
+      menuBartenderLabel: typeof data.menuBartenderLabel === "string" ? data.menuBartenderLabel : current.menuBartenderLabel,
     } : current);
 
   const saveMarquee = (marquee: string) =>
@@ -232,7 +313,9 @@ export default function ControlCenter() {
       const saved = typeof data.marquee === "string" ? data.marquee : "";
       takeMenu(data);
       setMarqueeDraft(null);
-      setNotice(saved ? "Marquee saved. It runs around the drink menu." : `Marquee back to “${DEFAULT_MARQUEE}”.`);
+      // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
+      const off = data.marqueeOn === false ? " The marquee is switched off; it runs once you turn it back on." : "";
+      setNotice(saved ? `Marquee saved.${off || " It runs around the drink menu."}` : `Marquee back to “${DEFAULT_MARQUEE}”.${off}`);
     }, "Could not update the marquee.");
 
   const playExplainer = () =>
@@ -251,6 +334,46 @@ export default function ControlCenter() {
       takeMenu(data);
       setNotice(data.menu && data.menuStyle === "custom" ? "Custom menu saved. The live screen has it now." : "Custom menu saved. It shows when you put the custom menu up.");
     }, "Could not save the custom menu.");
+
+  /** The live screen's own cards (settings, message, test sound): one change, then the server's word on what is saved and, when a message went up, the drink menu. */
+  const screenAction = (body: object, done: string, failed: string) =>
+    change(API, body, (data) => {
+      setState((current) => current ? {
+        ...current,
+        ...(data.screen ? { screen: parseScreenSettings(data.screen) } : {}),
+        ...(data.message ? { message: parseMessage(data.message) } : {}),
+        ...(typeof data.menu === "boolean" ? { menu: data.menu } : {}),
+      } : current);
+      setNotice(done);
+    }, failed);
+  const sendMessage = (message: MessageChange) =>
+    screenAction({ message }, message.on ? "Your message is on the live screen." : "Message taken down.", "Could not update the message.");
+
+  /** The marquee on or off, its speed and colour; its text stays as saved. */
+  const saveMarqueeStyle = (style: MarqueeStyleInput) =>
+    change(API, { marqueeStyle: style }, (data) => {
+      takeMenu(data);
+      setNotice(!style.on ? "Marquee off. The drink menu fills the screen." : data.menu ? "Marquee saved. The live screen has it now." : "Marquee saved. It runs when you show either drink menu.");
+    }, "Could not update the marquee.");
+
+  /** Take the server's word on the drink list after a change to it; `message` says what changed. */
+  const takeDrinks = (message: string) => (data: Change & Record<string, unknown>) => {
+    const saved = parseDrinkList(data.drinks);
+    setState((current) => current ? { ...current, drinks: saved } : current);
+    setNotice(message);
+  };
+
+  /**
+   * The whole drink list (null for the printed menu). `from` is the saved
+   * list the editor last saw: the server refuses the save if another screen
+   * has changed it since, rather than quietly undoing that change.
+   */
+  const saveDrinks = (drinks: DrinkList | null, message: string, from?: DrinkList | null) =>
+    change(API, from === undefined ? { drinks } : { drinks, from }, takeDrinks(message), "Could not save the drink list.");
+
+  /** One drink sold out or back; the server changes just that drink on the list as saved now. */
+  const markDrink = (id: string, on: boolean, message: string) =>
+    change(API, { soldOut: { id, on } }, takeDrinks(message), "Could not save the drink list.");
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -287,7 +410,7 @@ export default function ControlCenter() {
 
   const takeLineup = (data: Change & Record<string, unknown>) => {
     if (!data.lineup || !data.segment) return;
-    const lineup = data.lineup;
+    const lineup = parseLineup(data.lineup);
     const segment = data.segment;
     setState((current) => current ? { ...current, lineup, segment, segmentAt: Date.now() } : current);
   };
@@ -307,7 +430,7 @@ export default function ControlCenter() {
     const to = firstEmptySlot(state.lineup, setClock);
     const input = to && applyDrop(state.lineup, to, { from: "pile", id: item.id }, setClock);
     if (!input || !to) return;
-    const optimistic: Lineup = { performers: state.lineup.performers.map((performer) => performer.id !== to.performer ? performer : {
+    const optimistic: Lineup = { ...state.lineup, performers: state.lineup.performers.map((performer) => performer.id !== to.performer ? performer : {
       ...performer, slots: performer.slots.map((slot, i) => (i === to.slot ? { submissionId: item.id, question: item.decision, name: item.name.trim() } : slot)),
     }) };
     void saveLineup(input, optimistic);
@@ -318,18 +441,19 @@ export default function ControlCenter() {
     const performer = state.lineup.performers.find((entry) => entry.id === performerId);
     if (!performer) return;
     const who = performer.name || "this performer";
+    const timing = timingOf(state.lineup, performer);
     const replacing = running && state.segment.performerId !== performerId;
     const warnings = [
       replacing ? "This stops the set that is running now." : "",
-      !performer.name ? "There is no name on this card, so the screen stays blank for the first 2 minutes." : "",
+      !performer.name && timing.nameMs ? `There is no name on this card, so the screen stays blank for the first ${durationWords(timing.nameMs)}.` : "",
       performer.slots.every((slot) => !slot) ? "No questions are lined up." : "",
     ].filter(Boolean);
-    if (warnings.length && !window.confirm(`Start ${who}'s 12 minutes?\n\n${warnings.join("\n")}`)) return;
+    if (warnings.length && !window.confirm(`Start ${who}'s ${durationWords(timing.setMs)}?\n\n${warnings.join("\n")}`)) return;
     const ok = await change(API, { segment: "start", performerId }, (data) => {
       takeLineup(data);
       setState((current) => current ? { ...current, menu: false, selected: null } : current);
       setNow(Date.now());
-      setNotice(`${who === "this performer" ? "The set" : `${who}'s set`} has started. Their name is on screen; the first question goes up at 2:00.`);
+      setNotice(`${who === "this performer" ? "The set" : `${who}'s set`} has started. ${timing.nameMs ? `Their name is on screen; the first question goes up at ${clockText(timing.nameMs)}.` : "The first question is up now."}`);
     }, "Could not start the set.");
     if (ok) await refresh();
   };
@@ -343,13 +467,57 @@ export default function ControlCenter() {
     if (ok) await refresh();
   };
 
+  /** Set timing and clearing finished cards: the server answers with the whole lineup. */
+  const editLineup = async (body: object, done: string, failed: string) => {
+    const ok = await change(API, body, (data) => {
+      takeLineup(data);
+      setNotice(done);
+    }, failed);
+    // Questions that came out of a card are back in the waiting list.
+    if (ok) await refresh();
+    return ok;
+  };
+
   const setManualOpen = (manualOpen: boolean) =>
     change(API, { manualOpen }, (data) => {
       setState((current) => current ? {
         ...current, questionsOpen: Boolean(data.questionsOpen), manualOpen: Boolean(data.manualOpen), pageLive: Boolean(data.pageLive),
+        manualClosed: Boolean(data.manualClosed),
       } : current);
       setNotice(manualOpen ? "Questions are open now and will stay open until you return to the schedule." : "Questions are following the schedule again.");
     }, "Could not update questions.");
+
+  /** Stop new questions mid-show (the pile is full): the form says it is closed until you open it again or tonight's hours end. */
+  const closeQuestionsNow = () =>
+    change(API, { manualClosed: true }, (data) => {
+      setState((current) => current ? {
+        ...current, questionsOpen: Boolean(data.questionsOpen), manualOpen: Boolean(data.manualOpen), pageLive: Boolean(data.pageLive), manualClosed: Boolean(data.manualClosed),
+      } : current);
+      setNotice(data.manualClosed
+        ? "Questions are closed. The form stays closed until you open it again or tonight's hours end; next week opens on schedule."
+        : "Questions are closed. They open again at the scheduled time.");
+    }, "Could not update questions.");
+
+  /** Save a fix to a question's words or name (or put back what was sent), wherever it sits. */
+  const editQuestion = (id: string, edit: QuestionChange) =>
+    change(API, { editQuestion: { submissionId: id, ...edit } }, (data) => {
+      const item = data.submission;
+      if (!item) return;
+      setState((current) => current ? withEdit(current, item) : current);
+      setNotice(`${"revert" in edit ? "Back to what they sent." : "Saved."}${item.id === state?.selected?.submissionId ? " The live screen shows it within a few seconds." : ""}`);
+    }, "Could not save that question.");
+
+  /** An archived question back to the waiting list. */
+  const restore = (id: string) =>
+    change(API, { restore: id }, (data) => {
+      const item = data.submission;
+      setState((current) => current ? {
+        ...current,
+        archived: current.archived.filter((entry) => entry.id !== id),
+        submissions: item ? [item, ...current.submissions] : current.submissions,
+      } : current);
+      setNotice("Back in the waiting list.");
+    }, "Could not bring that question back.");
 
   const remove = async (item: Submission) => {
     if (!window.confirm(`Delete this question for good?\n\n${item.decision.slice(0, 120)}`)) return;
@@ -371,13 +539,18 @@ export default function ControlCenter() {
     // The server archives a batch at a time so a big pile cannot outlast one
     // request; keep asking until it says nothing is left. Bounded, so a server
     // that stopped making progress cannot spin here.
+    let done = false;
     for (let pass = 0; pass < 40; pass += 1) {
       let remaining = 0;
       const ok = await change(PILE_API, { action: "archive-all" }, (data) => { remaining = Number(data.remaining) || 0; }, "Could not archive the pile.");
-      if (!ok || !remaining) break;
+      if (!ok) break;
+      if (!remaining) { done = true; break; }
     }
-    setFresh(new Set());
-    setNotice("Tonight's pile is archived. The screen is clear.");
+    // Only a finished archive says so; a failed pass leaves its own message up.
+    if (done) {
+      setFresh(new Set());
+      setNotice("Tonight's pile is archived. The screen is clear.");
+    }
     await refresh();
   };
 
@@ -389,6 +562,14 @@ export default function ControlCenter() {
 
   const waiting = state?.submissions ?? [];
   const onScreenId = state?.selected?.submissionId ?? null;
+  const screenSettings = parseScreenSettings(state?.screen);
+  const screenMessage = parseMessage(state?.message);
+  const isEditing = (at: Editing["at"], id: string) => editing?.at === at && editing.id === id;
+  // A waiting question with its editor open stays put: listed whatever the search, and out of reach of
+  // Show on screen, + Set, Draw one and Fill empty, so the typing is never thrown away under the host.
+  const held = editing?.at === "pile" ? editing.id : null;
+  const listed = waiting.filter((item) => item.id === held || matchesSearch(item, search));
+  const onScreenItem = state ? onScreenQuestion(state.selected, [state.shown, state.submissions, state.archived]) : null;
 
   return (
     <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6">
@@ -406,6 +587,17 @@ export default function ControlCenter() {
           </div>
         </header>
 
+        {updated ? (
+          <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-400/60 bg-sky-950/40 px-4 py-2 text-sm text-sky-100">
+            <span>The site was just updated. Reload this page to get the newest Control Center (save anything you are typing first). The live screen updates itself when it can; if it can&rsquo;t, a note here says so.</span>
+            <button type="button" onClick={() => window.location.reload()} className="rounded-md bg-sky-300 px-3 py-1.5 font-semibold text-black">Reload</button>
+          </div>
+        ) : null}
+        {state?.staleScreen ? (
+          <div role="status" className="mb-4 rounded-lg border border-amber-300/60 bg-amber-950/40 px-4 py-2 text-sm text-amber-100">
+            The live screen (the TV) is running an older version of the site, so new features may not show. It can&rsquo;t update itself while it is in full screen. Between sets, on the TV laptop press <kbd className="rounded border border-amber-200/40 px-1">F5</kbd> (<kbd className="rounded border border-amber-200/40 px-1">⌘R</kbd> on a Mac), then <kbd className="rounded border border-amber-200/40 px-1">F</kbd> for full screen and click once for sound.
+          </div>
+        ) : null}
         {notice ? <p role="status" className="mb-4 text-emerald-300">{notice}</p> : null}
         {error ? <p role="alert" className="mb-4 text-red-300">{error}</p> : null}
         {state?.truncated ? <p className="mb-4 text-sm text-amber-200">Showing the newest available questions. There are more stored than can be listed at once; delete some archived ones to bring the rest into view.</p> : null}
@@ -415,9 +607,15 @@ export default function ControlCenter() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
-                <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : state.selected ? "On screen" : "Screen cleared"}</p>
+                <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : screenMessage.on ? "Message on screen" : state.selected ? "On screen" : "Screen cleared"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {screenMessage.on ? (
+                  // Always in reach, even with the message card folded away (say, after a reload mid-show).
+                  <button type="button" onClick={() => void sendMessage({ on: false })} disabled={busy || !state} className="rounded-md bg-sky-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">
+                    Take message down
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => void playExplainer()}
@@ -427,6 +625,7 @@ export default function ControlCenter() {
                 >
                   {explaining ? "Intro playing…" : "Intro"}
                 </button>
+                <TestSoundButton sound={screenSettings.sound} busy={busy || !state} test={() => screenAction({ soundTest: true }, "The projector is playing the sound. Nothing heard? Click the live screen once to turn its sound on, then test again.", "Could not test the sound.")} />
                 {(["standard", "custom"] as const).map((style) => {
                   const up = Boolean(state?.menu) && state?.menuStyle === style;
                   const label = style === "custom" ? "custom menu" : "drink menu";
@@ -444,7 +643,7 @@ export default function ControlCenter() {
                     </button>
                   );
                 })}
-                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.length} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
+                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.some((item) => item.id !== held)} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
                 <button type="button" onClick={() => void select(null)} disabled={busy || running || !state?.selected} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
               </div>
             </div>
@@ -453,10 +652,21 @@ export default function ControlCenter() {
               <span>A copy of what the projector shows. It checks for changes every couple of seconds, same as the projector.</span>
               <button type="button" onClick={() => setMirrorVersion((value) => value + 1)} className="underline">Reload mirror</button>
             </div>
+            <MessageCard
+              message={screenMessage}
+              menu={Boolean(state?.menu)}
+              busy={busy || !state}
+              send={sendMessage}
+            />
             {state?.selected ? (
               <div className="mt-4 rounded-lg border border-white/20 p-4">
                 <p className="whitespace-pre-wrap break-words text-lg">{state.selected.question}</p>
-                {state.selected.name ? <p className="mt-1 text-sm text-neutral-300">— {state.selected.name} (shown on screen)</p> : null}
+                {state.selected.name ? <p className="mt-1 text-sm text-neutral-300">— {state.selected.name} {screenSettings.names ? "(shown on screen)" : "(name hidden on screen)"}</p> : null}
+                {onScreenItem && isEditing("screen", onScreenItem.id) ? (
+                  <QuestionEditor question={onScreenItem} live busy={busy} save={(edit) => editQuestion(onScreenItem.id, edit)} close={() => setEditing(null)} />
+                ) : onScreenItem ? (
+                  <button type="button" onClick={() => setEditing({ at: "screen", id: onScreenItem.id })} disabled={busy} className="mt-3 rounded-md border border-white/30 px-3 py-1.5 text-sm disabled:opacity-50">Edit</button>
+                ) : null}
               </div>
             ) : null}
 
@@ -481,9 +691,14 @@ export default function ControlCenter() {
                 <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Use default</button>
               </div>
               <p className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-neutral-500">
-                <span>{state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show either drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}</span>
+                <span>
+                  {state && !state.marqueeOn
+                    ? `Marquee switched off: the menu fills the screen. ${state.marquee ? `Saved text: “${state.marquee}”.` : `Text: the default, “${DEFAULT_MARQUEE}”.`}`
+                    : state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show either drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}
+                </span>
                 <span aria-live="polite">{(marqueeDraft ?? state?.marquee ?? "").length}/{MARQUEE_MAX}</span>
               </p>
+              {state ? <MarqueeCard on={state.marqueeOn} speed={state.marqueeSpeed} color={state.marqueeColor} text={state.marquee} busy={busy} save={saveMarqueeStyle} /> : null}
             </form>
 
             {state ? (
@@ -501,11 +716,19 @@ export default function ControlCenter() {
                 qr={state.pageLive}
                 busy={busy}
                 save={saveCustomMenu}
+                qrCaption={state.menuQrCaption}
+                qrTitle={state.menuQrTitle}
+                qrLink={state.menuQrLink}
+                bartenderLabel={state.menuBartenderLabel}
+                marqueeStyle={{ on: state.marqueeOn, speed: state.marqueeSpeed, color: state.marqueeColor }}
+                drinks={state.drinks}
               />
             ) : null}
 
+            {state ? <DrinkListCard saved={state.drinks} live={state.menu} qr={state.pageLive} busy={busy} save={saveDrinks} mark={markDrink} /> : null}
+
             <div className="mt-6 rounded-lg border border-white/20 p-4">
-              <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : "Questions are closed"}</p>
+              <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : state.manualClosed ? "Questions are closed (you closed them)" : "Questions are closed"}</p>
               <p className="mt-1 text-sm text-neutral-400">
                 {state && !state.pageLive
                   ? "The Bad Decisions page is switched off, so the QR goes nowhere. Open questions now switches it on."
@@ -513,7 +736,8 @@ export default function ControlCenter() {
               </p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <button type="button" onClick={() => void setManualOpen(true)} disabled={busy || !state || state.manualOpen} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Open questions now</button>
-                {state?.manualOpen ? <button type="button" onClick={() => void setManualOpen(false)} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Use scheduled hours</button> : null}
+                {state?.questionsOpen ? <button type="button" onClick={() => void closeQuestionsNow()} disabled={busy} title="Stops new questions, for example when the pile is full. The form says it is closed." className="rounded-md border border-red-500/60 px-4 py-2 text-sm text-red-200 disabled:opacity-50">Close questions now</button> : null}
+                {state?.manualOpen || state?.manualClosed ? <button type="button" onClick={() => void setManualOpen(false)} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Use scheduled hours</button> : null}
               </div>
               {texting.on ? (
                 <p className={`mt-3 text-xs ${texting.error ? "text-amber-200" : "text-neutral-500"}`}>
@@ -521,6 +745,14 @@ export default function ControlCenter() {
                 </p>
               ) : null}
             </div>
+
+            {state ? (
+              <ScreenSettingsCard
+                saved={screenSettings}
+                busy={busy}
+                save={(screen) => screenAction({ screen }, "Live screen settings saved. The projector picks them up within a couple of seconds.", "Could not save the live screen settings.")}
+              />
+            ) : null}
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
               <summary className="cursor-pointer text-sm">🔊 Sound on the live screen</summary>
@@ -555,13 +787,15 @@ export default function ControlCenter() {
               <LineupPanel
                 lineup={state.lineup}
                 clock={setClock}
-                waiting={waiting}
+                waiting={held ? waiting.filter((item) => item.id !== held) : waiting}
                 busy={busy}
                 dragging={dragging}
                 setDragging={setDragging}
                 save={saveLineup}
                 start={startSet}
                 stop={stopSet}
+                edit={editLineup}
+                editQuestion={editQuestion}
               />
             ) : null}
 
@@ -575,6 +809,7 @@ export default function ControlCenter() {
                 <button type="button" onClick={() => void refresh()} disabled={busy} className="px-3 py-2 text-sm underline disabled:opacity-40">Refresh</button>
               </div>
             </div>
+            <QuestionSearch value={search} onChange={setSearch} total={waiting.length} matching={listed.length} />
             {fresh.size ? (
               <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/50 bg-emerald-950/40 px-4 py-2 text-sm text-emerald-200">
                 <span>{fresh.size === 1 ? "1 new question" : `${fresh.size} new questions`} since you last looked</span>
@@ -583,12 +818,12 @@ export default function ControlCenter() {
             ) : null}
             {!state ? <p role="status" className="text-neutral-400">Loading questions…</p> : waiting.length === 0 ? <p className="text-neutral-400">No questions waiting. New submissions appear here by themselves.</p> : (
               <ul className="space-y-3">
-                {waiting.map((item) => {
+                {listed.map((item) => {
                   const isNew = fresh.has(item.id);
                   return (
                     <li
                       key={item.id}
-                      draggable={!busy}
+                      draggable={!busy && item.id !== held}
                       onDragStart={(event) => { event.dataTransfer.setData("text/plain", item.decision); setDragging({ from: "pile", id: item.id }); }}
                       onDragEnd={() => setDragging(null)}
                       className={`cursor-grab rounded-lg border p-4 transition-colors ${isNew ? "border-emerald-400/70 bg-emerald-950/30" : "border-white/15"}`}
@@ -597,12 +832,14 @@ export default function ControlCenter() {
                       <p className="whitespace-pre-wrap break-words text-lg leading-relaxed">{item.decision}</p>
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                         <span className="text-sm text-neutral-400">{item.name || "Anonymous"}{item.createdAt ? ` · ${timeOf(item.createdAt)}` : ""}</span>
-                        <span className="flex gap-2">
+                        <span className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => setEditing({ at: "pile", id: item.id })} disabled={busy || item.id === held} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                           <button type="button" onClick={() => void remove(item)} disabled={busy} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Delete</button>
-                          <button type="button" onClick={() => addToSet(item)} disabled={busy || !state || !firstEmptySlot(state.lineup, setClock)} title="Into the next empty slot: the set on stage first, then the next performer" className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Set</button>
-                          <button type="button" disabled={busy || running} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
+                          <button type="button" onClick={() => addToSet(item)} disabled={busy || !state || item.id === held || !firstEmptySlot(state.lineup, setClock)} title={item.id === held ? "Save or cancel the edit first" : "Into the next empty slot: the set on stage first, then the next performer"} className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Set</button>
+                          <button type="button" disabled={busy || running || item.id === held} title={item.id === held ? "Save or cancel the edit first" : undefined} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
                         </span>
                       </div>
+                      {item.id === held ? <QuestionEditor question={item} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /> : null}
                     </li>
                   );
                 })}
@@ -645,13 +882,16 @@ export default function ControlCenter() {
               <summary className="cursor-pointer text-sm">Already shown tonight{state ? ` (${state.shown.length})` : ""}</summary>
               {state?.shown.length ? (
                 <div role="list" className="mt-3 space-y-2">
-                  {state.shown.map((item) => (
+                  {state.shown.map((item) => isEditing("shown", item.id) ? (
+                    <div role="listitem" key={item.id}><QuestionEditor question={item} live={item.id === onScreenId} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /></div>
+                  ) : (
                     <div role="listitem" key={item.id} className={`flex items-start justify-between gap-3 rounded-md border px-3 py-2 ${item.id === onScreenId ? "border-white bg-white/10" : "border-white/10"}`}>
                       <span className="min-w-0">
                         <span className="block whitespace-pre-wrap break-words text-sm">{item.decision}</span>
                         <span className="block text-xs text-neutral-500">{item.name || "Anonymous"}{item.id === onScreenId ? " · on screen now" : ""}</span>
                       </span>
                       <span className="flex shrink-0 gap-1">
+                        <button type="button" onClick={() => setEditing({ at: "shown", id: item.id })} disabled={busy} className="px-2 py-1.5 text-xs text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                         {item.id === onScreenId ? null : (
                           <button type="button" onClick={() => void putBack(item.id)} disabled={busy} className="rounded-md border border-white/20 px-3 py-1.5 text-xs disabled:opacity-50">Put it back</button>
                         )}
@@ -673,7 +913,10 @@ export default function ControlCenter() {
                   {state.archived.map((item) => (
                     <div role="listitem" key={item.id} className="flex items-start justify-between gap-3 text-sm text-neutral-400">
                       <span className="whitespace-pre-wrap break-words">{item.decision}{item.name ? <span className="text-neutral-600"> — {item.name}</span> : null}</span>
+                      <span className="flex shrink-0 gap-1">
+                      <button type="button" onClick={() => void restore(item.id)} disabled={busy} title="Back to the waiting list" className="shrink-0 px-2 py-1 text-xs hover:text-white disabled:opacity-50">Restore</button>
                       <button type="button" onClick={() => void remove(item)} disabled={busy} className="shrink-0 px-2 py-1 text-xs hover:text-white disabled:opacity-50">Delete</button>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -705,6 +948,13 @@ function QrCode() {
   );
 }
 
+/** The question an editor was opened on is still where it was opened. */
+function stillThere(editing: Editing, board: Pick<State, "submissions" | "shown" | "selected">): boolean {
+  if (editing.at === "pile") return board.submissions.some((item) => item.id === editing.id);
+  if (editing.at === "shown") return board.shown.some((item) => item.id === editing.id);
+  return board.selected?.submissionId === editing.id;
+}
+
 /**
  * Pull forwarded texts from the mailbox. This page is only open during a show,
  * which is exactly when texts need collecting, so it stands in for a scheduler.
@@ -719,6 +969,17 @@ async function collectTexts(setTexting: (value: { on: boolean; error: string }) 
     // A failed pull must never stop the pile from loading.
     setTexting({ on: true, error: "Mailbox unreachable" });
   }
+}
+
+/** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */
+/** The request was given up on (or the page is leaving), not refused. */
+function gaveUp(failure: unknown): boolean {
+  return failure instanceof Error && (failure.name === "AbortError" || failure.name === "TimeoutError");
+}
+
+function plainError(failure: unknown, fallback: string): string {
+  if (!(failure instanceof Error) || failure.name === "AbortError" || failure.name === "TimeoutError" || failure instanceof SyntaxError) return fallback;
+  return failure.message;
 }
 
 function timeOf(iso: string): string {

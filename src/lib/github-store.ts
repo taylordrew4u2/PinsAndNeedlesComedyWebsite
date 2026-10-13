@@ -196,6 +196,20 @@ export async function readFile(
   return result;
 }
 
+/** One PUT through the Contents API: no sha creates the file, a sha updates that version of it. */
+function putFile(config: GithubConfig, clean: string, bytes: Buffer, message: string, sha: string | null, fetchImpl: Fetcher) {
+  return fetchImpl(`${config.api}/repos/${config.owner}/${config.repo}/contents/${urlPath(clean)}`, {
+    method: "PUT",
+    headers: { ...headers(config, "application/vnd.github+json"), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      content: bytes.toString("base64"),
+      branch: config.branch,
+      ...(sha ? { sha } : {}),
+    }),
+  });
+}
+
 /**
  * Write one file, creating or updating it.
  *
@@ -213,21 +227,7 @@ export async function writeFile(
   fetchImpl: Fetcher = fetch
 ): Promise<string> {
   const clean = safePath(path);
-  const url = `${config.api}/repos/${config.owner}/${config.repo}/contents/${urlPath(clean)}`;
-
-  const put = async (sha: string | null) => {
-    const response = await fetchImpl(url, {
-      method: "PUT",
-      headers: { ...headers(config, "application/vnd.github+json"), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        content: bytes.toString("base64"),
-        branch: config.branch,
-        ...(sha ? { sha } : {}),
-      }),
-    });
-    return response;
-  };
+  const put = (sha: string | null) => putFile(config, clean, bytes, message, sha, fetchImpl);
 
   let response = await put(knownSha);
 
@@ -242,6 +242,27 @@ export async function writeFile(
 
   const body = (await response.json()) as { content?: { sha?: string } };
   return body.content?.sha ?? "";
+}
+
+/**
+ * Create a file only if it is not there yet: true when this call made it,
+ * false when it already existed. Unlike writeFile it never retries with the
+ * current sha, so a starting value can never replace something just saved.
+ */
+export async function createFile(
+  config: GithubConfig,
+  path: string,
+  bytes: Buffer,
+  message: string,
+  fetchImpl: Fetcher = fetch
+): Promise<boolean> {
+  const response = await putFile(config, safePath(path), bytes, message, null, fetchImpl);
+  // GitHub refuses a create without a sha when the file exists (422), or a racing commit (409).
+  if (response.status === 409 || response.status === 422) return false;
+  if (!response.ok) {
+    throw new Error(`GitHub create failed (${response.status}): ${await response.text()}`);
+  }
+  return true;
 }
 
 /**
