@@ -33,7 +33,16 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
   const atDefaults = !Object.keys(changedScreen(saved)).length;
 
   const submit = async (settings: ScreenSettings) => {
-    if (await save(settings)) setDraft({});
+    // Only what was sent is cleared: anything changed while it saves stays, ready for the next Save.
+    const sent = draft;
+    if (await save(settings)) {
+      setDraft((current) => Object.fromEntries(Object.entries(current).filter(([key, entry]) => sent[key as keyof ScreenSettings] !== entry)));
+    }
+  };
+
+  const backToDefaults = () => {
+    if (!window.confirm("Put the live screen back to its defaults? Sound, names under questions, the countdown (from 3), drum roll and set timer all go back on, and your wording for the Intro, under the dice and above a performer's name is cleared.")) return;
+    void submit(DEFAULT_SCREEN);
   };
 
   const toggle = (key: ScreenSwitch, label: string, extra?: ReactNode) => (
@@ -115,7 +124,7 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
           {Object.keys(draft).length ? <button type="button" onClick={() => setDraft({})} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button> : null}
           <button
             type="button"
-            onClick={() => void submit(DEFAULT_SCREEN)}
+            onClick={backToDefaults}
             disabled={busy || (atDefaults && !Object.keys(draft).length)}
             className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40"
           >

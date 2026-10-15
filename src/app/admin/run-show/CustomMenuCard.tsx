@@ -103,7 +103,16 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
   const wordingValue = (key: WordingKey) => value[key] || (draft[key] === undefined ? MENU_WORDING[key].fallback : "");
 
   const submit = async (input: CustomMenuInput) => {
-    if (await save(input)) setDraft({});
+    // Only what was sent is cleared: anything typed while it saves stays in its box, ready for the next Save.
+    const sent = draft;
+    if (await save(input)) {
+      setDraft((current) => Object.fromEntries(Object.entries(current).filter(([key, entry]) => sent[key as keyof CustomMenuInput] !== entry)));
+    }
+  };
+
+  const backToDefaults = () => {
+    if (!window.confirm(`Put the custom menu back to its defaults? Tonight's bartender, the note, colours, fonts and the wording around the QR code are all cleared.${live ? " It is on screen now, so the room sees the change at once." : ""}`)) return;
+    void submit(EMPTY);
   };
 
   return (
@@ -237,7 +246,7 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
         {Object.keys(draft).length ? <button type="button" onClick={() => setDraft({})} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button> : null}
         <button
           type="button"
-          onClick={() => void submit(EMPTY)}
+          onClick={backToDefaults}
           disabled={busy || (Object.values(saved).every((entry) => !entry) && !Object.keys(draft).length)}
           className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40"
         >

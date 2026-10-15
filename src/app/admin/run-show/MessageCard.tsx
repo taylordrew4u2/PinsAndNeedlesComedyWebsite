@@ -34,9 +34,12 @@ export default function MessageCard({ message, menu, busy, send }: Props) {
   const edited = (text !== null && cleaned !== message.text) || (color !== null && cleanMessageColor(color) !== message.color);
 
   const putUp = async () => {
+    // Only what went up is cleared: anything typed while it saves stays in the box.
+    const sentText = text;
+    const sentColor = color;
     if (await send({ on: true, text: words, color: pick })) {
-      setText(null);
-      setColor(null);
+      setText((current) => (current === sentText ? null : current));
+      setColor((current) => (current === sentColor ? null : current));
     }
   };
 

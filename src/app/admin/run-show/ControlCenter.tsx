@@ -10,7 +10,7 @@ import MarqueeCard, { type MarqueeStyleInput } from "./MarqueeCard";
 import { parseDrinkList, type DrinkList } from "@/lib/drink-list";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
-import { clockText, durationWords, parseLineup, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
+import { clockText, durationWords, parseLineup, slottedIds, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
 import LineupPanel, { applyDrop, clockFor, firstEmptySlot, type Drag, type LineupInput } from "./LineupPanel";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
@@ -151,7 +151,11 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   const ping = useSyncExternalStore(subscribePing, readPing, () => false);
   useWakeLock();
   const revision = useRef(0);
-  const changing = useRef(false);
+  // Changes go out one after another, each waiting for the one before: `queue` is the last one sent,
+  // `pending` how many are queued or out, and `loud` how many of those grey out the buttons.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const pending = useRef(0);
+  const loud = useRef(0);
   const loading = useRef(false);
   // Every id seen so far; null until the first load, so nothing already in the pile counts as new.
   const known = useRef<Set<string> | null>(null);
@@ -160,7 +164,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   useEffect(() => { pingOn.current = ping; }, [ping]);
 
   const refresh = useCallback(async () => {
-    if (loading.current || changing.current) return;
+    if (loading.current || pending.current > 0) return;
     loading.current = true;
     const started = revision.current;
     try {
@@ -173,7 +177,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       const data = JSON.parse(text) as State & { error?: string };
       if (!response.ok) throw new Error(data.error || "Could not load questions.");
       // A poll started before a host's change must not undo that change in the UI.
-      if (started !== revision.current || changing.current) return;
+      if (started !== revision.current || pending.current > 0) return;
       const ids = [...data.submissions, ...data.shown, ...data.archived].map((item) => item.id);
       if (known.current) {
         const arrived = data.submissions.filter((item) => !known.current?.has(item.id)).map((item) => item.id);
@@ -217,33 +221,49 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     return () => { document.title = base; };
   }, [fresh]);
 
-  /** One change at a time; the poll waits until it has landed. */
-  const change = async (endpoint: string, body: object, done: (data: Change & Record<string, unknown>) => void, failed = "Could not update the screen.") => {
-    if (changing.current) return false;
-    changing.current = true;
+  /**
+   * One change at a time, and the poll waits until every one has landed. A
+   * press made while another is out waits its turn rather than being dropped.
+   * A `quiet` change (a performer's name, saved as its box loses focus) leaves
+   * the buttons live, so the click that took the focus away still lands.
+   */
+  const change = (endpoint: string, body: object, done: (data: Change & Record<string, unknown>) => void, failed = "Could not update the screen.", { quiet = false } = {}): Promise<boolean> => {
+    pending.current += 1;
     revision.current += 1;
-    setBusy(true);
+    if (!quiet) {
+      loud.current += 1;
+      setBusy(true);
+    }
     setError("");
     setNotice("");
-    let ok = false;
-    try {
-      // A change that never answers must not hold every button: give up, and the next poll shows what landed.
-      const { response, text } = await fetchWithin(endpoint, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      }, CHANGE_TIMEOUT_MS);
-      if (response.status === 401) { setAuthLost(true); return false; }
-      const data = JSON.parse(text);
-      if (!response.ok || data.ok === false) throw new Error(data.error || failed);
-      done(data);
-      ok = true;
-    } catch (failure) {
-      setError(gaveUp(failure) ? NO_ANSWER : plainError(failure, failed));
-    } finally {
-      revision.current += 1;
-      changing.current = false;
-      setBusy(false);
-    }
-    return ok;
+    const send = async () => {
+      try {
+        // A change that never answers must not hold every button: give up, and the next poll shows what landed.
+        const { response, text } = await fetchWithin(endpoint, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        }, CHANGE_TIMEOUT_MS);
+        if (response.status === 401) { setAuthLost(true); return false; }
+        // The server always answers in JSON. Anything else is the platform's own page (a gateway timeout, a crash):
+        // the press may still have gone through, so the host checks before pressing again.
+        if (!text.trimStart().startsWith("{")) { setError(response.status >= 500 ? NO_ANSWER : failed); return false; }
+        const data = JSON.parse(text);
+        if (!response.ok || data.ok === false) throw new Error(data.error || failed);
+        done(data);
+        return true;
+      } catch (failure) {
+        setError(gaveUp(failure) ? NO_ANSWER : plainError(failure, failed));
+        return false;
+      } finally {
+        revision.current += 1;
+        pending.current -= 1;
+        if (!quiet) loud.current -= 1;
+        if (!loud.current) setBusy(false);
+      }
+    };
+    // send never rejects, so one failed change never stops the ones queued behind it.
+    const sent = queue.current.then(send);
+    queue.current = sent;
+    return sent;
   };
 
   const forget = (id: string) => setFresh((current) => {
@@ -308,15 +328,18 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       menuBartenderLabel: typeof data.menuBartenderLabel === "string" ? data.menuBartenderLabel : current.menuBartenderLabel,
     } : current);
 
-  const saveMarquee = (marquee: string) =>
-    change(API, { marquee }, (data) => {
+  const saveMarquee = (marquee: string) => {
+    // What was in the box when the save went out: only that is cleared, so anything typed while it saves stays.
+    const sent = marqueeDraft;
+    return change(API, { marquee }, (data) => {
       const saved = typeof data.marquee === "string" ? data.marquee : "";
       takeMenu(data);
-      setMarqueeDraft(null);
+      setMarqueeDraft((current) => (current === sent ? null : current));
       // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
       const off = data.marqueeOn === false ? " The marquee is switched off; it runs once you turn it back on." : "";
       setNotice(saved ? `Marquee saved.${off || " It runs around the drink menu."}` : `Marquee back to “${DEFAULT_MARQUEE}”.${off}`);
     }, "Could not update the marquee.");
+  };
 
   const playExplainer = () =>
     change(API, { explainer: true }, () => {
@@ -327,7 +350,11 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
   /** Put one of the two menus up (switching straight from the other), or take the menu down. */
   const setMenu = (style: MenuStyle | null) =>
-    change(API, style ? { menu: true, style } : { menu: false }, takeMenu, "Could not update the drink menu.");
+    change(API, style ? { menu: true, style } : { menu: false }, (data) => {
+      takeMenu(data);
+      // A menu going up takes the host's message down on the server too.
+      if (style) setState((current) => current?.message?.on ? { ...current, message: { ...current.message, on: false } } : current);
+    }, "Could not update the drink menu.");
 
   const saveCustomMenu = (look: CustomMenuInput) =>
     change(API, { customMenu: look }, (data) => {
@@ -415,13 +442,17 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     setState((current) => current ? { ...current, lineup, segment, segmentAt: Date.now() } : current);
   };
 
-  /** Save the lineup. It shows at once; the server's answer (and the next poll) settle it. */
-  const saveLineup = async (input: LineupInput, optimistic: Lineup) => {
+  /**
+   * Save the lineup. It shows at once; the server's answer (and the next poll) settle it. `quiet` (a name
+   * typed into a card) leaves the buttons live. True once the server has it.
+   */
+  const saveLineup = async (input: LineupInput, optimistic: Lineup, options?: { quiet?: boolean }) => {
     setState((current) => current ? { ...current, lineup: optimistic } : current);
     for (const entry of input) for (const id of entry.slots) if (id) forget(id);
-    await change(API, { lineup: input }, takeLineup, "Could not save the lineup.");
+    const ok = await change(API, { lineup: input }, takeLineup, "Could not save the lineup.", options);
     // Saved or not, the waiting list catches up with what moved in or out of the cards.
     await refresh();
+    return ok;
   };
 
   /** "+ Set": into the first open slot of the set on stage, else the next card that has not run. */
@@ -451,7 +482,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     if (warnings.length && !window.confirm(`Start ${who}'s ${durationWords(timing.setMs)}?\n\n${warnings.join("\n")}`)) return;
     const ok = await change(API, { segment: "start", performerId }, (data) => {
       takeLineup(data);
-      setState((current) => current ? { ...current, menu: false, selected: null } : current);
+      // The set owns the screen: the server took the menu, the question and the host's message down.
+      setState((current) => current ? { ...current, menu: false, selected: null, message: current.message ? { ...current.message, on: false } : current.message } : current);
       setNow(Date.now());
       setNotice(`${who === "this performer" ? "The set" : `${who}'s set`} has started. ${timing.nameMs ? `Their name is on screen; the first question goes up at ${clockText(timing.nameMs)}.` : "The first question is up now."}`);
     }, "Could not start the set.");
@@ -560,7 +592,10 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     </main>
   );
 
-  const waiting = state?.submissions ?? [];
+  // Waiting: not in a card. Read against the lineup as it shows, so a question leaves the list the moment it
+  // goes into a card, rather than when the server next answers, and "+ Set" can't put it in a second slot.
+  const lined = state ? slottedIds(state.lineup) : new Set<string>();
+  const waiting = (state?.submissions ?? []).filter((item) => !lined.has(item.id));
   const onScreenId = state?.selected?.submissionId ?? null;
   const screenSettings = parseScreenSettings(state?.screen);
   const screenMessage = parseMessage(state?.message);
@@ -570,6 +605,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   const held = editing?.at === "pile" ? editing.id : null;
   const listed = waiting.filter((item) => item.id === held || matchesSearch(item, search));
   const onScreenItem = state ? onScreenQuestion(state.selected, [state.shown, state.submissions, state.archived]) : null;
+  // A set in its opening seconds shows the performer's name (or nothing, with no name on the card), not a question.
+  const stageName = running && setClock.index === null ? state?.lineup.performers.find((performer) => performer.id === setClock.performerId)?.name ?? "" : null;
 
   return (
     <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6">
@@ -595,7 +632,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
         ) : null}
         {state?.staleScreen ? (
           <div role="status" className="mb-4 rounded-lg border border-amber-300/60 bg-amber-950/40 px-4 py-2 text-sm text-amber-100">
-            The live screen (the TV) is running an older version of the site, so new features may not show. It can&rsquo;t update itself while it is in full screen. Between sets, on the TV laptop press <kbd className="rounded border border-amber-200/40 px-1">F5</kbd> (<kbd className="rounded border border-amber-200/40 px-1">⌘R</kbd> on a Mac), then <kbd className="rounded border border-amber-200/40 px-1">F</kbd> for full screen and click once for sound.
+            The live screen (the TV) is running an older version of the site, so new features may not show. It couldn&rsquo;t update itself without interrupting the room (full screen, sound that needed a tap, or a reload that didn&rsquo;t take). Between sets, on the TV laptop press <kbd className="rounded border border-amber-200/40 px-1">F5</kbd> (<kbd className="rounded border border-amber-200/40 px-1">⌘R</kbd> on a Mac), then <kbd className="rounded border border-amber-200/40 px-1">F</kbd> for full screen and click once for sound.
           </div>
         ) : null}
         {notice ? <p role="status" className="mb-4 text-emerald-300">{notice}</p> : null}
@@ -607,7 +644,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
-                <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : screenMessage.on ? "Message on screen" : state.selected ? "On screen" : "Screen cleared"}</p>
+                <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : screenMessage.on ? "Message on screen" : stageName !== null ? (stageName ? "Set running: performer's name on screen" : "Set running: blank until the first question") : state.selected ? "On screen" : "Screen cleared"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {screenMessage.on ? (
@@ -735,7 +772,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   : "Open questions whenever you want. The live screen stays as it is."}
               </p>
               <div className="mt-3 flex flex-wrap gap-3">
-                <button type="button" onClick={() => void setManualOpen(true)} disabled={busy || !state || state.manualOpen} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Open questions now</button>
+                {/* Only greyed out when pressing it would change nothing: open by hand but closed by "Close questions now" still opens. */}
+                <button type="button" onClick={() => void setManualOpen(true)} disabled={busy || !state || (state.manualOpen && state.questionsOpen)} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Open questions now</button>
                 {state?.questionsOpen ? <button type="button" onClick={() => void closeQuestionsNow()} disabled={busy} title="Stops new questions, for example when the pile is full. The form says it is closed." className="rounded-md border border-red-500/60 px-4 py-2 text-sm text-red-200 disabled:opacity-50">Close questions now</button> : null}
                 {state?.manualOpen || state?.manualClosed ? <button type="button" onClick={() => void setManualOpen(false)} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Use scheduled hours</button> : null}
               </div>
@@ -929,20 +967,22 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   );
 }
 
+/** The table QR's image; the server sends it uncached, so the browser never shows an old code. */
+const QR_SRC = "/api/admin/decisions/qr";
+
 /**
- * The QR code for the flyer and the table tent, generated from the site's own
- * URL so it can never point at a stale address. The cache-busting key means a
- * changed site URL shows the new code, not a browser-cached old one.
+ * The QR code for the flyer and the table tent. It always opens the one fixed
+ * Bad Decisions address, and its address here is fixed too, so the page drawn
+ * on the server and in the browser agree.
  */
 function QrCode() {
-  const [key] = useState(() => Date.now());
   return (
     <div className="mt-3 flex flex-wrap items-center gap-4">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/api/admin/decisions/qr?v=${key}`} alt="QR code linking to /bad-decisions" width={128} height={128} className="h-32 w-32 shrink-0 rounded-lg bg-white p-2" />
+      <img src={QR_SRC} alt="QR code linking to /bad-decisions" width={128} height={128} className="h-32 w-32 shrink-0 rounded-lg bg-white p-2" />
       <div className="min-w-[200px] flex-1 text-sm leading-relaxed text-neutral-300">
         <p>People scan this to send a question in. It shows a countdown until the form opens, then the question. Print this exact code; older codes pointing to the plain page no longer work.</p>
-        <a href={`/api/admin/decisions/qr?v=${key}`} target="_blank" rel="noreferrer" className="mt-2 inline-block underline">⬇️ Open full size to save</a>
+        <a href={QR_SRC} target="_blank" rel="noreferrer" className="mt-2 inline-block underline">⬇️ Open full size to save</a>
       </div>
     </div>
   );
