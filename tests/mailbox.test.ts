@@ -120,3 +120,30 @@ test("an empty or refused search does nothing at all", async () => {
     assert.deepEqual(calls, [], String(answer));
   }
 });
+
+test("each fetch asks when the message arrived, as well as what it says", async () => {
+  // Without the arrival time, a text sent just before the host closed
+  // questions cannot be told from one sent after.
+  const queries: Record<string, unknown>[] = [];
+  const client: MailboxClient = {
+    async search() {
+      return [5];
+    },
+    async fetchOne(_range, query) {
+      queries.push(query);
+      return { internalDate: new Date("2026-09-04T01:29:40Z") };
+    },
+    async messageFlagsAdd() {
+      return true;
+    },
+  };
+  const arrived: unknown[] = [];
+  await eachUnseen(client, 10, async (message) => {
+    arrived.push(message.internalDate);
+  });
+  assert.equal(queries.length, 1);
+  assert.equal(queries[0].internalDate, true);
+  assert.equal(queries[0].envelope, true);
+  assert.equal(queries[0].source, true);
+  assert.deepEqual(arrived, [new Date("2026-09-04T01:29:40Z")]);
+});

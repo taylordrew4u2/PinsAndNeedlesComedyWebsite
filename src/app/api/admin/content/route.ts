@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { fromAdmin } from "@/lib/admin-save";
 import { isAuthed } from "@/lib/auth";
 import { getContent, patchContent } from "@/lib/store";
 
@@ -26,7 +27,8 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const content = await patchContent(patch);
+    // The admin's copy can be older than the host's last open or close.
+    const content = await patchContent(fromAdmin(patch));
     revalidatePath("/", "layout");
     return NextResponse.json({ ok: true, updatedAt: content.updatedAt });
   } catch (error) {

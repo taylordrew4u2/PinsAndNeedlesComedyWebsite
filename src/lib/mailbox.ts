@@ -14,7 +14,15 @@
 export type MailMessage = {
   envelope?: { subject?: string; from?: { address?: string }[] };
   source?: { toString(encoding: string): string };
+  /** When the message reached the mailbox. A string only when the server's date would not parse. */
+  internalDate?: Date | string;
 };
+
+/**
+ * What to fetch for each message. The arrival time is what tells a text sent
+ * just before the host closed questions from one sent after.
+ */
+const FETCH = { envelope: true, source: true, internalDate: true };
 
 export type MailboxClient = {
   search(
@@ -57,7 +65,7 @@ export async function eachUnseen(
 
   for (const uid of unseen.slice(-batch)) {
     const id = String(uid);
-    const message = await client.fetchOne(id, { envelope: true, source: true }, BY_UID);
+    const message = await client.fetchOne(id, FETCH, BY_UID);
     if (message) await handle(message);
     await client.messageFlagsAdd(id, ["\\Seen"], BY_UID);
   }
