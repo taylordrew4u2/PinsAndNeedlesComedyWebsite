@@ -22,6 +22,7 @@ import {
   confirmDelete,
 } from "../ui";
 import UpcomingLineups from "../UpcomingLineups";
+import LineupPaste from "../LineupPaste";
 import MediaField from "../MediaField";
 import FlyerIntake, { ReadFlyerButton } from "../FlyerIntake";
 import SeoEditor from "../SeoEditor";
@@ -275,8 +276,13 @@ export default function ShowsTab({
                     </Button>
                   ))}
                 </Actions>
+                <LineupPaste
+                  lineup={show.lineup}
+                  roles={ROLE_SUGGESTIONS}
+                  onAdd={(lineup) => update((d) => void (d.shows[index].lineup = lineup))}
+                />
                 {show.lineup.length === 0 ? (
-                  <Note>Nobody on the bill yet. Tap a role above to add the first person.</Note>
+                  <Note>Nobody on the bill yet. Tap a role above, or add a list of people at once.</Note>
                 ) : null}
 
                 {show.lineup.map((person, personIndex) => (
