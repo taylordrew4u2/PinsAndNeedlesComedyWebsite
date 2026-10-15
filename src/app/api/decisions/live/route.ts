@@ -8,15 +8,35 @@ import { publicSelection } from "@/lib/live-selection";
 import { customLook } from "@/lib/drink-menu";
 import { liveMarquee, liveMarqueeLook } from "@/lib/drink-menu";
 import { visibleMenu } from "@/lib/drink-list";
-import { spaceOf } from "@/lib/space";
+import { spaceOf, type Space } from "@/lib/space";
 import { cleanBuild, currentBuild } from "@/lib/build";
 import { Throttle, clientAddress } from "@/lib/throttle";
-import { readMessage, readScreen, readSoundTest, writeScreenBuild } from "@/lib/live-store";
+import { liveWrites, readMessage, readScreen, readSoundTest, writeScreenBuild } from "@/lib/live-store";
 import { changedScreen, freshSoundTest } from "@/lib/screen-settings";
 import { publicMessage } from "@/lib/screen-message";
+import { SharedReads } from "@/lib/shared-reads";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" };
+
+/** Every record the live screen is drawn from, read alongside each other (the drinks only while the menu is up). */
+async function readLiveRecords(space: Space) {
+  // The host's screen settings, message and sound test, read alongside the rest and awaited below (a failure there still answers 503).
+  const screenReads = Promise.all([readScreen(space), readMessage(space), readSoundTest(space)]);
+  screenReads.catch(() => {});
+  const [stored, menu, explainer, lineup] = await Promise.all([readLiveSelection(space), readMenu(space), readExplainer(space), readLineup(space)]);
+  const [[screenSettings, message, soundTest], drinks] = await Promise.all([screenReads, menu.on ? readDrinks(space) : null]);
+  return { stored, menu, explainer, lineup, screenSettings, message, soundTest, drinks };
+}
+
+/**
+ * The TV and the Control Center's mirror poll this every few seconds, each
+ * poll seven or eight reads that count against GitHub's per-minute limit. On
+ * a warm instance, polls within a second of each other share one set of
+ * reads, so a few screens cost about what one does; a write on this instance
+ * (the host's press) is never answered from reads taken before it.
+ */
+const shared = new SharedReads<Awaited<ReturnType<typeof readLiveRecords>>>(1_000);
 
 /**
  * Deliberately public: only the single question explicitly selected by an
@@ -29,16 +49,12 @@ const headers = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollo
 export async function GET(request: Request) {
   const space = spaceOf(new URL(request.url).searchParams.get("mode"));
   try {
-    // The host's screen settings, message and sound test, read alongside the rest and awaited below (a failure there still answers 503).
-    const screenReads = Promise.all([readScreen(space), readMessage(space), readSoundTest(space)]);
-    screenReads.catch(() => {});
-    const [stored, menu, explainer, lineup] = await Promise.all([readLiveSelection(space), readMenu(space), readExplainer(space), readLineup(space)]);
+    const { stored, menu, explainer, lineup, screenSettings, message, soundTest, drinks } = await shared.get(space, liveWrites(), () => readLiveRecords(space));
     const now = Date.now();
     // A running set owns the screen: the performer's name, then only the slot that is up now — never the ones still to come.
     const screen = segmentScreen(lineup, now);
     const selection = screen === undefined ? stored : screen.selection;
     const status = segmentStatus(lineup, now);
-    const [screenSettings, message, soundTest] = await screenReads;
     return NextResponse.json({
       ...publicSelection(selection),
       // Which question is up, without saying which submission it is, so a fix to its words is not taken for a new one.
@@ -57,7 +73,7 @@ export async function GET(request: Request) {
       soundTest: freshSoundTest(soundTest, now),
       // While a menu is up: how its marquee runs, and the drinks that show (none hidden, sold-out ones marked).
       marqueeLook: liveMarqueeLook(menu),
-      drinks: menu.on ? visibleMenu(await readDrinks(space)) : null,
+      drinks: menu.on ? visibleMenu(drinks) : null,
     }, { headers });
   } catch (error) {
     console.error("[live-show] read failed", error);

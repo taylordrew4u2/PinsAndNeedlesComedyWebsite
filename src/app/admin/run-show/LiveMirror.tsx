@@ -12,7 +12,8 @@ const SCREEN_HEIGHT = 1080;
  * The real live page is loaded in a frame at projector size and shrunk to
  * fit, so the layout, the QR corner and the text fitting are exactly what
  * the room sees, not a phone-sized version of it. It polls the same public
- * endpoint the projector does, so it changes when the projector does.
+ * endpoint the projector does (half as often, to spare GitHub reads), so it
+ * changes within a few seconds of the projector.
  */
 export default function LiveMirror({ version }: { version: number }) {
   const box = useRef<HTMLDivElement>(null);

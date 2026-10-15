@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
 import {
-  DEFAULT_TIMING, PERFORMER_NAME_MAX, clockText, moveCard, slotAt, slotStartMs, slotTimingOf, switchAfter, timingSentence, timingShort,
+  DEFAULT_TIMING, PERFORMER_NAME_MAX, clockText, moveCard, slotAt, slotStartMs, slotTimingOf, slottedIds, switchAfter, timingSentence, timingShort,
   type Lineup, type SegmentStatus, type SetTiming,
 } from "@/lib/segment";
 import SetTimingCard from "./SetTimingCard";
@@ -72,6 +72,8 @@ export function applyDrop(lineup: Lineup, to: { performer: string; slot: number 
     if (!source) return null;
     [target.slots[to.slot], source.slots[drag.slot]] = [source.slots[drag.slot], target.slots[to.slot]];
   } else {
+    // Already in a card (a second "+ Set" before the list caught up, or a drag begun just before): one slot each.
+    if (input.some((entry) => entry.slots.includes(drag.id))) return null;
     target.slots[to.slot] = drag.id;
   }
   return input;
@@ -93,7 +95,8 @@ type Props = {
   busy: boolean;
   dragging: Drag | null;
   setDragging: (drag: Drag | null) => void;
-  save: (input: LineupInput, optimistic: Lineup) => Promise<void>;
+  /** True once the server has it; `quiet` leaves every button live while it saves. */
+  save: (input: LineupInput, optimistic: Lineup, options?: { quiet?: boolean }) => Promise<boolean>;
   start: (performerId: string) => Promise<void>;
   stop: () => Promise<void>;
   /** A timing or tidying change the server makes to the whole lineup: posts `body`, then says `done`. */
@@ -113,9 +116,12 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
   // What the host is typing in each name box, until it is saved.
   const [names, setNames] = useState<Record<string, string>>({});
+  // A question taken out of every card (here or on another device) closes its editor for good, rather than
+  // opening it again by itself the next time it goes into a card.
+  if (editingSlot && !slottedIds(lineup).has(editingSlot)) setEditingSlot(null);
 
-  /** Save, showing the change at once. Slots carry their question text so the card does not blink. */
-  const commit = (input: LineupInput, dropped?: Submission) => {
+  /** Save, showing the change at once. Slots carry their question text so the card does not blink. True once saved. */
+  const commit = (input: LineupInput, dropped?: Submission, options?: { quiet?: boolean }) => {
     const known = new Map<string, LiveSelection>();
     for (const performer of lineup.performers) for (const slot of performer.slots) if (slot) known.set(slot.submissionId, slot);
     if (dropped) known.set(dropped.id, { submissionId: dropped.id, question: dropped.decision, name: dropped.name.trim() });
@@ -132,39 +138,50 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
         ranWith: old.get(entry.id)?.ranWith ?? null,
       })),
     };
-    void save(input, optimistic);
+    return save(input, optimistic, options);
   };
 
   const drop = (performer: string, slot: number) => {
     if (!dragging) return;
     const input = applyDrop(lineup, { performer, slot }, dragging, time);
-    if (input) commit(input, dragging.from === "pile" ? waiting.find((item) => item.id === dragging.id) : undefined);
+    if (input) void commit(input, dragging.from === "pile" ? waiting.find((item) => item.id === dragging.id) : undefined);
   };
 
-  const saveName = (id: string) => {
+  /**
+   * A name saves as its box loses focus, quietly: the click that took the focus away (say, Start) still
+   * lands, and goes out after the name. The typing stays in the box until the server has it, so a failed
+   * save keeps it there, and leaving the box again tries once more.
+   */
+  const saveName = async (id: string) => {
     const draft = names[id];
     if (draft === undefined) return;
-    setNames((current) => { const next = { ...current }; delete next[id]; return next; });
+    const forget = () => setNames((current) => {
+      // Anything typed since the save went out stays in the box.
+      if (current[id] !== draft) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     const input = toInput(lineup);
     const entry = input.find((item) => item.id === id);
-    if (!entry || entry.name === draft.trim()) return;
+    if (!entry || entry.name === draft.trim()) { forget(); return; }
     entry.name = draft.trim();
-    commit(input);
+    if (await commit(input, undefined, { quiet: true })) forget();
   };
 
-  const addPerformer = () => commit([...toInput(lineup), { id: newId(), name: "", slots: Array.from({ length: lineup.timing.questions }, () => null) }]);
+  const addPerformer = () => void commit([...toInput(lineup), { id: newId(), name: "", slots: Array.from({ length: lineup.timing.questions }, () => null) }]);
 
   const removePerformer = (id: string) => {
     const performer = lineup.performers.find((entry) => entry.id === id);
     if (!performer) return;
     if (performer.slots.some(Boolean) && !window.confirm(`Remove ${performer.name || "this performer"}? Their questions go back to the waiting list.`)) return;
-    commit(toInput(lineup).filter((entry) => entry.id !== id));
+    void commit(toInput(lineup).filter((entry) => entry.id !== id));
   };
 
   /** Running order: one place up or down. */
   const moveBy = (id: string, by: -1 | 1) => {
     const input = moveCard(toInput(lineup), id, by);
-    if (input) commit(input);
+    if (input) void commit(input);
   };
 
   const editSlots = (id: string, change: (slots: (string | null)[], open: number) => (string | null)[]) => {
@@ -172,7 +189,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
     const entry = input.find((item) => item.id === id);
     if (!entry) return;
     entry.slots = change(entry.slots, firstOpen(time, id));
-    commit(input);
+    void commit(input);
   };
 
   const fill = (id: string) => {
@@ -237,7 +254,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                   aria-label={`Performer ${number + 1} name`}
                   value={names[performer.id] ?? performer.name}
                   onChange={(event) => setNames((current) => ({ ...current, [performer.id]: event.target.value }))}
-                  onBlur={() => saveName(performer.id)}
+                  onBlur={() => void saveName(performer.id)}
                   onKeyDown={(event) => { if (event.key === "Enter") (event.target as HTMLInputElement).blur(); }}
                   maxLength={PERFORMER_NAME_MAX}
                   placeholder="Performer's name"
@@ -262,15 +279,19 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                   const key = `${performer.id}:${i}`;
                   const past = i < open;
                   const up = live && time.index === i;
+                  // Keyed by its question, so an open editor (and its typing) moves with the question when the slots
+                  // move under it. A repeat from an older save falls back to the slot's place, so keys stay unique.
+                  const first = slot ? performer.slots.findIndex((entry) => entry?.submissionId === slot.submissionId) === i : false;
                   return (
                     <li
-                      key={i}
+                      key={slot && first ? `q-${slot.submissionId}` : `slot-${i}`}
                       onDragOver={(event) => { if (dragging && !past) { event.preventDefault(); setDropOn(key); } }}
                       onDragLeave={() => setDropOn((current) => (current === key ? null : current))}
                       onDrop={(event) => { event.preventDefault(); setDropOn(null); drop(performer.id, i); setDragging(null); }}
                       className={`flex items-start gap-3 rounded-md border px-3 py-2 ${up ? "border-white bg-white/10" : past ? "border-white/10 opacity-50" : dropOn === key ? "border-[#ff2e4d] bg-[#ff2e4d]/10" : "border-white/15"}`}
                     >
-                      <span className="w-[4.5rem] shrink-0 text-xs leading-5 text-neutral-400">
+                      {/* Narrower on a phone, with the buttons two by two, so the question gets room to read in whole lines. */}
+                      <span className="w-14 shrink-0 text-xs leading-5 text-neutral-400 sm:w-[4.5rem]">
                         <span className="block font-semibold text-white">{clock(slotStartMs(i, timing))}</span>
                         {up ? "on screen" : past ? "done" : live ? `in ${clock(time.left - (timing.setMs - slotStartMs(i, timing)))}` : null}
                       </span>
@@ -290,7 +311,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                         </span>
                       ) : <span className="flex-1 text-sm text-neutral-500">{past ? "Nothing went up" : "Drop a question here"}</span>}
                       {!past ? (
-                        <span className="flex shrink-0 gap-1">
+                        <span className="grid shrink-0 grid-cols-2 gap-1 sm:flex">
                           <button type="button" aria-label="Move up" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i - 1))} disabled={busy || i <= open} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
                           <button type="button" aria-label="Move down" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i + 1))} disabled={busy || i >= performer.slots.length - 1} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
                           {slot && slot.submissionId !== editingSlot ? <button type="button" aria-label="Edit question" title="Fix the words or the name" onClick={() => setEditingSlot(slot.submissionId)} disabled={busy} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✎</button> : null}

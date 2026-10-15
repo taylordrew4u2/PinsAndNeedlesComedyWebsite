@@ -58,7 +58,24 @@ export async function readRecord(key: string, initial?: { value: unknown; messag
   return JSON.parse(bytes);
 }
 
+/** How many writes this instance has finished; see liveWrites. */
+let writes = 0;
+
+/**
+ * Bumped as each write on this instance settles, so the live screen's
+ * briefly shared reads (in /api/decisions/live) taken before it are never
+ * handed out after it: the host's press shows on the very next poll here.
+ * A failed write counts too, since it may have landed anyway.
+ */
+export function liveWrites(): number {
+  return writes;
+}
+
 export async function writeRecord(key: string, value: unknown, message: string): Promise<void> {
+  await putRecord(key, value, message).finally(() => { writes += 1; });
+}
+
+async function putRecord(key: string, value: unknown, message: string): Promise<void> {
   const json = JSON.stringify(value);
   if (driver === "github") {
     const config = requireGithub();

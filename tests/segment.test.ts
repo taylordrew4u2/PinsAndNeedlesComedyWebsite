@@ -133,6 +133,19 @@ test("rearrange: the running set on its own timing locks the slots that have bee
   assert.deepEqual(ids(next.performers[0]), ["a", "y", "w"]);
 });
 
+test("rearrange: a question goes in one slot at most; what has been on screen keeps it", () => {
+  // "+ Set" tapped twice on the same question: the second copy is left empty, in the same card or the next.
+  const twice = rearrange(lineup(), [{ id: "jo", name: "Jo", slots: [q("x"), q("x"), null, null] }, { id: "new-1", name: "", slots: [q("x"), q("y"), null, null] }], start + slotStartMs(1) + 10);
+  assert.deepEqual(twice.performers.map(ids), [["x", null, null, null], [null, "y", null, null], ["a", "b", null, "d"]]);
+  // Sam's set is running and "a" has been up: a stale save with "a" on an earlier card loses it there, not on stage.
+  const now = start + slotStartMs(1) + 10;
+  const stale = rearrange(lineup(), [{ id: "jo", name: "Jo", slots: [q("a"), q("b"), null, null] }, { id: "sam", name: "Sam", slots: [q("a"), q("e"), q("b"), null] }], now);
+  assert.deepEqual(stale.performers.map(ids), [[null, "b", null, null], ["a", "e", null, null]]);
+  // The set on stage, left out and so kept whole, keeps every question it holds.
+  const kept = rearrange(lineup(), [{ id: "jo", name: "Jo", slots: [q("d"), q("e"), null, null] }], now);
+  assert.deepEqual(kept.performers.map(ids), [[null, "e", null, null], ["a", "b", null, "d"]]);
+});
+
 test("slottedIds: every question in any card", () => {
   assert.deepEqual([...slottedIds(lineup())].sort(), ["a", "b", "d", "e"]);
 });

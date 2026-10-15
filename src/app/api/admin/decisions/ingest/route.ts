@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
-import { sanitizeSubmission, submissionWindow, textIntake } from "@/lib/decisions";
+import { sanitizeSubmission, sentBeforeClose, submissionWindow, textIntake } from "@/lib/decisions";
 import { looksLikeForwardedText, messageFromForward, textFromMime } from "@/lib/inbox";
 import { eachUnseen, type MailboxClient } from "@/lib/mailbox";
 import { getContent } from "@/lib/store";
@@ -59,8 +59,8 @@ export async function POST() {
   const content = await getContent();
   const { weekly } = content;
   // In the window texts are added. While the host has closed questions they
-  // are read and dropped, as the form turns people away; otherwise they stay
-  // unread and come in once the window opens.
+  // are read, and the ones sent after the close dropped, as the form turns
+  // people away; otherwise they stay unread and come in once the window opens.
   const intake = textIntake(weekly, submissionWindow(weekly, content.shows));
   if (intake === "wait") {
     return NextResponse.json<Ingested & { ok: true }>({
@@ -91,8 +91,12 @@ export async function POST() {
       await eachUnseen(client as unknown as MailboxClient, BATCH, async (message) => {
         const from = message.envelope?.from?.[0]?.address || "";
         const subject = message.envelope?.subject || "";
-        // Not a text, or the host has closed questions: marked read all the same, so it never comes back.
-        if (intake === "drop" || !looksLikeForwardedText(from, subject)) {
+        // Not a text, or sent after the host closed questions: marked read all
+        // the same, so it never comes back. A text that was already waiting
+        // when the host closed goes in like any other: it is only late
+        // because the mailbox is read late.
+        const tooLate = intake === "drop" && !sentBeforeClose(weekly, message.internalDate);
+        if (tooLate || !looksLikeForwardedText(from, subject)) {
           skipped += 1;
           return;
         }

@@ -258,11 +258,13 @@ export type PerformerInput = { id: string; name: string; slots: (LiveSelection |
  * their timing, and hold as many questions as their timing says; the set on
  * stage holds as many as it started with. While a set runs, its slots that
  * have been on screen stay as they were and the card cannot be removed; the
- * clock is never touched.
+ * clock is never touched. A question is in one slot at most: a repeat (a
+ * double tap, or two devices saving at once) is left empty, so it never goes
+ * up twice.
  */
 export function rearrange(lineup: Lineup, next: PerformerInput[], now: number): Lineup {
   const old = new Map(lineup.performers.map((performer) => [performer.id, performer]));
-  const performers: Performer[] = [];
+  const cards: { performer: Performer; locked: number }[] = [];
   const seen = new Set<string>();
   for (const input of next.slice(0, MAX_PERFORMERS)) {
     if (!PERFORMER_ID.test(input.id) || seen.has(input.id)) continue;
@@ -273,7 +275,7 @@ export function rearrange(lineup: Lineup, next: PerformerInput[], now: number): 
     const timing = before?.timing ?? null;
     // Once a set is over, its card fits its timing again.
     const count = (status.timing ?? timing ?? lineup.timing).questions;
-    performers.push({
+    const performer: Performer = {
       id: input.id,
       name: cleanPerformerName(input.name),
       slots: emptySlots(count).map((_, i) => (before && i < locked ? before.slots[i] ?? null : input.slots[i] ?? null)),
@@ -281,12 +283,26 @@ export function rearrange(lineup: Lineup, next: PerformerInput[], now: number): 
       startedAt: before?.startedAt ?? null,
       stoppedAt: before?.stoppedAt ?? null,
       ranWith: before?.ranWith ?? null,
-    });
+    };
+    cards.push({ performer, locked });
   }
-  // The set on stage cannot be deleted out from under the room.
+  // The set on stage cannot be deleted out from under the room: kept whole, every slot as it was.
   for (const performer of lineup.performers) {
-    if (!seen.has(performer.id) && performerStatus(performer, now).running) performers.push(performer);
+    if (!seen.has(performer.id) && performerStatus(performer, now).running) cards.push({ performer, locked: performer.slots.length });
   }
+  // What has already run (and the set kept whole) holds its questions; elsewhere the first slot with a question keeps it.
+  const placed = new Set<string>();
+  for (const { performer, locked } of cards) for (const slot of performer.slots.slice(0, locked)) if (slot) placed.add(slot.submissionId);
+  const performers = cards.map(({ performer, locked }) => {
+    if (locked >= performer.slots.length) return performer;
+    const slots = performer.slots.map((slot, i) => {
+      if (i < locked || !slot) return slot;
+      if (placed.has(slot.submissionId)) return null;
+      placed.add(slot.submissionId);
+      return slot;
+    });
+    return { ...performer, slots };
+  });
   return { ...lineup, performers };
 }
 

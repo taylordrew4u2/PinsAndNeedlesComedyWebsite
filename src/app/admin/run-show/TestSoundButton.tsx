@@ -9,6 +9,9 @@ const PLAYING_MS = 5_000;
  * Plays just the sting once on the projector, nothing else on screen
  * changing, so the host can check the room hears it without running the
  * whole Intro. Waits while it plays, so a few quick taps don't stack up.
+ * Muted in the settings, it says "Muted" rather than "Sound off": the live
+ * screen's own "Sound is off" button means the browser blocked the sound,
+ * which is a different fix.
  */
 export default function TestSoundButton({ sound, busy, test }: { sound: boolean; busy: boolean; test: () => Promise<boolean> }) {
   const [playing, setPlaying] = useState(false);
@@ -27,10 +30,10 @@ export default function TestSoundButton({ sound, busy, test }: { sound: boolean;
       type="button"
       onClick={() => void press()}
       disabled={busy || playing || !sound}
-      title={sound ? "Plays the sound once on the projector, so you can check the room hears it. Nothing else changes." : "The sound is turned off in 📺 Live screen settings"}
+      title={sound ? "Plays the sound once on the projector, so you can check the room hears it. Nothing else changes." : "Sound is muted in 📺 Live screen settings. Tick “Play the sound on the projector” there to test it."}
       className="rounded-md border border-[#ff2e4d]/60 px-4 py-2 text-sm text-[#ff8a9c] disabled:opacity-50"
     >
-      {!sound ? "🔇 Sound off" : playing ? "Playing…" : "🔊 Test sound"}
+      {!sound ? "🔇 Muted" : playing ? "Playing…" : "🔊 Test sound"}
     </button>
   );
 }
