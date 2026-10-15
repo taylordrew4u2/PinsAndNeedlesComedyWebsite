@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { adminSaveBody } from "@/lib/admin-save";
 import type { Content } from "@/lib/types";
 import { fillEmpty, suggestFor } from "./suggest";
 import { TABS, type Go, type TabId } from "./tabs";
@@ -99,6 +100,11 @@ export default function AdminApp({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(false);
   const latestRef = useRef(content);
+  // The content as this tab last loaded or saved it. "The page is live" and
+  // "Keep the form open all the time" go out only when they differ from it,
+  // so a tab open since before the show cannot undo the host opening or
+  // closing questions from the Control Center.
+  const baseRef = useRef(initial);
   // Kept current in an effect rather than during render: a save is always
   // kicked off from a timer or an event, so it never needs this before the
   // commit that set it.
@@ -119,10 +125,11 @@ export default function AdminApp({
       const response = await fetch("/api/admin/content", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(snapshot),
+        body: JSON.stringify(adminSaveBody(snapshot, baseRef.current)),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) throw new Error(data.error || `Save failed (${response.status})`);
+      baseRef.current = snapshot;
       setSave("saved");
       setError("");
       dirtyRef.current = latestRef.current !== snapshot;
@@ -194,6 +201,7 @@ export default function AdminApp({
     const data = await response.json().catch(() => ({}));
     if (response.ok && data.ok) {
       dirtyRef.current = false;
+      baseRef.current = data.content as Content;
       setContent(data.content as Content);
       setSave("saved");
     }

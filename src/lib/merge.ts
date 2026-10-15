@@ -1,6 +1,6 @@
 type Plain = Record<string, unknown>;
 
-const isPlain = (value: unknown): value is Plain =>
+export const isPlain = (value: unknown): value is Plain =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
