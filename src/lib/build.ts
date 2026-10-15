@@ -67,6 +67,16 @@ export function maySelfReload(check: { tried: boolean; fullscreen: boolean; soun
   return !check.tried && !check.fullscreen && !check.soundByTap && !check.busy && check.quietForMs >= QUIET_BEFORE_RELOAD_MS;
 }
 
+/**
+ * Whether the live screen's sound started only because someone touched the
+ * page, which a reload could lose (Safari and iPads want a tap on every
+ * page). A tap on a screen whose sound was already running proves nothing:
+ * that browser starts sound by itself, and a reload there loses nothing.
+ */
+export function soundNeededTap(sound: { tapped: boolean; wasRunning: boolean; running: boolean }): boolean {
+  return sound.tapped && !sound.wasRunning && sound.running;
+}
+
 /** A report from a live screen older than this no longer counts: the screen reports again every few minutes while it is out of date. */
 export const STALE_REPORT_MS = 12 * 60_000;
 

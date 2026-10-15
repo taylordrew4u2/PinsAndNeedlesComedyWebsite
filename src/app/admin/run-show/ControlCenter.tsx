@@ -649,7 +649,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             </div>
             <LiveMirror version={mirrorVersion} />
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
-              <span>A copy of what the projector shows. It checks for changes every couple of seconds, same as the projector.</span>
+              <span>A copy of what the projector shows. It checks for changes every few seconds, so it can trail the projector by a moment.</span>
               <button type="button" onClick={() => setMirrorVersion((value) => value + 1)} className="underline">Reload mirror</button>
             </div>
             <MessageCard

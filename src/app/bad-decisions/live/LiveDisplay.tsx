@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
-import { isNewerBuild, maySelfReload, quietScreen, screenSignature } from "@/lib/build";
+import { isNewerBuild, maySelfReload, quietScreen, screenSignature, soundNeededTap } from "@/lib/build";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
 import type { CustomLook } from "@/lib/drink-menu";
@@ -39,6 +39,11 @@ const PAGE_READY_MS = 30_000;
 const TOUCH_IDLE_MS = 5_000;
 /** A silent 3, 2, 1 before a newly picked question, so the room sees it coming (the host can change the number or turn it off). */
 const COUNTDOWN_STEP_MS = 1_000;
+/** A sting still waiting on paused sound after this has missed its beat: it is dropped, never played late. */
+const STING_LATE_MS = 1_500;
+/** How often the screen asks what is up. The Control Center's mirror is only a glance for the host, so it asks half as often: every poll costs reads against GitHub's limit. */
+const POLL_MS = 2_000;
+const MIRROR_POLL_MS = 4_000;
 
 export default function LiveDisplay({ showQr, space = "live", build = "" }: { showQr: boolean; space?: Space; build?: string }) {
   const [question, setQuestion] = useState<string | null>(null);
@@ -94,6 +99,10 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   // The message or the drink menu is over the question (as of the last poll), and a new question is waiting under them for its countdown.
   const covered = useRef(false);
   const held = useRef(false);
+  // The Intro explainer is playing here, on this screen's own timers: a new question waits under it too.
+  const explaining = useRef(false);
+  // How the latest poll brings in a held question, so the explainer ending can start it in the same moment it goes.
+  const arriveHeld = useRef<(() => void) | null>(null);
   useWakeLock();
   const area = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -123,17 +132,27 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     let disposed = false;
     let pending = false;
     const controller = new AbortController();
-    /** Plays the sting if sound is on. A context the browser paused is asked to resume first; if it cannot, the beat passes silently. */
+    /**
+     * Plays the sting if sound is on. A context the browser paused is asked to
+     * resume first; if it cannot, the beat passes silently. A browser that
+     * wants a tap first holds every resume until then and lets them all go at
+     * once, so only a sting asked for just now plays then, and none the host
+     * has muted since: no pile of stings in one blast mid-set.
+     */
     const sting = () => {
       const context = audio.current;
       if (!context || muted.current) return;
       if (context.state === "running") playIntroSound(context);
-      else context.resume().then(() => { if (context.state === "running") playIntroSound(context); }, () => {});
+      else {
+        const asked = Date.now();
+        context.resume().then(() => { if (context.state === "running" && !muted.current && Date.now() - asked < STING_LATE_MS) playIntroSound(context); }, () => {});
+      }
     };
     /** Steps through the explainer on timers, playing the sting with its intro step. */
     const runExplainer = () => {
       explainerTimers.current.forEach(clearTimeout);
       explainerTimers.current = [];
+      explaining.current = true;
       busyUntil.current = Date.now() + EXPLAINER_MS + 1_000;
       setWipe((count) => count + 1);
       let delay = 0;
@@ -145,8 +164,11 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         delay += ms;
       }
       explainerTimers.current.push(setTimeout(() => {
+        explaining.current = false;
         setExplainer(null);
         setWipe((count) => count + 1);
+        // A question picked while it played comes in now, in this same update, so it never shows bare first.
+        if (held.current && !covered.current) arriveHeld.current?.();
       }, delay));
     };
     // A poll lined up for the moment the next segment slot goes up, so it lands on time rather than up to a poll late.
@@ -157,6 +179,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     let lastPageCheck = 0;
     let lastReport = 0;
     let noStorage = false;
+    // Set once it has called reload(): the old page keeps polling until the new one arrives, but says and writes nothing more about its build.
+    let reloading = false;
     // Just reloaded itself: pick up what was on screen before, so anything that went up during the reload is still new.
     try {
       const carried = JSON.parse(sessionStorage.getItem(CARRY_KEY) || "null");
@@ -198,6 +222,14 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         const nextMenu = data?.menu === true;
         const nextMessage = readPublicMessage(data?.message);
         covered.current = nextMenu || nextMessage !== null;
+        // The Intro first, so a question picked in the same moment waits under it rather than playing its sting beneath it.
+        const explainerAt = typeof data?.explainer === "string" ? data.explainer : null;
+        if (explainerAt !== explainerSeen.current) {
+          // One that was already running when this screen opened is not replayed.
+          const opening = explainerSeen.current === undefined;
+          explainerSeen.current = explainerAt;
+          if (explainerAt && !opening) runExplainer();
+        }
         const next = typeof data?.question === "string" ? data.question : null;
         // Which question it is, not its words: the host fixing a typo on screen is the same question, with no second countdown or sting.
         const nextKey = next === null ? null : typeof data?.questionKey === "string" && data.questionKey ? data.questionKey : next;
@@ -214,8 +246,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           }
           const reveal = () => {
             setCountdown(null);
-            // The host put a message or the menu up during the countdown: no sting under it; it all starts again when they come down.
-            if (covered.current) { held.current = true; return; }
+            // The host put a message or the menu up, or started the Intro, during the countdown: no sting under it; it all starts again when they come down.
+            if (covered.current || explaining.current) { held.current = true; return; }
             sting();
             const play = setup.intro && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
             setIntro(play);
@@ -225,6 +257,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           if (countFrom) countdownTimers.current.push(setTimeout(reveal, countFrom * COUNTDOWN_STEP_MS));
           else reveal();
         };
+        arriveHeld.current = next !== null ? arrive : null;
         if (nextKey !== previous) {
           // A changed screen ends any countdown or intro; a newly picked question (not the one up when the screen opened) starts one.
           clearTimeout(introTimer.current);
@@ -233,14 +266,14 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           setIntro(false);
           setCountdown(null);
           held.current = false;
-          // One that comes up under the host's message or the drink menu (a set moving on, or the moment before they come down) waits for them.
+          // One that comes up under the host's message, the drink menu or the Intro (a set moving on, or the moment before they come down) waits for them.
           if (previous !== undefined && next !== null) {
-            if (covered.current) held.current = true;
+            if (covered.current || explaining.current) held.current = true;
             else arrive();
           }
           // A cleared screen wipes; a new question has its own countdown and intro.
           if (previous && next === null) setWipe((count) => count + 1);
-        } else if (held.current && next !== null && !covered.current) {
+        } else if (held.current && next !== null && !covered.current && !explaining.current) {
           // What covered it came down: now its countdown and sting, as the room first sees it.
           arrive();
         }
@@ -281,13 +314,6 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           const onTime = () => { if (pending) switchTimer = setTimeout(onTime, 100); else void refresh(); };
           switchTimer = setTimeout(onTime, segment.nextSwitchMs + 150);
         }
-        const explainerAt = typeof data?.explainer === "string" ? data.explainer : null;
-        if (explainerAt !== explainerSeen.current) {
-          // One that was already running when this screen opened is not replayed.
-          const opening = explainerSeen.current === undefined;
-          explainerSeen.current = explainerAt;
-          if (explainerAt && !opening) runExplainer();
-        }
         // The host's message going up or coming down wipes, like the drink menu; new words while it is up just fade in.
         if (messageSeen.current !== undefined && (nextMessage !== null) !== messageSeen.current) setWipe((count) => count + 1);
         messageSeen.current = nextMessage !== null;
@@ -304,6 +330,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         }
         // The site was updated while this screen was open: its code is old, and new features would never show.
         if (isNewerBuild(build, data?.build)) {
+          if (reloading) return;
           const now = Date.now();
           const signature = screenSignature(data);
           if (!quietScreen(data)) quiet = null;
@@ -321,6 +348,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
                 at: now, question: shown.current ?? null, performer: performerSeen.current ?? null, explainer: explainerSeen.current ?? null,
                 message: messageSeen.current ?? false, soundTest: soundTestSeen.current ?? null, menu: menuSeen.current ?? null, held: held.current,
               }));
+              reloading = true;
               window.location.reload();
               return;
             } catch { noStorage = true; }
@@ -349,7 +377,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       } finally { pending = false; }
     };
     void refresh();
-    const timer = setInterval(() => void refresh(), 2_000);
+    const timer = setInterval(() => void refresh(), framed ? MIRROR_POLL_MS : POLL_MS);
     const resume = () => { if (document.visibilityState === "visible") void refresh(); };
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("online", resume);
@@ -360,6 +388,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       clearTimeout(switchTimer);
       countdownTimers.current.forEach(clearTimeout);
       explainerTimers.current.forEach(clearTimeout);
+      explaining.current = false;
       clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
@@ -393,12 +422,14 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         audio.current = context;
       }
       const context = audio.current;
+      // Already on before this, a tap is not what started it: then the browser allows sound here by itself.
+      const wasRunning = context.state === "running";
       context.resume().then(
         () => {
           if (audio.current !== context) return;
           setSoundOn(context.state === "running");
           // Sound started only once someone touched the page: a reload could lose it, so the screen leaves reloading to the host.
-          if (context.state === "running" && tapped) soundByTap.current = true;
+          if (soundNeededTap({ tapped, wasRunning, running: context.state === "running" })) soundByTap.current = true;
         },
         () => { if (audio.current === context) setSoundOn(false); },
       );
