@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { DEFAULT_MARQUEE, MARQUEE_MAX, type MenuStyle } from "@/lib/drink-menu";
+import { DEFAULT_MARQUEE, type MarqueeChange, type MenuStyle } from "@/lib/drink-menu";
 import CustomMenuCard, { type CustomMenuInput } from "./CustomMenuCard";
 import DrinkListCard from "./DrinkListCard";
-import MarqueeCard, { type MarqueeStyleInput } from "./MarqueeCard";
+import MarqueeCard from "./MarqueeCard";
 import { parseDrinkList, type DrinkList } from "@/lib/drink-list";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
@@ -21,6 +21,7 @@ import ScreenSettingsCard from "./ScreenSettingsCard";
 import TestSoundButton from "./TestSoundButton";
 import { parseScreenSettings, type ScreenSettings } from "@/lib/screen-settings";
 import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
+import { screenStatus } from "@/lib/screen-status";
 import QuestionEditor from "./QuestionEditor";
 import QuestionSearch from "./QuestionSearch";
 import { matchesSearch, onScreenQuestion, withEdit, type QuestionChange } from "@/lib/questions";
@@ -98,6 +99,12 @@ const POLL_TIMEOUT_MS = 15_000;
 const CHANGE_TIMEOUT_MS = 65_000;
 /** Given up on a press: the server may still have done it, so the host checks before pressing again. */
 const NO_ANSWER = "No answer from the server yet. It may still have gone through: check the screen and the lists before trying again.";
+/** A saved notice is news for a moment: it goes after this, or longer for a long one, so it can be read. */
+const NOTICE_MS = 6_000;
+/** Why Draw, Clear and Show are greyed out during a set. */
+const SET_OWNS_SCREEN = "A set is running and owns the screen. Press Stop in Sets first.";
+/** Why "+ Set" is greyed out: it only fills the set on stage and cards that haven't run, and none has a slot free. */
+const NO_OPEN_SLOT = "Every card has run or is full. Add a performer in Sets, or empty a slot on a card that hasn't run.";
 
 /**
  * A poll answer with the menu fields this version added filled in when they
@@ -125,7 +132,10 @@ function withDefaults(data: State): State {
  */
 export default function ControlCenter({ build = "" }: { build?: string }) {
   const [state, setState] = useState<State | null>(null);
+  // What went wrong with the host's last press. It stays up until they dismiss it or press again: a poll
+  // that fails says so in `loadError` instead, so the next good poll can't wipe a press's error unseen.
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [authLost, setAuthLost] = useState(false);
@@ -135,8 +145,6 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   // Ids that arrived while this page was open and have not been looked at yet.
   const [fresh, setFresh] = useState<Set<string>>(() => new Set());
   const [texting, setTexting] = useState<{ on: boolean; error: string }>({ on: false, error: "" });
-  // What the host is typing; null until they type, so the saved marquee shows.
-  const [marqueeDraft, setMarqueeDraft] = useState<string | null>(null);
   // While the explainer is on the live screen, its button waits.
   const [explaining, setExplaining] = useState(false);
   // Questions the host is typing in ahead of time, one per line.
@@ -193,9 +201,9 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       // closes for good, rather than opening again wherever the question turns up next.
       setEditing((current) => (current && !stillThere(current, data) ? null : current));
       if (isNewerBuild(build, (data as { build?: unknown }).build)) setUpdated(true);
-      setError("");
+      setLoadError("");
     } catch (failure) {
-      if (started === revision.current) setError(plainError(failure, "Could not load questions."));
+      if (started === revision.current) setLoadError(plainError(failure, "Could not load questions."));
     } finally { loading.current = false; }
   }, [build]);
 
@@ -220,6 +228,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     document.title = fresh.size ? `(${fresh.size}) ${base}` : base;
     return () => { document.title = base; };
   }, [fresh]);
+
+  // A notice floats over the page, so it goes once it has had time to be read. An error stays until it is
+  // dismissed or the next press: a lost change must not slip by unseen.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), Math.max(NOTICE_MS, notice.length * 60));
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   /**
    * One change at a time, and the poll waits until every one has landed. A
@@ -328,17 +344,22 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       menuBartenderLabel: typeof data.menuBartenderLabel === "string" ? data.menuBartenderLabel : current.menuBartenderLabel,
     } : current);
 
-  const saveMarquee = (marquee: string) => {
-    // What was in the box when the save went out: only that is cleared, so anything typed while it saves stays.
-    const sent = marqueeDraft;
-    return change(API, { marquee }, (data) => {
-      const saved = typeof data.marquee === "string" ? data.marquee : "";
-      takeMenu(data);
-      setMarqueeDraft((current) => (current === sent ? null : current));
-      // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
-      const off = data.marqueeOn === false ? " The marquee is switched off; it runs once you turn it back on." : "";
-      setNotice(saved ? `Marquee saved.${off || " It runs around the drink menu."}` : `Marquee back to “${DEFAULT_MARQUEE}”.${off}`);
-    }, "Could not update the marquee.");
+  /**
+   * The marquee's one Save: its text, then how it runs, each only if it changed. The server takes them as
+   * two changes, so the second waits for the first, and a refused text leaves the style unsent. True once
+   * all of it is saved; otherwise the card keeps the typing for another try.
+   */
+  const saveMarquee = async ({ text, style }: MarqueeChange) => {
+    if (text === undefined && !style) return true;
+    let saved: Record<string, unknown> = {};
+    const take = (data: Change & Record<string, unknown>) => { takeMenu(data); saved = data; };
+    if (text !== undefined && !(await change(API, { marquee: text }, take, "Could not update the marquee."))) return false;
+    if (style && !(await change(API, { marqueeStyle: style }, take, "Could not update the marquee."))) return false;
+    // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
+    setNotice(saved.marqueeOn === false
+      ? `Marquee off: the drink menu fills the screen.${text !== undefined ? " Its text is saved for when it comes back on." : ""}`
+      : `${text === "" ? `Marquee back to “${DEFAULT_MARQUEE}”.` : "Marquee saved."} ${saved.menu ? "The live screen has it now." : "It runs when you show either drink menu."}`);
+    return true;
   };
 
   const playExplainer = () =>
@@ -375,13 +396,6 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     }, failed);
   const sendMessage = (message: MessageChange) =>
     screenAction({ message }, message.on ? "Your message is on the live screen." : "Message taken down.", "Could not update the message.");
-
-  /** The marquee on or off, its speed and colour; its text stays as saved. */
-  const saveMarqueeStyle = (style: MarqueeStyleInput) =>
-    change(API, { marqueeStyle: style }, (data) => {
-      takeMenu(data);
-      setNotice(!style.on ? "Marquee off. The drink menu fills the screen." : data.menu ? "Marquee saved. The live screen has it now." : "Marquee saved. It runs when you show either drink menu.");
-    }, "Could not update the marquee.");
 
   /** Take the server's word on the drink list after a change to it; `message` says what changed. */
   const takeDrinks = (message: string) => (data: Change & Record<string, unknown>) => {
@@ -605,8 +619,15 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   const held = editing?.at === "pile" ? editing.id : null;
   const listed = waiting.filter((item) => item.id === held || matchesSearch(item, search));
   const onScreenItem = state ? onScreenQuestion(state.selected, [state.shown, state.submissions, state.archived]) : null;
-  // A set in its opening seconds shows the performer's name (or nothing, with no name on the card), not a question.
-  const stageName = running && setClock.index === null ? state?.lineup.performers.find((performer) => performer.id === setClock.performerId)?.name ?? "" : null;
+  const onStage = running ? state?.lineup.performers.find((performer) => performer.id === setClock.performerId) : undefined;
+  const status = !state ? "Connecting…" : screenStatus({
+    menu: state.menu ? state.menuStyle : null,
+    message: screenMessage.on,
+    set: running ? { name: onStage?.name ?? "", index: setClock.index } : null,
+    question: Boolean(state.selected),
+  });
+  // Where "+ Set" would put a question; null when no card has an open slot, and the button says why it waits.
+  const openSlot = state ? firstEmptySlot(state.lineup, setClock) : null;
 
   return (
     <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6">
@@ -635,16 +656,27 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             The live screen (the TV) is running an older version of the site, so new features may not show. It couldn&rsquo;t update itself without interrupting the room (full screen, sound that needed a tap, or a reload that didn&rsquo;t take). Between sets, on the TV laptop press <kbd className="rounded border border-amber-200/40 px-1">F5</kbd> (<kbd className="rounded border border-amber-200/40 px-1">⌘R</kbd> on a Mac), then <kbd className="rounded border border-amber-200/40 px-1">F</kbd> for full screen and click once for sound.
           </div>
         ) : null}
-        {notice ? <p role="status" className="mb-4 text-emerald-300">{notice}</p> : null}
-        {error ? <p role="alert" className="mb-4 text-red-300">{error}</p> : null}
+        {/* Pinned to the window rather than the page, so a press far down (a sold-out tap, a settings save) still shows what happened. */}
+        <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4">
+          {error ? (
+            <div role="alert" className="pointer-events-auto flex max-w-xl items-start gap-2 rounded-lg border border-red-400/60 bg-neutral-900/95 py-2 pl-4 pr-2 text-sm text-red-200 shadow-lg">
+              <span className="min-w-0 flex-1 py-0.5">{error}</span>
+              <button type="button" onClick={() => setError("")} aria-label="Dismiss the error" className="shrink-0 rounded px-2 py-0.5 text-red-200 hover:text-white">✕</button>
+            </div>
+          ) : null}
+          {notice ? <p role="status" className="max-w-xl rounded-lg border border-emerald-400/50 bg-neutral-900/95 px-4 py-2 text-sm text-emerald-200 shadow-lg">{notice}</p> : null}
+          {loadError ? <p role="status" className="max-w-xl rounded-lg border border-amber-300/60 bg-neutral-900/95 px-4 py-2 text-sm text-amber-100 shadow-lg">Not up to date: {loadError} It keeps trying every few seconds.</p> : null}
+        </div>
         {state?.truncated ? <p className="mb-4 text-sm text-amber-200">Showing the newest available questions. There are more stored than can be listed at once; delete some archived ones to bring the rest into view.</p> : null}
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <section aria-label="Live screen" className="min-w-0">
+        {/* Show-time controls first: the live screen, then Sets and Questions, with setup last. On a wide screen setup
+            sits under the live screen; on a phone it comes after the questions, so mid-show taps are near the top. */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:grid-rows-[auto_1fr]">
+          <section aria-label="Live screen" className="min-w-0 lg:col-start-1 lg:row-start-1">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
-                <p className="text-sm">{!state ? "Connecting…" : state.menu ? (state.menuStyle === "custom" ? "Custom drink menu on screen" : "Drink menu on screen") : screenMessage.on ? "Message on screen" : stageName !== null ? (stageName ? "Set running: performer's name on screen" : "Set running: blank until the first question") : state.selected ? "On screen" : "Screen cleared"}</p>
+                <p className="text-sm">{status}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {screenMessage.on ? (
@@ -680,8 +712,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                     </button>
                   );
                 })}
-                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.some((item) => item.id !== held)} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
-                <button type="button" onClick={() => void select(null)} disabled={busy || running || !state?.selected} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
+                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.some((item) => item.id !== held)} title={running ? SET_OWNS_SCREEN : undefined} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
+                <button type="button" onClick={() => void select(null)} disabled={busy || running || !state?.selected} title={running ? SET_OWNS_SCREEN : undefined} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
               </div>
             </div>
             <LiveMirror version={mirrorVersion} />
@@ -707,64 +739,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               </div>
             ) : null}
 
-            <form
-              className="mt-6 rounded-lg border border-amber-300/40 p-4"
-              onSubmit={(event) => { event.preventDefault(); void saveMarquee(marqueeDraft ?? state?.marquee ?? ""); }}
-            >
-              <label htmlFor="menu-marquee" className="text-sm">Drink menu marquee</label>
-              <p className="mt-1 text-sm text-neutral-400">Runs around the edge of the screen while either drink menu is up.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <input
-                  id="menu-marquee"
-                  type="text"
-                  value={marqueeDraft ?? state?.marquee ?? ""}
-                  onChange={(event) => setMarqueeDraft(event.target.value)}
-                  maxLength={MARQUEE_MAX}
-                  placeholder={DEFAULT_MARQUEE}
-                  disabled={!state}
-                  className="min-w-0 flex-1 basis-64 rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
-                />
-                <button type="submit" disabled={busy || !state || marqueeDraft === null || marqueeDraft.trim() === (state?.marquee ?? "")} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
-                <button type="button" onClick={() => void saveMarquee("")} disabled={busy || !state?.marquee} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Use default</button>
-              </div>
-              <p className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-neutral-500">
-                <span>
-                  {state && !state.marqueeOn
-                    ? `Marquee switched off: the menu fills the screen. ${state.marquee ? `Saved text: “${state.marquee}”.` : `Text: the default, “${DEFAULT_MARQUEE}”.`}`
-                    : state?.marquee ? (state.menu ? `Running now: “${state.marquee}”` : `Saved: “${state.marquee}”. It runs when you show either drink menu.`) : `Default: “${DEFAULT_MARQUEE}”.`}
-                </span>
-                <span aria-live="polite">{(marqueeDraft ?? state?.marquee ?? "").length}/{MARQUEE_MAX}</span>
-              </p>
-              {state ? <MarqueeCard on={state.marqueeOn} speed={state.marqueeSpeed} color={state.marqueeColor} text={state.marquee} busy={busy} save={saveMarqueeStyle} /> : null}
-            </form>
-
-            {state ? (
-              <CustomMenuCard
-                color={state.menuColor}
-                headline={state.menuHeadline}
-                note={state.menuNote}
-                noteColor={state.menuNoteColor}
-                font={state.menuFont}
-                bartender={state.menuBartender}
-                bartenderFont={state.menuBartenderFont}
-                bartenderColor={state.menuBartenderColor}
-                marquee={state.marquee}
-                live={state.menu && state.menuStyle === "custom"}
-                qr={state.pageLive}
-                busy={busy}
-                save={saveCustomMenu}
-                qrCaption={state.menuQrCaption}
-                qrTitle={state.menuQrTitle}
-                qrLink={state.menuQrLink}
-                bartenderLabel={state.menuBartenderLabel}
-                marqueeStyle={{ on: state.marqueeOn, speed: state.marqueeSpeed, color: state.marqueeColor }}
-                drinks={state.drinks}
-              />
-            ) : null}
-
-            {state ? <DrinkListCard saved={state.drinks} live={state.menu} qr={state.pageLive} busy={busy} save={saveDrinks} mark={markDrink} /> : null}
-
-            <div className="mt-6 rounded-lg border border-white/20 p-4">
+            <div className="mt-4 rounded-lg border border-white/20 p-4">
               <p className="text-sm">{!state ? "Checking questions…" : state.questionsOpen ? "Questions are open" : state.manualClosed ? "Questions are closed (you closed them)" : "Questions are closed"}</p>
               <p className="mt-1 text-sm text-neutral-400">
                 {state && !state.pageLive
@@ -784,43 +759,10 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               ) : null}
             </div>
 
-            {state ? (
-              <ScreenSettingsCard
-                saved={screenSettings}
-                busy={busy}
-                save={(screen) => screenAction({ screen }, "Live screen settings saved. The projector picks them up within a couple of seconds.", "Could not save the live screen settings.")}
-              />
-            ) : null}
-
-            <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">🔊 Sound on the live screen</summary>
-              <div className="mt-3 space-y-3 text-sm text-neutral-300">
-                <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“Sound is off. Tap to turn it on”</strong> button in the corner. No button means sound is on.</p>
-                <p className="font-semibold text-white">Every show (works on any browser)</p>
-                <ol className="list-decimal space-y-1 pl-5">
-                  <li>Open the live screen on the TV laptop.</li>
-                  <li>Click anywhere on it once, or press <kbd className="rounded border border-white/30 px-1">F</kbd> to go full screen. Either one turns sound on.</li>
-                  <li>Press <strong>Intro</strong> here to hear it play.</li>
-                </ol>
-                <p className="font-semibold text-white">Set it once so sound starts by itself</p>
-                <ul className="list-disc space-y-1 pl-5">
-                  <li><strong>Microsoft Edge:</strong> on the live screen, click the lock icon in the address bar → Permissions for this site → Media autoplay → Allow. Reload.</li>
-                  <li><strong>Firefox:</strong> click the permissions icon in the address bar → Autoplay → Allow Audio and Video. Reload.</li>
-                  <li><strong>Safari (Mac):</strong> Safari menu → Settings for pinsandneedlescomedy.com → Auto-Play → Allow All Auto-Play. Reload.</li>
-                  <li><strong>Chrome:</strong> Chrome has no autoplay setting. Quit Chrome fully, then start it with autoplay allowed. Mac: run <code className="rounded bg-white/10 px-1">open -a &quot;Google Chrome&quot; --args --autoplay-policy=no-user-gesture-required</code> in Terminal. Windows: add <code className="rounded bg-white/10 px-1">--autoplay-policy=no-user-gesture-required</code> to the end of the Chrome shortcut’s Target. Or use the every-show click above.</li>
-                  <li><strong>iPad or iPhone:</strong> there is no setting. Tap the screen once before the show, and keep the screen from locking.</li>
-                </ul>
-                <p>If the red button is still there after reloading, the setting didn’t take: just click the screen once.</p>
-              </div>
-            </details>
-
-            <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">📱 QR code for the tables</summary>
-              <QrCode />
-            </details>
+            {state ? <DrinkListCard saved={state.drinks} live={state.menu} qr={state.pageLive} busy={busy} save={saveDrinks} mark={markDrink} /> : null}
           </section>
 
-          <section aria-label="Question submissions" className="min-w-0">
+          <section aria-label="Question submissions" className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
             {state ? (
               <LineupPanel
                 lineup={state.lineup}
@@ -854,6 +796,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 <button type="button" onClick={() => setFresh(new Set())} className="underline">Got it</button>
               </div>
             ) : null}
+            {/* A greyed-out button's title only shows to a mouse, so a phone gets the reason in words too. */}
+            {state && waiting.length > 0 && state.lineup.performers.length > 0 && !openSlot ? <p className="mb-3 text-xs text-neutral-500">“+ Set” is greyed out: no open slot. {NO_OPEN_SLOT}</p> : null}
             {!state ? <p role="status" className="text-neutral-400">Loading questions…</p> : waiting.length === 0 ? <p className="text-neutral-400">No questions waiting. New submissions appear here by themselves.</p> : (
               <ul className="space-y-3">
                 {listed.map((item) => {
@@ -873,8 +817,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                         <span className="flex flex-wrap gap-2">
                           <button type="button" onClick={() => setEditing({ at: "pile", id: item.id })} disabled={busy || item.id === held} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                           <button type="button" onClick={() => void remove(item)} disabled={busy} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Delete</button>
-                          <button type="button" onClick={() => addToSet(item)} disabled={busy || !state || item.id === held || !firstEmptySlot(state.lineup, setClock)} title={item.id === held ? "Save or cancel the edit first" : "Into the next empty slot: the set on stage first, then the next performer"} className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Set</button>
-                          <button type="button" disabled={busy || running || item.id === held} title={item.id === held ? "Save or cancel the edit first" : undefined} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
+                          <button type="button" onClick={() => addToSet(item)} disabled={busy || !state || item.id === held || !openSlot} title={item.id === held ? "Save or cancel the edit first" : !openSlot ? `No open slot. ${NO_OPEN_SLOT}` : "Into the next empty slot: the set on stage first, then the next performer"} className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Set</button>
+                          <button type="button" disabled={busy || running || item.id === held} title={item.id === held ? "Save or cancel the edit first" : running ? SET_OWNS_SCREEN : undefined} onClick={() => void select(item.id)} className="shrink-0 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-50">Show on screen</button>
                         </span>
                       </div>
                       {item.id === held ? <QuestionEditor question={item} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /> : null}
@@ -923,7 +867,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   {state.shown.map((item) => isEditing("shown", item.id) ? (
                     <div role="listitem" key={item.id}><QuestionEditor question={item} live={item.id === onScreenId} busy={busy} save={(edit) => editQuestion(item.id, edit)} close={() => setEditing(null)} /></div>
                   ) : (
-                    <div role="listitem" key={item.id} className={`flex items-start justify-between gap-3 rounded-md border px-3 py-2 ${item.id === onScreenId ? "border-white bg-white/10" : "border-white/10"}`}>
+                    <div role="listitem" key={item.id} className={`flex flex-wrap items-start justify-between gap-x-3 gap-y-1 rounded-md border px-3 py-2 ${item.id === onScreenId ? "border-white bg-white/10" : "border-white/10"}`}>
                       <span className="min-w-0">
                         <span className="block whitespace-pre-wrap break-words text-sm">{item.decision}</span>
                         <span className="block text-xs text-neutral-500">{item.name || "Anonymous"}{item.id === onScreenId ? " · on screen now" : ""}</span>
@@ -959,6 +903,81 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   ))}
                 </div>
               ) : null}
+            </details>
+          </section>
+
+          <section aria-labelledby="setup-heading" className="min-w-0 lg:col-start-1 lg:row-start-2">
+            <h2 id="setup-heading" className="text-xs uppercase tracking-widest text-neutral-400">Setup</h2>
+            <p className="mt-1 text-sm text-neutral-500">Best done before the show. Each card stays folded until you open it.</p>
+            {state ? (
+              <MarqueeCard
+                text={state.marquee}
+                on={state.marqueeOn}
+                speed={state.marqueeSpeed}
+                color={state.marqueeColor}
+                live={state.menu}
+                busy={busy}
+                save={saveMarquee}
+              />
+            ) : null}
+
+            {state ? (
+              <CustomMenuCard
+                color={state.menuColor}
+                headline={state.menuHeadline}
+                note={state.menuNote}
+                noteColor={state.menuNoteColor}
+                font={state.menuFont}
+                bartender={state.menuBartender}
+                bartenderFont={state.menuBartenderFont}
+                bartenderColor={state.menuBartenderColor}
+                marquee={state.marquee}
+                live={state.menu && state.menuStyle === "custom"}
+                qr={state.pageLive}
+                busy={busy}
+                save={saveCustomMenu}
+                qrCaption={state.menuQrCaption}
+                qrTitle={state.menuQrTitle}
+                qrLink={state.menuQrLink}
+                bartenderLabel={state.menuBartenderLabel}
+                marqueeStyle={{ on: state.marqueeOn, speed: state.marqueeSpeed, color: state.marqueeColor }}
+                drinks={state.drinks}
+              />
+            ) : null}
+
+            {state ? (
+              <ScreenSettingsCard
+                saved={screenSettings}
+                busy={busy}
+                save={(screen) => screenAction({ screen }, "Live screen settings saved. The projector picks them up within a couple of seconds.", "Could not save the live screen settings.")}
+              />
+            ) : null}
+
+            <details className="mt-4 rounded-lg border border-white/20 p-4">
+              <summary className="cursor-pointer text-sm">🔊 Sound on the live screen</summary>
+              <div className="mt-3 space-y-3 text-sm text-neutral-300">
+                <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“Sound is off. Tap to turn it on”</strong> button in the corner. No button means sound is on.</p>
+                <p className="font-semibold text-white">Every show (works on any browser)</p>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>Open the live screen on the TV laptop.</li>
+                  <li>Click anywhere on it once, or press <kbd className="rounded border border-white/30 px-1">F</kbd> to go full screen. Either one turns sound on.</li>
+                  <li>Press <strong>🔊 Test sound</strong> here to hear it.</li>
+                </ol>
+                <p className="font-semibold text-white">Set it once so sound starts by itself</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li><strong>Microsoft Edge:</strong> on the live screen, click the lock icon in the address bar → Permissions for this site → Media autoplay → Allow. Reload.</li>
+                  <li><strong>Firefox:</strong> click the permissions icon in the address bar → Autoplay → Allow Audio and Video. Reload.</li>
+                  <li><strong>Safari (Mac):</strong> Safari menu → Settings for pinsandneedlescomedy.com → Auto-Play → Allow All Auto-Play. Reload.</li>
+                  <li><strong>Chrome:</strong> Chrome has no autoplay setting. Quit Chrome fully, then start it with autoplay allowed. Mac: run <code className="rounded bg-white/10 px-1">open -a &quot;Google Chrome&quot; --args --autoplay-policy=no-user-gesture-required</code> in Terminal. Windows: add <code className="rounded bg-white/10 px-1">--autoplay-policy=no-user-gesture-required</code> to the end of the Chrome shortcut’s Target. Or use the every-show click above.</li>
+                  <li><strong>iPad or iPhone:</strong> there is no setting. Tap the screen once before the show, and keep the screen from locking.</li>
+                </ul>
+                <p>If the red button is still there after reloading, the setting didn’t take: just click the screen once.</p>
+              </div>
+            </details>
+
+            <details className="mt-4 rounded-lg border border-white/20 p-4">
+              <summary className="cursor-pointer text-sm">📱 QR code for the tables</summary>
+              <QrCode />
             </details>
           </section>
         </div>

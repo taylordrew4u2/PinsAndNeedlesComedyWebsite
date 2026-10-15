@@ -290,7 +290,8 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                       onDrop={(event) => { event.preventDefault(); setDropOn(null); drop(performer.id, i); setDragging(null); }}
                       className={`flex items-start gap-3 rounded-md border px-3 py-2 ${up ? "border-white bg-white/10" : past ? "border-white/10 opacity-50" : dropOn === key ? "border-[#ff2e4d] bg-[#ff2e4d]/10" : "border-white/15"}`}
                     >
-                      <span className="w-[4.5rem] shrink-0 text-xs leading-5 text-neutral-400">
+                      {/* Narrower on a phone, with the buttons two by two, so the question gets room to read in whole lines. */}
+                      <span className="w-14 shrink-0 text-xs leading-5 text-neutral-400 sm:w-[4.5rem]">
                         <span className="block font-semibold text-white">{clock(slotStartMs(i, timing))}</span>
                         {up ? "on screen" : past ? "done" : live ? `in ${clock(time.left - (timing.setMs - slotStartMs(i, timing)))}` : null}
                       </span>
@@ -310,7 +311,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                         </span>
                       ) : <span className="flex-1 text-sm text-neutral-500">{past ? "Nothing went up" : "Drop a question here"}</span>}
                       {!past ? (
-                        <span className="flex shrink-0 gap-1">
+                        <span className="grid shrink-0 grid-cols-2 gap-1 sm:flex">
                           <button type="button" aria-label="Move up" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i - 1))} disabled={busy || i <= open} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
                           <button type="button" aria-label="Move down" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i + 1))} disabled={busy || i >= performer.slots.length - 1} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
                           {slot && slot.submissionId !== editingSlot ? <button type="button" aria-label="Edit question" title="Fix the words or the name" onClick={() => setEditingSlot(slot.submissionId)} disabled={busy} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✎</button> : null}

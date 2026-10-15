@@ -85,6 +85,15 @@ export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Pro
 
   const onMenu = base.columns.flat().filter((section) => !section.hidden && section.drinks.some((drink) => !drink.hidden));
 
+  // Save and Undo, above the list as well as below it: the whole list runs to thousands of pixels, so an
+  // edit near the top is never left unsaved for want of scrolling to the bottom.
+  const saveButtons = (
+    <>
+      <button type="button" onClick={() => void submit()} disabled={busy || !changed || empty} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
+      {draft ? <button type="button" onClick={() => setDraft(null)} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button> : null}
+    </>
+  );
+
   return (
     <details className="mt-4 rounded-lg border border-white/20 p-4">
       <summary className="cursor-pointer text-sm">🍸 Drink list and sold out</summary>
@@ -120,11 +129,15 @@ export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Pro
         {onMenu.length ? null : <p className="text-sm text-neutral-500">No drinks are showing. Open the list below to add some or show hidden ones.</p>}
       </div>
 
-      <details className="mt-5 rounded-md border border-white/15 p-3">
-        <summary className="cursor-pointer text-sm">✏️ Change drinks, prices and sections</summary>
+      <details className="mt-5 rounded-md border border-white/15 p-2 sm:p-3">
+        <summary className="cursor-pointer text-sm">
+          ✏️ Change drinks, prices and sections
+          {changed ? <span className="ml-2 rounded bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold text-amber-200">unsaved</span> : null}
+        </summary>
         <p className="mt-2 text-xs text-neutral-500">
           Type straight into the boxes. Nothing changes on screen until you press Save. A drink left without a name is left off. {count}/{MAX_DRINKS} drinks.
         </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">{saveButtons}</div>
 
         {value.columns.map((sections, column) => (
           <fieldset key={column} className="mt-4">
@@ -167,9 +180,9 @@ export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Pro
         </p>
         {empty ? <p className="mt-1 text-xs text-amber-200">Nothing would show on the menu. Add a drink, or show a hidden one, before saving.</p> : null}
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={() => void submit()} disabled={busy || !changed || empty} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
-          {draft ? <button type="button" onClick={() => setDraft(null)} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button> : null}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {changed ? <span className="w-full text-xs text-amber-200">Unsaved changes: not on screen yet.</span> : null}
+          {saveButtons}
           <button type="button" onClick={() => void backToPrinted()} disabled={busy || (!saved && !draft)} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Back to the printed menu</button>
         </div>
       </details>
@@ -201,7 +214,7 @@ function SectionEditor({ section, column, index, first, last, full, listFull, ed
   const name = section.title.trim() || `untitled section ${index + 1} in the ${COLUMN_NAMES[column].toLowerCase()}`;
 
   return (
-    <div className={`rounded-md border p-3 ${section.hidden ? "border-dashed border-white/20" : "border-white/20"}`}>
+    <div className={`rounded-md border p-2 sm:p-3 ${section.hidden ? "border-dashed border-white/20" : "border-white/20"}`}>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           type="text"
@@ -294,7 +307,7 @@ function DrinkEditor({ drink, index, section, shared, first, last, edit }: {
   // Every drink has the same controls, so each one's label says which drink it is for.
   const name = drink.name.trim() || `unnamed drink ${index + 1} in ${section}`;
   return (
-    <li className={`rounded-md border border-white/10 p-2 ${drink.hidden ? "border-dashed" : ""}`}>
+    <li className={`rounded-md border border-white/10 p-1.5 sm:p-2 ${drink.hidden ? "border-dashed" : ""}`}>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           type="text"
@@ -303,7 +316,7 @@ function DrinkEditor({ drink, index, section, shared, first, last, edit }: {
           onChange={(event) => change({ name: event.target.value })}
           maxLength={DRINK_NAME_MAX}
           placeholder="Drink name"
-          className={`${INPUT} min-w-0 flex-1 basis-40 ${drink.hidden ? "opacity-50" : ""} ${drink.soldOut ? "line-through" : ""}`}
+          className={`${INPUT} min-w-0 flex-1 basis-full sm:basis-40 ${drink.hidden ? "opacity-50" : ""} ${drink.soldOut ? "line-through" : ""}`}
         />
         {shared ? null : (
           <input

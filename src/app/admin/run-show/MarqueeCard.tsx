@@ -2,22 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MENU_FONT_FAMILY } from "@/components/menu-font-faces";
-import { DEFAULT_MARQUEE, MARQUEE_SPEEDS, MENU_COLORS, marqueeSpeedOf } from "@/lib/drink-menu";
+import {
+  DEFAULT_MARQUEE, MARQUEE_MAX, MARQUEE_SPEEDS, MENU_COLORS, marqueeChange, marqueeSpeedOf, type MarqueeChange, type MarqueeSettings,
+} from "@/lib/drink-menu";
 import { DEFAULT_MENU_FONT } from "@/lib/menu-fonts";
 
-/** What the card saves: the marquee on or off, its speed ("" for Normal) and its colour ("" for the menu's text colour). */
-export type MarqueeStyleInput = { on: boolean; speed: string; color: string };
-
-const DEFAULTS: MarqueeStyleInput = { on: true, speed: "", color: "" };
+const DEFAULTS: MarqueeSettings = { text: "", on: true, speed: "", color: "" };
 
 /** The board's marquee type is 28px; the sample is set at half that, so it crawls at half the speed to look the same. */
 const SAMPLE_SCALE = 0.5;
 
-type Props = MarqueeStyleInput & {
-  /** The saved marquee text, for the sample. */
-  text: string;
+type Props = MarqueeSettings & {
+  /** A drink menu is on the live screen now, so a save shows at once. */
+  live: boolean;
   busy: boolean;
-  save: (style: MarqueeStyleInput) => Promise<boolean>;
+  /** Only what changed: the text, how it runs, or both. True once all of it is saved. */
+  save: (change: MarqueeChange) => Promise<boolean>;
 };
 
 function speedLabel(id: string): string {
@@ -25,36 +25,62 @@ function speedLabel(id: string): string {
 }
 
 /**
- * How the marquee runs, beside its text: on or off (off, the band goes and
- * the menu fills the screen), how fast, and in what colour. Nothing reaches
- * the screen until Save, so a stray tap mid-show changes nothing.
+ * The marquee that runs around either drink menu: its text, on or off (off,
+ * the band goes and the menu fills the screen), how fast, and in what colour.
+ * One Save covers all of it, so there is never a question of which Save
+ * saved what. Nothing reaches the screen until then, so a stray tap mid-show
+ * changes nothing.
  */
-export default function MarqueeCard({ text, busy, save, ...saved }: Props) {
+export default function MarqueeCard({ live, busy, save, ...saved }: Props) {
   // Only what the host has touched; everything else shows the saved value.
-  const [draft, setDraft] = useState<Partial<MarqueeStyleInput>>({});
+  const [draft, setDraft] = useState<Partial<MarqueeSettings>>({});
   // The sample only crawls while the card is open.
   const [open, setOpen] = useState(false);
-  const edit = (change: Partial<MarqueeStyleInput>) => setDraft((current) => ({ ...current, ...change }));
+  const edit = (change: Partial<MarqueeSettings>) => setDraft((current) => ({ ...current, ...change }));
   const value = { ...saved, ...draft };
-  const changed = value.on !== saved.on || value.speed !== saved.speed || value.color.toUpperCase() !== saved.color.toUpperCase();
-  const atDefaults = saved.on === DEFAULTS.on && saved.speed === DEFAULTS.speed && saved.color === DEFAULTS.color;
+  const pending = marqueeChange(saved, value);
+  const changed = pending.text !== undefined || Boolean(pending.style);
+  // Already the defaults as saved: "Use defaults" only throws away the typing.
+  const toDefaults = marqueeChange(saved, DEFAULTS);
+  const atDefaults = toDefaults.text === undefined && !toDefaults.style;
 
-  const submit = async (style: MarqueeStyleInput) => {
-    if (await save(style)) setDraft({});
+  const submit = async (next: MarqueeSettings) => {
+    // Only what was sent is cleared: anything typed while it saves stays, ready for the next Save.
+    const sent = draft;
+    if (await save(marqueeChange(saved, next))) {
+      setDraft((current) => Object.fromEntries(Object.entries(current).filter(([key, entry]) => sent[key as keyof MarqueeSettings] !== entry)));
+    }
   };
 
   const chip = (picked: boolean) => `rounded-md border px-3 py-1.5 text-sm ${picked ? "border-amber-300 bg-amber-300/15 text-white" : "border-white/25 text-neutral-200"}`;
+  const words = `“${saved.text || DEFAULT_MARQUEE}”${saved.text ? "" : " (the default)"}`;
 
   return (
-    <details className="mt-4 rounded-md border border-white/15 p-3" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details className="mt-4 rounded-lg border border-amber-300/40 p-4" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer text-sm">
-        🎞️ Marquee on or off, speed and colour{saved.on ? "" : <span className="ml-2 text-xs text-amber-200">(off now)</span>}
+        🎞️ Marquee{saved.on ? null : <span className="ml-2 text-xs text-amber-200">(off now)</span>}
+        {changed ? <span className="ml-2 rounded bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold text-amber-200">unsaved</span> : null}
       </summary>
-      <p className="mt-2 text-xs text-neutral-500">
-        Now: {saved.on ? `on, ${speedLabel(saved.speed).toLowerCase()}, ${saved.color ? `in ${saved.color}` : "in the menu's text colour"}` : "off, so the menu fills the screen"}.
+      <p className="mt-2 text-sm text-neutral-400">Runs around the edge of the screen while either drink menu is up. Nothing changes on screen until you press Save.</p>
+      <p className="mt-1 text-xs text-neutral-500">
+        {saved.on
+          ? `${live ? "Running now" : "Saved"}: ${words}, ${speedLabel(saved.speed).toLowerCase()}, ${saved.color ? `in ${saved.color}` : "in the menu's text colour"}.`
+          : `Switched off, so the menu fills the screen. Its text, ${words}, is kept for when it comes back on.`}
       </p>
 
-      <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Marquee on or off">
+      <label htmlFor="menu-marquee" className="mt-3 block text-xs text-neutral-400">Text</label>
+      <input
+        id="menu-marquee"
+        type="text"
+        value={value.text}
+        onChange={(event) => edit({ text: event.target.value })}
+        maxLength={MARQUEE_MAX}
+        placeholder={DEFAULT_MARQUEE}
+        className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+      />
+      <p className="mt-1 text-right text-xs text-neutral-500" aria-live="polite">{value.text.length}/{MARQUEE_MAX}{value.text.trim() ? "" : " · empty runs the default"}</p>
+
+      <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Marquee on or off">
         <button type="button" aria-pressed={value.on} onClick={() => edit({ on: true })} className={chip(value.on)}>On</button>
         <button type="button" aria-pressed={!value.on} onClick={() => edit({ on: false })} className={chip(!value.on)}>Off (menu fills the screen)</button>
       </div>
@@ -91,15 +117,15 @@ export default function MarqueeCard({ text, busy, save, ...saved }: Props) {
         </label>
       </div>
 
-      <SampleBand text={text || DEFAULT_MARQUEE} color={value.color || "#FFFFFF"} speed={marqueeSpeedOf(value.speed)} on={value.on} running={open} />
+      <SampleBand text={value.text.trim() || DEFAULT_MARQUEE} color={value.color || "#FFFFFF"} speed={marqueeSpeedOf(value.speed)} on={value.on} running={open} />
       <p className="mt-1 text-xs text-neutral-500">
-        {!value.on ? "Off: no band, and the drink menu fills the screen." : value.color ? "A sample at the speed you picked." : "A sample at the speed you picked. Shown in white here; on the custom menu it follows the menu’s colour."}
+        {!value.on ? "Off: no band, and the drink menu fills the screen." : value.color ? "A sample of your text at the speed you picked." : "A sample of your text at the speed you picked. Shown in white here; on the custom menu it follows the menu’s colour."}
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={() => void submit(value)} disabled={busy || !changed} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
         {Object.keys(draft).length ? <button type="button" onClick={() => setDraft({})} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button> : null}
-        <button type="button" onClick={() => void submit(DEFAULTS)} disabled={busy || (atDefaults && !Object.keys(draft).length)} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Use defaults</button>
+        <button type="button" onClick={() => void submit(DEFAULTS)} disabled={busy || (atDefaults && !Object.keys(draft).length)} title={`The text “${DEFAULT_MARQUEE}”, on, at Normal speed, in the menu's text colour`} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Use defaults</button>
       </div>
     </details>
   );
