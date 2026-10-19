@@ -170,7 +170,7 @@ export default function ShowsTab({
         </div>
         {canAddWeekly ? (
           <p className="-mt-2 text-[13px] text-neutral-500">
-            The second button fills in next {content.weekly.weekday}&apos;s date, venue and times
+            The second button fills in the next night&apos;s date, venue and times
             from the Bad Decisions tab — you add the bill and turn it on.
           </p>
         ) : null}

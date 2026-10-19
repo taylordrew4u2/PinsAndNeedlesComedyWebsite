@@ -178,6 +178,43 @@ export function nextDateForWeekday(weekday: WeeklyPage["weekday"], today: string
   return base.toISOString().slice(0, 10);
 }
 
+/** Weeks between nights of the run: 1 unless the weekly says 2 or more. */
+export function weeksBetweenNights(weekly: Pick<WeeklyPage, "everyWeeks">): number {
+  const weeks = Math.floor(Number(weekly.everyWeeks));
+  return weeks >= 2 ? weeks : 1;
+}
+
+/** "every Thursday", "every other Thursday", "every 3 weeks on Thursday" */
+export function weeklyEvery(weekly: Pick<WeeklyPage, "everyWeeks" | "weekday">): string {
+  const weeks = weeksBetweenNights(weekly);
+  if (weeks === 1) return `every ${weekly.weekday}`;
+  if (weeks === 2) return `every other ${weekly.weekday}`;
+  return `every ${weeks} weeks on ${weekly.weekday}`;
+}
+
+/**
+ * The next night of the run on or after `today` (a New York date).
+ *
+ * Weekly, that is just the next matching weekday. When the show skips weeks
+ * it is the next matching weekday a whole number of runs away from
+ * `anchorDate`, so an Oct 22 anchor gives Nov 5, Nov 19, Dec 3. An anchor
+ * that is blank or on the wrong weekday is not trusted, and the run falls
+ * back to the next matching weekday rather than guessing.
+ */
+export function nextNightOfRun(
+  weekly: Pick<WeeklyPage, "everyWeeks" | "weekday" | "anchorDate">,
+  today: string
+): string {
+  const first = nextDateForWeekday(weekly.weekday, today);
+  const weeks = weeksBetweenNights(weekly);
+  const anchor = weekly.anchorDate || "";
+  if (weeks === 1 || !/^\d{4}-\d{2}-\d{2}$/.test(anchor)) return first;
+  if (WEEKDAYS[new Date(`${anchor}T12:00:00Z`).getUTCDay()] !== weekly.weekday) return first;
+  const apart = Math.round((Date.parse(`${first}T12:00:00Z`) - Date.parse(`${anchor}T12:00:00Z`)) / (7 * 86_400_000));
+  const off = ((apart % weeks) + weeks) % weeks;
+  return off === 0 ? first : addDays(first, (weeks - off) * 7);
+}
+
 /**
  * The published night of this series that is coming up next, if one has been
  * entered. The page falls back to its own standing details when there isn't.
@@ -197,7 +234,7 @@ export function nextWeeklyShow(shows: Show[], weekly: WeeklyPage, today: string)
  * the bill. Starts unpublished.
  */
 export function newWeeklyShow(weekly: WeeklyPage, today: string, now: Date = new Date()): Show {
-  const date = nextDateForWeekday(weekly.weekday, today);
+  const date = nextNightOfRun(weekly, today);
   const stamp = now.getTime().toString(36);
   return {
     id: `show-${stamp}`,
@@ -237,9 +274,10 @@ export function newWeeklyShow(weekly: WeeklyPage, today: string, now: Date = new
   };
 }
 
-/** "Every Thursday · Doors 8:00 PM · Show 9:00 PM" */
+/** "Every other Thursday · Doors 8:00 PM · Show 9:00 PM" */
 export function weeklyScheduleLine(weekly: WeeklyPage): string {
-  const parts = [`Every ${weekly.weekday}`];
+  const every = weeklyEvery(weekly);
+  const parts = [every.charAt(0).toUpperCase() + every.slice(1)];
   if (weekly.doorsTime) parts.push(`Doors ${formatTime(weekly.doorsTime)}`);
   if (weekly.startTime) parts.push(`Show ${formatTime(weekly.startTime)}`);
   return parts.join(" · ");
@@ -306,11 +344,11 @@ export function submissionWindow(
   const today = nyToday(now);
   const show = nextWeeklyShow(shows, weekly, today);
 
-  const first = occurrence(weekly, show?.date || nextDateForWeekday(weekly.weekday, today), show?.startTime);
-  // Past its close? The night is over — point at next week instead.
+  const first = occurrence(weekly, show?.date || nextNightOfRun(weekly, today), show?.startTime);
+  // Past its close? The night is over — point at the next night of the run.
   const current =
     first.closesAt && now.getTime() > first.closesAt.getTime()
-      ? occurrence(weekly, addDays(first.date, 7), undefined)
+      ? occurrence(weekly, addDays(first.date, 7 * weeksBetweenNights(weekly)), undefined)
       : first;
 
   // The host closed questions from the Control Center. No countdown either:

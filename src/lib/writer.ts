@@ -3,6 +3,7 @@ import { creditLine, taylorName } from "./brand.ts";
 import { stripMarkdown } from "./seo.ts";
 import { formatDate } from "./render.ts";
 import { formatTime } from "./shows.ts";
+import { weeklyEvery } from "./decisions.ts";
 
 /**
  * The "write it for me" button that sits on every copy field in the admin.
@@ -145,7 +146,7 @@ export function brandBrief(content: Content, today: string): string {
     weekly.enabled
       ? line(
           "Weekly show",
-          `${weekly.title} — every ${weekly.weekday}${weekly.startTime ? ` at ${formatTime(weekly.startTime)}` : ""}${
+          `${weekly.title} — ${weeklyEvery(weekly)}${weekly.startTime ? ` at ${formatTime(weekly.startTime)}` : ""}${
             weeklyWhere ? `, ${weeklyWhere}` : ""
           }${weekly.price ? `. ${weekly.price}` : ""}${weekly.ageRestriction ? `, ${weekly.ageRestriction}` : ""}. ${cut(
             weekly.tagline,
@@ -293,7 +294,7 @@ export function aboutWeekly(weekly: WeeklyPage): Record<string, unknown> {
     page: "the standing weekly show and its submission form",
     title: weekly.title,
     tagline: weekly.tagline,
-    night: `every ${weekly.weekday}`,
+    night: weeklyEvery(weekly),
     doors: weekly.doorsTime ? formatTime(weekly.doorsTime) : "",
     starts: weekly.startTime ? formatTime(weekly.startTime) : "",
     venue: weekly.venueName,

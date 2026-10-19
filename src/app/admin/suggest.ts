@@ -3,7 +3,7 @@ import { admissionSentence, clamp, sentenceSummary, siteBase, stripMarkdown, sug
 import { creditLine, taylorFaq, taylorKeyword } from "@/lib/brand";
 import { formatDate } from "@/lib/render";
 import { formatTime, venueLine } from "@/lib/shows";
-import { weeklyVenueLine } from "@/lib/decisions";
+import { weeklyEvery, weeklyVenueLine, weeksBetweenNights } from "@/lib/decisions";
 
 export type Suggestion = {
   title: string;
@@ -196,13 +196,13 @@ export function suggestFor(
     case "weekly": {
       const weekly = content.weekly;
       const where = weeklyVenueLine(weekly).replace(" — ", ", ");
-      const when = [weekly.weekday ? `every ${weekly.weekday}` : "", weekly.startTime ? `at ${formatTime(weekly.startTime)}` : ""].filter(Boolean).join(" ");
+      const when = [weekly.weekday ? weeklyEvery(weekly) : "", weekly.startTime ? `at ${formatTime(weekly.startTime)}` : ""].filter(Boolean).join(" ");
       const eventSentence = `${weekly.title} is a stand-up comedy show${where ? ` at ${where}` : ""}${when ? ` ${when}` : ""}.`;
       return make(
         `${weekly.title.replace(/^Pins & Needles:\s*/i, "")} | ${brand}`,
         `${eventSentence} ${admissionSentence(weekly.price)}`,
         `${eventSentence} ${admissionSentence(weekly.price)} Audience members submit decisions they have made or are considering. The comedians discuss selected submissions and offer advice. Submissions can be anonymous. The shows are produced by ${creditLine(content.about.producers)}.`,
-        `${weekly.title} ${weekly.tagline} ${weekly.howItWorks} ${where} ${weekly.city} free weekly comedy`,
+        `${weekly.title} ${weekly.tagline} ${weekly.howItWorks} ${where} ${weekly.city} free ${weeksBetweenNights(weekly) === 1 ? "weekly " : ""}comedy`,
         "/bad-decisions",
         [
           `free comedy ${(weekly.city || "queens").toLowerCase()}`,
