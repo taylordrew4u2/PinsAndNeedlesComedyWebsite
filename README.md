@@ -14,6 +14,8 @@ and film shoots while they are happening.
 
 ---
 
+<p align="center"><img src="docs/promo/overview.png" alt="Pins & Needles Comedy: the public website on desktop and phone, the producer control center and Run Show phone, and the audience projector with the guest form" width="100%" /></p>
+
 ## The code in this repository
 
 [![CI](https://github.com/taylordrew4u2/PinsAndNeedlesComedyWebsite/actions/workflows/ci.yml/badge.svg)](https://github.com/taylordrew4u2/PinsAndNeedlesComedyWebsite/actions/workflows/ci.yml)
