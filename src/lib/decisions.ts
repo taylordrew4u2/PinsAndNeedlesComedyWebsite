@@ -134,16 +134,32 @@ export function sortSubmissions(list: Submission[]): Submission[] {
 }
 
 /**
- * The date of the most recent show that has already happened — a New York
- * calendar date before today — or "" if none has. Cancelled and postponed
- * nights don't count: nobody read those questions out.
+ * How long a show night lasts past midnight: until 6 AM New York the morning
+ * after. A show that runs late is still tonight's at 12:30, and the room has
+ * long gone home by six.
+ */
+const NIGHT_ENDS_HOURS = 6;
+
+/** The show night an instant belongs to, as a New York calendar date. */
+function showNight(at: Date): string {
+  return nyToday(new Date(at.getTime() - NIGHT_ENDS_HOURS * 3_600_000));
+}
+
+/**
+ * The date of the most recent show night that is over, or "" if none is.
+ * Cancelled and postponed nights don't count: nobody read those questions
+ * out.
+ *
+ * Over means the morning after, not midnight. Cutting at midnight emptied the
+ * Control Center in the middle of a late show and took the question on the
+ * projector down with it.
  */
 export function lastPastShowDate(shows: Show[], now: Date = new Date()): string {
-  const today = nyToday(now);
+  const tonight = showNight(now);
   let latest = "";
   for (const show of shows) {
     if (show.status === "cancelled" || show.status === "postponed") continue;
-    if (show.date && show.date < today && show.date > latest) latest = show.date;
+    if (show.date && show.date < tonight && show.date > latest) latest = show.date;
   }
   return latest;
 }
@@ -151,12 +167,13 @@ export function lastPastShowDate(shows: Show[], now: Date = new Date()): string 
 /**
  * True for a question sent on or before a show that has since passed, so the
  * control center starts fresh the day after every show without anyone
- * pressing archive.
+ * pressing archive. A question sent after midnight during a late show belongs
+ * to that show, and goes with it.
  */
 export function isFromPastShow(submission: Submission, lastPast: string): boolean {
   if (!lastPast) return false;
   const sent = new Date(submission.createdAt);
-  return !Number.isNaN(sent.getTime()) && nyToday(sent) <= lastPast;
+  return !Number.isNaN(sent.getTime()) && showNight(sent) <= lastPast;
 }
 
 /** One random open submission, or null when the pile is empty. */
@@ -334,7 +351,9 @@ export type SubmissionWindow = {
  * the host actually typed) and falls back to the standing details.
  *
  * Once an occurrence's window has closed, this rolls forward to the next one,
- * so the page never advertises a door that shut two hours ago.
+ * so the page never advertises a door that shut two hours ago. A window that
+ * runs past midnight stays last night's until it closes: the calendar moving
+ * on at 12:00 must not shut the form an hour early and point at next week.
  */
 export function submissionWindow(
   weekly: WeeklyPage,
@@ -342,9 +361,15 @@ export function submissionWindow(
   now: Date = new Date()
 ): SubmissionWindow {
   const today = nyToday(now);
-  const show = nextWeeklyShow(shows, weekly, today);
+  const yesterday = addDays(today, -1);
+  // The night the window was on yesterday, if that was yesterday's own night.
+  // Worked out exactly as yesterday would have, so a night moved to another
+  // date is not reopened just because the weekday matches.
+  const lastNight = nextOccurrence(weekly, shows, yesterday);
+  const stillOn =
+    lastNight.date === yesterday && lastNight.closesAt && now.getTime() <= lastNight.closesAt.getTime();
 
-  const first = occurrence(weekly, show?.date || nextNightOfRun(weekly, today), show?.startTime);
+  const first = stillOn ? lastNight : nextOccurrence(weekly, shows, today);
   // Past its close? The night is over — point at the next night of the run.
   const current =
     first.closesAt && now.getTime() > first.closesAt.getTime()
@@ -395,24 +420,57 @@ export function closedByHost(weekly: Pick<WeeklyPage, "closedUntil">, now: Date 
  * remembered to undo must not quietly shut next week's show as well. On a day
  * with no window left (another day, or after the door has shut) the schedule
  * already keeps the form closed, so there is nothing to hold.
+ *
+ * The moment of the close is kept too, so texts sent before it still count
+ * (see sentBeforeClose).
  */
 export function closeQuestions(
   weekly: WeeklyPage,
   shows: Show[],
   now: Date = new Date()
-): { alwaysOpen: false; closedUntil: string } {
+): { alwaysOpen: false; closedUntil: string; closedAt: string } {
   const scheduled = submissionWindow({ ...weekly, alwaysOpen: false, closedUntil: "" }, shows, now);
   const tonight = scheduled.open || scheduled.date === nyToday(now);
-  return { alwaysOpen: false, closedUntil: tonight ? scheduled.closesAt : "" };
+  return { alwaysOpen: false, closedUntil: tonight ? scheduled.closesAt : "", closedAt: now.toISOString() };
 }
 
 /**
- * What the mailbox intake does with a forwarded text right now. In the window
- * it is added. While the host has questions closed it is read and dropped, the
- * same as the form turning someone away, so opening again later never floods
- * the pile with everything sent meanwhile. Otherwise (outside the hours, or
- * the page switched off) the mailbox is left alone, and the text comes in once
- * the window opens.
+ * How long Google Voice can take to forward a text to the mailbox. A text
+ * that lands this soon after the close was most likely sent before it.
+ */
+export const FORWARDING_GRACE_MS = 2 * 60_000;
+
+/**
+ * Whether a forwarded text found while the host has questions closed was sent
+ * before the close, and so still belongs in the pile.
+ *
+ * The mailbox is only read when the Control Center polls, and Voice adds its
+ * own delay, so the texts sent in answer to "last call" are usually still
+ * unread when the host presses Close questions now. They were sent while
+ * questions were open, the same as a form sent a second before, and are
+ * kept. Only what reached the mailbox after the close (allowing for the
+ * forwarding delay) is dropped. When either time is missing there is no
+ * telling, and a question kept by mistake costs the host a glance where one
+ * dropped is gone for good.
+ */
+export function sentBeforeClose(
+  weekly: Pick<WeeklyPage, "closedAt">,
+  arrivedAt: Date | string | undefined
+): boolean {
+  const closed = Date.parse(weekly.closedAt || "");
+  const arrived = arrivedAt instanceof Date ? arrivedAt.getTime() : Date.parse(arrivedAt || "");
+  if (!Number.isFinite(closed) || !Number.isFinite(arrived)) return true;
+  return arrived <= closed + FORWARDING_GRACE_MS;
+}
+
+/**
+ * What the mailbox intake does with forwarded texts right now. In the window
+ * they are added. While the host has questions closed they are read, and the
+ * ones sent after the close dropped (see sentBeforeClose), the same as the
+ * form turning someone away, so opening again later never floods the pile
+ * with everything sent meanwhile. Otherwise (outside the hours, or the page
+ * switched off) the mailbox is left alone, and the texts come in once the
+ * window opens.
  */
 export function textIntake(
   weekly: Pick<WeeklyPage, "enabled">,
@@ -439,6 +497,15 @@ export function windowFor(
 ): SubmissionWindow {
   if (space === "rehearsal") return { open: true, date: "", opensAt: "", closesAt: "", opensLabel: "" };
   return submissionWindow(weekly, shows, now);
+}
+
+/**
+ * The next occurrence as seen on `day`: a published night of the series on or
+ * after it, or else the next night of the run (every week, or every other).
+ */
+function nextOccurrence(weekly: WeeklyPage, shows: Show[], day: string) {
+  const show = nextWeeklyShow(shows, weekly, day);
+  return occurrence(weekly, show?.date || nextNightOfRun(weekly, day), show?.startTime);
 }
 
 function occurrence(

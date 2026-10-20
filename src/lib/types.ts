@@ -291,6 +291,12 @@ export type WeeklyPage = {
    * "" or absent when the host has not closed it.
    */
   closedUntil?: string;
+  /**
+   * When the host last pressed "Close questions now", as an ISO instant. The
+   * mailbox is read late, so texts that arrived before this still go in the
+   * pile. "" or absent when it has never been pressed.
+   */
+  closedAt?: string;
   /** Shown in place of the form outside the window. */
   closedText: string;
   /**

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { QUIET_BEFORE_RELOAD_MS, STALE_REPORT_MS, cleanBuild, currentBuild, isNewerBuild, maySelfReload, quietScreen, screenSignature, staleScreen } from "../src/lib/build.ts";
+import { QUIET_BEFORE_RELOAD_MS, STALE_REPORT_MS, cleanBuild, currentBuild, isNewerBuild, maySelfReload, quietScreen, screenSignature, soundNeededTap, staleScreen } from "../src/lib/build.ts";
 
 test("isNewerBuild: only a different, non-empty build on both sides counts", () => {
   assert.equal(isNewerBuild("dpl_a", "dpl_b"), true);
@@ -66,6 +66,16 @@ test("maySelfReload: never in full screen, with tapped-on sound, while busy, twi
   assert.equal(maySelfReload({ ...ok, soundByTap: true }), false);
   assert.equal(maySelfReload({ ...ok, busy: true }), false);
   assert.equal(maySelfReload({ ...ok, quietForMs: QUIET_BEFORE_RELOAD_MS - 1 }), false);
+});
+
+test("soundNeededTap: only a tap that is what started the sound", () => {
+  // Autoplay blocked: the first tap turns sound on, and a reload would lose it.
+  assert.equal(soundNeededTap({ tapped: true, wasRunning: false, running: true }), true);
+  // Autoplay allowed: sound started on its own, and pressing F or clicking later changes nothing.
+  assert.equal(soundNeededTap({ tapped: false, wasRunning: false, running: true }), false);
+  assert.equal(soundNeededTap({ tapped: true, wasRunning: true, running: true }), false);
+  // A tap the browser still refused.
+  assert.equal(soundNeededTap({ tapped: true, wasRunning: false, running: false }), false);
 });
 
 test("cleanBuild: deployment ids and commit hashes only", () => {

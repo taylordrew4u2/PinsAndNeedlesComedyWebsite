@@ -4,7 +4,7 @@ import {
   DEFAULT_HEADLINE, DEFAULT_MENU_COLOR, DRINK_MENU, HEADLINE_MAX, MARQUEE_MAX, MENU_COLORS, NOTE_MAX, BARTENDER_MAX, cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, customLook, parseMenuState,
 } from "../src/lib/drink-menu.ts";
 import {
-  DEFAULT_MARQUEE, DEFAULT_MARQUEE_SPEED, MARQUEE_SPEEDS, MENU_WORDING, WORDING_KEYS, cleanWording, customWording, isMarqueeSpeed, liveMarquee, liveMarqueeLook, marqueeSpeedOf, wordingChange,
+  DEFAULT_MARQUEE, DEFAULT_MARQUEE_SPEED, MARQUEE_SPEEDS, MENU_WORDING, WORDING_KEYS, cleanWording, customWording, isMarqueeSpeed, liveMarquee, liveMarqueeLook, marqueeChange, marqueeSpeedOf, wordingChange,
 } from "../src/lib/drink-menu.ts";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, MENU_FONTS, SCRIPT_FONTS, isMenuFont, isScriptFont } from "../src/lib/menu-fonts.ts";
 
@@ -177,4 +177,27 @@ test("custom wording: a save changes only the lines it sends", () => {
   // An empty line is sent as "", which puts the printed words back.
   assert.deepEqual(wordingChange({ qrLink: "", bartenderLabel: null }), { qrLink: "", bartenderLabel: "" });
   assert.deepEqual(wordingChange({}), {});
+});
+
+test("the marquee's one Save sends only the half that changed: the text, how it runs, or both", () => {
+  const saved = { text: "Two for one tonight", on: true, speed: "", color: "" };
+  assert.deepEqual(marqueeChange(saved, saved), {});
+  // Typing that cleans to the saved text changes nothing, so nothing is sent.
+  assert.deepEqual(marqueeChange(saved, { ...saved, text: "  Two  for one tonight " }), {});
+  assert.deepEqual(marqueeChange(saved, { ...saved, text: "Last call at 11" }), { text: "Last call at 11" });
+  // An emptied box is sent as "": the default text again.
+  assert.deepEqual(marqueeChange(saved, { ...saved, text: "   " }), { text: "" });
+  // The style goes whole, on its own, whichever part of it changed.
+  assert.deepEqual(marqueeChange(saved, { ...saved, speed: "fast" }), { style: { on: true, speed: "fast", color: "" } });
+  assert.deepEqual(marqueeChange(saved, { ...saved, on: false }), { style: { on: false, speed: "", color: "" } });
+  // A colour in other capitals is the same colour.
+  const coloured = { ...saved, color: "#3CE0FF" };
+  assert.deepEqual(marqueeChange(coloured, { ...coloured, color: "#3ce0ff" }), {});
+  assert.deepEqual(marqueeChange(coloured, { ...coloured, color: "" }), { style: { on: true, speed: "", color: "" } });
+  // Both changed: both go, and the text goes as the server will keep it.
+  assert.deepEqual(marqueeChange(saved, { text: " Happy hour ", on: true, speed: "slow", color: "#FFFFFF" }), {
+    text: "Happy hour", style: { on: true, speed: "slow", color: "#FFFFFF" },
+  });
+  // Too long is capped, as the server caps it.
+  assert.equal(marqueeChange(saved, { ...saved, text: "x".repeat(MARQUEE_MAX + 20) }).text?.length, MARQUEE_MAX);
 });

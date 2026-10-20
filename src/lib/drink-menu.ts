@@ -283,3 +283,27 @@ export function liveMarquee(state: MenuState): string | null {
 export function liveMarqueeLook(state: MenuState): { speed: number; color: string } | null {
   return state.on ? { speed: marqueeSpeedOf(state.marqueeSpeed), color: state.marqueeColor } : null;
 }
+
+/** How the marquee runs: on or off, its speed ("" for Normal) and its colour ("" for the menu's text colour). */
+export type MarqueeStyle = { on: boolean; speed: string; color: string };
+
+/** The marquee as the Control Center edits it: its text ("" for the default) and how it runs. */
+export type MarqueeSettings = MarqueeStyle & { text: string };
+
+/** What one marquee Save sends: the text, how it runs, or both. */
+export type MarqueeChange = { text?: string; style?: MarqueeStyle };
+
+/**
+ * What the marquee's one Save sends. The server keeps the text and the style
+ * as two separate changes, so each goes only when it would change what is
+ * saved, and a half the host left alone is never written over. The text is
+ * compared cleaned, as the server keeps it, and the colour in any case.
+ */
+export function marqueeChange(saved: MarqueeSettings, next: MarqueeSettings): MarqueeChange {
+  const text = cleanMarquee(next.text);
+  const restyled = next.on !== saved.on || next.speed !== saved.speed || next.color.trim().toUpperCase() !== saved.color.trim().toUpperCase();
+  return {
+    ...(text === cleanMarquee(saved.text) ? {} : { text }),
+    ...(restyled ? { style: { on: next.on, speed: next.speed, color: next.color } } : {}),
+  };
+}
