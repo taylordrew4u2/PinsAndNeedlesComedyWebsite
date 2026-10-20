@@ -2,9 +2,10 @@
 
 import { useState, type ReactNode } from "react";
 import {
-  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, SCREEN_TEXT, changedScreen, parseScreenSettings,
+  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, SCREEN_TEXT, changedScreen, parseScreenSettings, stingName,
   type ScreenSettings, type ScreenSwitch, type ScreenText,
 } from "@/lib/screen-settings";
+import QuestionSoundPicker from "./QuestionSoundPicker";
 
 type Props = {
   /** What is saved now; "" words are the defaults. */
@@ -17,9 +18,10 @@ const COUNT_FROM = Array.from({ length: COUNTDOWN_MAX - COUNTDOWN_MIN + 1 }, (_,
 
 /**
  * How the live screen behaves and what its fixed words say: the countdown
- * and drum roll before a new question, the sound, the set timer, names
- * under questions, the line above a performer's name, and the Intro
- * explainer's wording. Nothing reaches the projector until Save, and every
+ * and drum roll before a new question, the sound (which one, how loud),
+ * the set timer, names under questions, the line above a performer's name,
+ * and the Intro explainer's wording. Nothing reaches the projector until
+ * Save (a sound's ▶ only plays it here, for the host), and every
  * box is capped so the words always fit the screen. The switches a host
  * reaches for mid-show come first, right above Save; the Intro's wording is
  * folded away under them.
@@ -43,7 +45,7 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
   };
 
   const backToDefaults = () => {
-    if (!window.confirm("Put the live screen back to its defaults? Sound, names under questions, the countdown (from 3), drum roll and set timer all go back on, and your wording for the Intro, under the dice and above a performer's name is cleared.")) return;
+    if (!window.confirm(`Put the live screen back to its defaults? Sound, names under questions, the countdown (from 3), drum roll and set timer all go back on, the question sound goes back to ${stingName(DEFAULT_SCREEN)} at 100%, and your wording for the Intro, under the dice and above a performer's name is cleared.`)) return;
     void submit(DEFAULT_SCREEN);
   };
 
@@ -104,9 +106,14 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
         </fieldset>
 
         <fieldset className="space-y-2">
-          <legend className="mb-2 text-xs uppercase tracking-widest text-neutral-400">Sound and sets</legend>
+          <legend className="mb-2 text-xs uppercase tracking-widest text-neutral-400">Question sound</legend>
           {toggle("sound", "Play the sound on the projector")}
           {value.sound ? null : <p className="text-xs text-amber-200">Muted: no sound with new questions, the Intro or Test sound.</p>}
+          <QuestionSoundPicker sting={value.sting} volume={value.stingVolume} url={value.stingUrl} saved={saved} edit={edit} />
+        </fieldset>
+
+        <fieldset className="space-y-2">
+          <legend className="mb-2 text-xs uppercase tracking-widest text-neutral-400">Sets</legend>
           {toggle("timer", "Show the set timer at the bottom")}
           {words("stageLabel", "Above a performer’s name when their set starts")}
         </fieldset>
