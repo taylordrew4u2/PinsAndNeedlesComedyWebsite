@@ -11,10 +11,10 @@ import { customWording } from "@/lib/drink-menu";
 import { parseLiveBoard, type LiveBoard } from "@/lib/drink-list";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
-import { playIntroSound } from "@/lib/intro-sound";
+import { customStingCache, loadCustomSting, playQuestionSound } from "@/lib/custom-sting";
 import Explainer from "@/components/Explainer";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
-import { DEFAULT_LOOK, screenLook, type ScreenSettings } from "@/lib/screen-settings";
+import { DEFAULT_LOOK, chosenSting, screenLook, type QuestionSound, type ScreenSettings } from "@/lib/screen-settings";
 import { readPublicMessage } from "@/lib/screen-message";
 import ScreenMessage from "@/components/ScreenMessage";
 
@@ -89,9 +89,10 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   const [fullscreen, setFullscreen] = useState(false);
   // Known only in the browser; the server renders without the button.
   const [canGoFullscreen, setCanGoFullscreen] = useState(false);
-  // The host's settings from the Control Center (the defaults until a poll says otherwise), and whether they muted the sting.
+  // The host's settings from the Control Center (the defaults until a poll says otherwise), whether they muted the sting, and which sound plays how loud.
   const [settings, setSettings] = useState<ScreenSettings>(DEFAULT_LOOK);
   const muted = useRef(false);
+  const soundChoice = useRef<{ sting: QuestionSound; volume: number; url: string }>({ sting: DEFAULT_LOOK.sting, volume: DEFAULT_LOOK.stingVolume, url: "" });
   // The host's own message, over the question or set until they take it down; and the last "Test sound" acted on.
   const [message, setMessage] = useState<{ text: string; color: string } | null>(null);
   const messageSeen = useRef<boolean | undefined>(undefined);
@@ -132,20 +133,33 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     let disposed = false;
     let pending = false;
     const controller = new AbortController();
+    // The host's own sound, fetched and decoded on this screen's audio as soon as a poll names it, so it is ready by the time a question goes up.
+    const ownSound = customStingCache((url) => {
+      const context = audio.current;
+      return context ? loadCustomSting(context, url, controller.signal) : Promise.reject(new Error("No audio yet"));
+    });
     /**
-     * Plays the sting if sound is on. A context the browser paused is asked to
-     * resume first; if it cannot, the beat passes silently. A browser that
-     * wants a tap first holds every resume until then and lets them all go at
-     * once, so only a sting asked for just now plays then, and none the host
-     * has muted since: no pile of stings in one blast mid-set.
+     * Plays the sting if sound is on: the sound the host picked, at their
+     * volume, or the default while their own file is not loaded. A context
+     * the browser paused is asked to resume first; if it cannot, the beat
+     * passes silently. A browser that wants a tap first holds every resume
+     * until then and lets them all go at once, so only a sting asked for
+     * just now plays then, and none the host has muted since: no pile of
+     * stings in one blast mid-set.
      */
     const sting = () => {
       const context = audio.current;
       if (!context || muted.current) return;
-      if (context.state === "running") playIntroSound(context);
+      const play = () => {
+        const { sting: chosen, volume, url } = soundChoice.current;
+        const length = playQuestionSound(context, chosen, chosen === "custom" ? ownSound.ready(url) : null, volume / 100);
+        // A long sound of the host's own keeps the screen from reloading itself over its tail.
+        busyUntil.current = Math.max(busyUntil.current, Date.now() + (length + 0.5) * 1_000);
+      };
+      if (context.state === "running") play();
       else {
         const asked = Date.now();
-        context.resume().then(() => { if (context.state === "running" && !muted.current && Date.now() - asked < STING_LATE_MS) playIntroSound(context); }, () => {});
+        context.resume().then(() => { if (context.state === "running" && !muted.current && Date.now() - asked < STING_LATE_MS) play(); }, () => {});
       }
     };
     /** Steps through the explainer on timers, playing the sting with its intro step. */
@@ -217,6 +231,9 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         // The host's settings, missing from an older server's answer: then the defaults, the screen as it always was.
         const setup = screenLook(data?.screen);
         muted.current = !setup.sound;
+        soundChoice.current = { sting: chosenSting(setup), volume: setup.stingVolume, url: setup.stingUrl };
+        // Only a screen with sound loads it: the Control Center's mirror never plays one.
+        if (soundChoice.current.sting === "custom" && audio.current) ownSound.want(setup.stingUrl);
         setSettings((current) => JSON.stringify(current) === JSON.stringify(setup) ? current : setup);
         const countFrom = setup.countdown ? setup.countdownFrom : 0;
         const nextMenu = data?.menu === true;

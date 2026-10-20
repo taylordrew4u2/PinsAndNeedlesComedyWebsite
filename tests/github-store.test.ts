@@ -188,6 +188,12 @@ test("uploads are served from this site, not from the private repo", () => {
 test("content types cover what the uploader accepts", () => {
   assert.equal(contentTypeFor("a/b/c.webp"), "image/webp");
   assert.equal(contentTypeFor("clip.MP4"), "video/mp4");
+  assert.equal(contentTypeFor("sting.mp3"), "audio/mpeg");
+  assert.equal(contentTypeFor("sting.M4A"), "audio/mp4");
+  assert.equal(contentTypeFor("sting.wav"), "audio/wav");
+  assert.equal(contentTypeFor("sting.ogg"), "audio/ogg");
+  assert.equal(contentTypeFor("sting.weba"), "audio/webm");
+  assert.equal(contentTypeFor("sting.aac"), "audio/aac");
   assert.equal(contentTypeFor("noextension"), "application/octet-stream");
 });
 

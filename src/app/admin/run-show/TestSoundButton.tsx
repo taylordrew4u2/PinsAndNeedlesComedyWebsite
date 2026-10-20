@@ -8,12 +8,13 @@ const PLAYING_MS = 5_000;
 /**
  * Plays just the sting once on the projector, nothing else on screen
  * changing, so the host can check the room hears it without running the
- * whole Intro. Waits while it plays, so a few quick taps don't stack up.
+ * whole Intro. It is the saved question sound (`name`), at its saved
+ * volume. Waits while it plays, so a few quick taps don't stack up.
  * Muted in the settings, it says "Muted" rather than "Sound off": the live
  * screen's own "Sound is off" button means the browser blocked the sound,
  * which is a different fix.
  */
-export default function TestSoundButton({ sound, busy, test }: { sound: boolean; busy: boolean; test: () => Promise<boolean> }) {
+export default function TestSoundButton({ sound, name, busy, test }: { sound: boolean; name: string; busy: boolean; test: () => Promise<boolean> }) {
   const [playing, setPlaying] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -30,7 +31,7 @@ export default function TestSoundButton({ sound, busy, test }: { sound: boolean;
       type="button"
       onClick={() => void press()}
       disabled={busy || playing || !sound}
-      title={sound ? "Plays the sound once on the projector, so you can check the room hears it. Nothing else changes." : "Sound is muted in 📺 Live screen settings. Tick “Play the sound on the projector” there to test it."}
+      title={sound ? `Plays the saved question sound (${name}) once on the projector, so you can check the room hears it. Nothing else changes. Pick the sound in 📺 Live screen settings.` : "Sound is muted in 📺 Live screen settings. Tick “Play the sound on the projector” there to test it."}
       className="rounded-md border border-[#ff2e4d]/60 px-4 py-2 text-sm text-[#ff8a9c] disabled:opacity-50"
     >
       {!sound ? "🔇 Muted" : playing ? "Playing…" : "🔊 Test sound"}
