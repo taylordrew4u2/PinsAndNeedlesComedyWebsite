@@ -1,3 +1,5 @@
+import { AUDIO_EXTENSIONS } from "./audio-upload.ts";
+
 /**
  * GitHub as a content store.
  *
@@ -339,6 +341,8 @@ const CONTENT_TYPES: Record<string, string> = {
   webm: "video/webm",
   mov: "video/quicktime",
   json: "application/json",
+  // A host's own question sound: served as audio so the live screen can decode it.
+  ...AUDIO_EXTENSIONS,
 };
 
 export function contentTypeFor(path: string): string {

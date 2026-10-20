@@ -1,4 +1,9 @@
 import { EXAMPLE_QUESTION } from "./explainer.ts";
+import { DEFAULT_STING, STINGS, isStingId, type StingId } from "./stings.ts";
+import { uploadedFileName } from "./audio-upload.ts";
+
+/** The sound with a new question: one of the built-in stings, or "custom", the host's own uploaded file. */
+export type QuestionSound = StingId | "custom";
 
 /**
  * How the live screen behaves and what its fixed words say, as the host sets
@@ -16,6 +21,15 @@ export type ScreenSettings = {
   introWord: string;
   /** The sting on the projector. Off mutes it everywhere: new questions, the Intro explainer, the sound test. */
   sound: boolean;
+  /**
+   * Which sound that is, how loud (a percentage, 100 being the sound as made),
+   * and the host's own file when they picked "custom" ("" until one is
+   * uploaded). One choice for all three places it plays, so the sound test
+   * and the Intro teach the room the sound it will really hear.
+   */
+  sting: QuestionSound;
+  stingVolume: number;
+  stingUrl: string;
   /** The set clock along the bottom while a timed set runs. */
   timer: boolean;
   /** The sender's name under their question. */
@@ -61,8 +75,18 @@ const SWITCH_KEYS: ScreenSwitch[] = ["countdown", "intro", "sound", "timer", "na
 export const COUNTDOWN_MIN = 1;
 export const COUNTDOWN_MAX = 10;
 
+/**
+ * The sound's volume runs from barely there to half again as loud: below 10%
+ * a room never hears it, and above 150% the limiter only squashes it flatter.
+ */
+export const STING_VOLUME_MIN = 10;
+export const STING_VOLUME_MAX = 150;
+/** Long enough for any upload address the stores hand out, short enough that the poll stays small. */
+export const STING_URL_MAX = 500;
+
 export const DEFAULT_SCREEN: ScreenSettings = {
-  countdown: true, countdownFrom: 3, intro: true, introWord: "", sound: true, timer: true, names: true, stageLabel: "",
+  countdown: true, countdownFrom: 3, intro: true, introWord: "", sound: true,
+  sting: DEFAULT_STING, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "",
   howHeading: "", howStep1: "", howStep2: "", howStep3: "", listenLine: "", exampleQuestion: "", closingLine: "", closingCall: "",
 };
 
@@ -78,6 +102,47 @@ function isCountdownFrom(raw: unknown): raw is number {
   return typeof raw === "number" && Number.isInteger(raw) && raw >= COUNTDOWN_MIN && raw <= COUNTDOWN_MAX;
 }
 
+function isQuestionSound(raw: unknown): raw is QuestionSound {
+  return raw === "custom" || isStingId(raw);
+}
+
+function isStingVolume(raw: unknown): raw is number {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= STING_VOLUME_MIN && raw <= STING_VOLUME_MAX;
+}
+
+/**
+ * Where the host's own sound lives, or "" for anything else. Only an address
+ * on this site (an upload, /uploads/… or /api/media/…) or a secure web
+ * address, since the live screen fetches whatever is here: never another
+ * scheme, a protocol-relative "//" address, or anything with spaces in it.
+ */
+export function cleanStingUrl(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const value = raw.trim();
+  if (!value || value.length > STING_URL_MAX || /[\s\\]/.test(value)) return "";
+  if (/^\/(?!\/)/.test(value)) return value;
+  try {
+    return new URL(value).protocol === "https:" ? value : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * The sound the projector really plays for these settings: "your own" with
+ * nothing uploaded yet plays the default, so the room still hears something.
+ */
+export function chosenSting(settings: Pick<ScreenSettings, "sting" | "stingUrl">): QuestionSound {
+  return settings.sting === "custom" && !settings.stingUrl ? DEFAULT_STING : settings.sting;
+}
+
+/** What the Control Center calls that sound: a built-in one's name, or the file name of the host's own. */
+export function stingName(settings: Pick<ScreenSettings, "sting" | "stingUrl">): string {
+  const sting = chosenSting(settings);
+  if (sting === "custom") return uploadedFileName(settings.stingUrl);
+  return STINGS.find((entry) => entry.id === sting)?.label ?? sting;
+}
+
 /** The stored settings. Anything missing or malformed reads as its default. */
 export function parseScreenSettings(raw: unknown): ScreenSettings {
   const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
@@ -87,6 +152,9 @@ export function parseScreenSettings(raw: unknown): ScreenSettings {
     if (typeof flag === "boolean") settings[key] = flag;
   }
   if (isCountdownFrom(value.countdownFrom)) settings.countdownFrom = value.countdownFrom;
+  if (isQuestionSound(value.sting)) settings.sting = value.sting;
+  if (isStingVolume(value.stingVolume)) settings.stingVolume = value.stingVolume;
+  settings.stingUrl = cleanStingUrl(value.stingUrl);
   for (const key of TEXT_KEYS) settings[key] = cleanScreenText(key, value[key]);
   return settings;
 }
@@ -108,6 +176,18 @@ export function parseScreenChange(raw: unknown): Partial<ScreenSettings> | null 
     } else if (key === "countdownFrom") {
       if (!isCountdownFrom(value)) return null;
       change.countdownFrom = value;
+    } else if (key === "sting") {
+      if (!isQuestionSound(value)) return null;
+      change.sting = value;
+    } else if (key === "stingVolume") {
+      if (!isStingVolume(value)) return null;
+      change.stingVolume = value;
+    } else if (key === "stingUrl") {
+      // "" clears it; anything else must be an address the screen may fetch.
+      if (typeof value !== "string") return null;
+      const url = cleanStingUrl(value);
+      if (value.trim() && !url) return null;
+      change.stingUrl = url;
     } else if ((TEXT_KEYS as string[]).includes(key)) {
       if (typeof value !== "string") return null;
       change[key as ScreenText] = cleanScreenText(key as ScreenText, value);

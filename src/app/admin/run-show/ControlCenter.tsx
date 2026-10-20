@@ -19,7 +19,7 @@ import LiveMirror from "./LiveMirror";
 import MessageCard from "./MessageCard";
 import ScreenSettingsCard from "./ScreenSettingsCard";
 import TestSoundButton from "./TestSoundButton";
-import { parseScreenSettings, type ScreenSettings } from "@/lib/screen-settings";
+import { parseScreenSettings, stingName, type ScreenSettings } from "@/lib/screen-settings";
 import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
 import { screenStatus } from "@/lib/screen-status";
 import QuestionEditor from "./QuestionEditor";
@@ -694,7 +694,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 >
                   {explaining ? "Intro playing…" : "Intro"}
                 </button>
-                <TestSoundButton sound={screenSettings.sound} busy={busy || !state} test={() => screenAction({ soundTest: true }, "The projector is playing the sound. Nothing heard? Click the live screen once to turn its sound on, then test again.", "Could not test the sound.")} />
+                <TestSoundButton sound={screenSettings.sound} name={stingName(screenSettings)} busy={busy || !state} test={() => screenAction({ soundTest: true }, `The projector is playing ${stingName(screenSettings)}. Nothing heard? Click the live screen once to turn its sound on, then test again.`, "Could not test the sound.")} />
                 {(["standard", "custom"] as const).map((style) => {
                   const up = Boolean(state?.menu) && state?.menuStyle === style;
                   const label = style === "custom" ? "custom menu" : "drink menu";
@@ -961,7 +961,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 <ol className="list-decimal space-y-1 pl-5">
                   <li>Open the live screen on the TV laptop.</li>
                   <li>Click anywhere on it once, or press <kbd className="rounded border border-white/30 px-1">F</kbd> to go full screen. Either one turns sound on.</li>
-                  <li>Press <strong>🔊 Test sound</strong> here to hear it.</li>
+                  <li>Press <strong>🔊 Test sound</strong> here to hear it. It plays the question sound saved in <strong>📺 Live screen settings</strong>, where you can pick another, upload your own or change the volume.</li>
                 </ol>
                 <p className="font-semibold text-white">Set it once so sound starts by itself</p>
                 <ul className="list-disc space-y-1 pl-5">
