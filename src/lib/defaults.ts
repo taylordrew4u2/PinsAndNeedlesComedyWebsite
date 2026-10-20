@@ -206,7 +206,7 @@ export const defaultContent: Content = {
     heading: "Shows",
     intro:
       "From our original tattoo-focused show to Bad Decisions: original stand-up shows about the things that leave a mark. Find lineups, venues and tickets here.",
-    weeklyHeading: "Every week",
+    weeklyHeading: "Every other week",
     upcomingHeading: "Upcoming",
     pastHeading: "Past shows",
     emptyText: "The next show has not been announced yet. Follow along on Instagram for the drop.",
@@ -353,6 +353,8 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
     title: "Pins & Needles: Bad Decisions",
     tagline: "Send in a decision. Four comedians talk it through on stage.",
     weekday: "Thursday",
+    everyWeeks: 2,
+    anchorDate: "2026-10-22",
     doorsTime: "20:00",
     startTime: "21:00",
     venueName: "Pixelated Records",
@@ -366,7 +368,7 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
     ageRestriction: "21+",
     roomNote: "The room is small. Doors at 8 — come early.",
     posterUrl: "/brand/bad-decisions-flyer.svg",
-    posterAlt: "Pins & Needles: Bad Decisions — every Thursday at Pixelated Records, Ridgewood",
+    posterAlt: "Pins & Needles: Bad Decisions — every other Thursday at Pixelated Records, Ridgewood",
     question: "Tell us about a bad decision you've made, or one you want to make.",
     placeholder: "Quit my job. Texted my ex. Might get the dog. Tell us as much as you want.",
     namePrompt: "Put my name on it.",
@@ -391,8 +393,8 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
 
 **The draw.** The host pulls two or three at random. You get a mic where you're sitting and the lineup talks it through. Some of the advice is even good.`,
     closingLine: "Not a roast. Nobody gets humiliated. Bring the friend you're about to talk out of something.",
-    thisWeekHeading: "This week",
-    noLineupText: "This week's lineup drops on Instagram. Same room, same time.",
+    thisWeekHeading: "Next show",
+    noLineupText: "The lineup drops on Instagram. Same room, same time.",
     showOnHome: true,
     // One idea, not the whole format. The venue, the price and how the night
     // runs are all on the page this points at; repeating them here just makes
@@ -401,9 +403,9 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
     homeStripCta: "Send yours in",
     showOnShowsPage: true,
     seo: seo({
-      title: "Bad Decisions — Free Weekly Comedy Show in Ridgewood, Queens",
+      title: "Bad Decisions — Free Comedy Show Every Other Thursday in Ridgewood, Queens",
       description:
-        "Every Thursday at Pixelated Records. Send in a past or possible decision, four comedians do stand-up, then they tell you what to do. Free entry.",
+        "Every other Thursday at Pixelated Records. Send in a past or possible decision, four comedians do stand-up, then they tell you what to do. Free entry.",
       keywords: [
         "bad decisions comedy show",
         "free comedy show ridgewood",
@@ -416,15 +418,15 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
       ],
       ogImage: "/brand/bad-decisions-flyer.svg",
       canonical: `${SITE_URL}/bad-decisions`,
-      aiSummary: `Pins & Needles: Bad Decisions is a free weekly stand-up comedy show every Thursday at 9 PM at Pixelated Records, 792 Onderdonk Ave, Ridgewood, Queens, New York City, hosted by Taylor Drew. Before the show the audience sends in a decision they have made or are thinking about making, by scanning the QR code at the show. Four comedians perform, then the host draws two or three submissions at random and the lineup gives that person advice. Submissions can be anonymous or carry the sender's name. It is one of the original formats from Pins & Needles Comedy and is not a roast.`,
+      aiSummary: `Pins & Needles: Bad Decisions is a free stand-up comedy show every other Thursday at 9 PM at Pixelated Records, 792 Onderdonk Ave, Ridgewood, Queens, New York City, hosted by Taylor Drew. Before the show the audience sends in a decision they have made or are thinking about making, by scanning the QR code at the show. Four comedians perform, then the host draws two or three submissions at random and the lineup gives that person advice. Submissions can be anonymous or carry the sender's name. It is one of the original formats from Pins & Needles Comedy and is not a roast.`,
       faq: [
         {
           q: "What is Pins & Needles: Bad Decisions?",
-          a: "A free weekly stand-up show in Ridgewood, Queens where the audience sends in decisions they have made or are thinking about making and, at the end of the night, comedians pull a few at random and give that person advice.",
+          a: "A free stand-up show every other Thursday in Ridgewood, Queens where the audience sends in decisions they have made or are thinking about making and, at the end of the night, comedians pull a few at random and give that person advice.",
         },
         {
           q: "When and where is Bad Decisions?",
-          a: "Every Thursday at Pixelated Records, 792 Onderdonk Ave, Ridgewood, NY 11385. Doors at 8 PM, show at 9 PM. Free entry.",
+          a: "Every other Thursday at Pixelated Records, 792 Onderdonk Ave, Ridgewood, NY 11385. Doors at 8 PM, show at 9 PM. Free entry.",
         },
         {
           q: "Do I have to put my name on my decision?",

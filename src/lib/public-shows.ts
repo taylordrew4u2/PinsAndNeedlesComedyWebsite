@@ -1,5 +1,5 @@
 import type { Show, WeeklyPage } from "./types";
-import { newWeeklyShow, nextDateForWeekday } from "./decisions.ts";
+import { newWeeklyShow, nextNightOfRun, weeksBetweenNights } from "./decisions.ts";
 import { nyToday } from "./shows.ts";
 
 export type PublicShow = Show & { generated: boolean };
@@ -10,10 +10,11 @@ export function upcomingPublicShows(shows: Show[], weekly: WeeklyPage, today = n
   const entries: PublicShow[] = [];
   const recurring = weekly.enabled && weekly.showOnShowsPage;
   if (recurring) {
-    const first = nextDateForWeekday(weekly.weekday, today);
+    const first = nextNightOfRun(weekly, today);
+    const step = 7 * weeksBetweenNights(weekly);
     for (let index = 0; index < limit; index++) {
       const calendar = new Date(`${first}T12:00:00Z`);
-      calendar.setUTCDate(calendar.getUTCDate() + index * 7);
+      calendar.setUTCDate(calendar.getUTCDate() + index * step);
       const date = calendar.toISOString().slice(0, 10);
       const matches = dated.filter((show) => show.series === weekly.slug && show.date === date);
       // One dated record owns this occurrence, including its status and lineup.

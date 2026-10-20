@@ -18,10 +18,16 @@ import SeoEditor from "../SeoEditor";
 import { suggestFor } from "../suggest";
 import type { Update } from "../types";
 import { aboutWeekly } from "@/lib/writer";
+import { weeksBetweenNights } from "@/lib/decisions";
 
 const WEEKDAYS = (
   ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const
 ).map((day) => ({ value: day, label: `Every ${day}` }));
+
+const HOW_OFTEN = [
+  { value: "1", label: "Every week" },
+  { value: "2", label: "Every other week" },
+] as const;
 
 export default function WeeklyTab({ content, update }: { content: Content; update: Update }) {
   const weekly = content.weekly;
@@ -66,6 +72,21 @@ export default function WeeklyTab({ content, update }: { content: Content; updat
           <Select label="Which night" value={weekly.weekday} options={WEEKDAYS} onChange={set("weekday")} />
           <Text label="Doors open" type="time" value={weekly.doorsTime} onChange={set("doorsTime")} />
           <Text label="Show starts" type="time" value={weekly.startTime} onChange={set("startTime")} />
+        </Row>
+        <Row>
+          <Select
+            label="How often"
+            value={weeksBetweenNights(weekly) === 2 ? "2" : "1"}
+            options={HOW_OFTEN}
+            onChange={(value) => set("everyWeeks")(Number(value))}
+          />
+          <Text
+            label="One show date"
+            hint="Any night that's on. Every other week counts from here."
+            type="date"
+            value={weekly.anchorDate}
+            onChange={set("anchorDate")}
+          />
         </Row>
         <Row>
           <Text label="Venue" value={weekly.venueName} onChange={set("venueName")} />

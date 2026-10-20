@@ -239,6 +239,17 @@ export type WeeklyPage = {
   tagline: string;
   /** "Every Thursday" — shown in the header and used for the event schedule. */
   weekday: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+  /**
+   * Weeks between nights: 1 = every week, 2 = every other week. Absent or
+   * anything below 2 reads as weekly.
+   */
+  everyWeeks: number;
+  /**
+   * yyyy-mm-dd of any one night in the run. When the show skips weeks, this
+   * is what decides which weeks are on: every other Thursday counted from
+   * here. Ignored when it is blank or not on `weekday`.
+   */
+  anchorDate: string;
   doorsTime: string;
   startTime: string;
   venueName: string;
