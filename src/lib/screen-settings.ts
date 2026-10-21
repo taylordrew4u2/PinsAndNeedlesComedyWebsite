@@ -1,9 +1,9 @@
 import { EXAMPLE_QUESTION } from "./explainer.ts";
-import { DEFAULT_STING, STINGS, isStingId, type StingId } from "./stings.ts";
+import { DEFAULT_SOUND, QUESTION_SOUNDS, isSoundId, soundFile, type SoundId } from "./question-sounds.ts";
 import { uploadedFileName } from "./audio-upload.ts";
 
-/** The sound with a new question: one of the built-in stings, or "custom", the host's own uploaded file. */
-export type QuestionSound = StingId | "custom";
+/** The sound with a new question: one of the built-in recordings, or "custom", the host's own uploaded file. */
+export type QuestionSound = SoundId | "custom";
 
 /**
  * How the live screen behaves and what its fixed words say, as the host sets
@@ -19,10 +19,10 @@ export type ScreenSettings = {
   /** The drum roll before a new question (red flashes, the dice, a word blinking under it), and that word. */
   intro: boolean;
   introWord: string;
-  /** The sting on the projector. Off mutes it everywhere: new questions, the Intro explainer, the sound test. */
+  /** The question sound on the projector. Off mutes it everywhere: new questions, the Intro explainer, the sound test. */
   sound: boolean;
   /**
-   * Which sound that is, how loud (a percentage, 100 being the sound as made),
+   * Which sound that is, how loud (a percentage, 100 being the recording as levelled),
    * and the host's own file when they picked "custom" ("" until one is
    * uploaded). One choice for all three places it plays, so the sound test
    * and the Intro teach the room the sound it will really hear.
@@ -86,7 +86,7 @@ export const STING_URL_MAX = 500;
 
 export const DEFAULT_SCREEN: ScreenSettings = {
   countdown: true, countdownFrom: 3, intro: true, introWord: "", sound: true,
-  sting: DEFAULT_STING, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "",
+  sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "",
   howHeading: "", howStep1: "", howStep2: "", howStep3: "", listenLine: "", exampleQuestion: "", closingLine: "", closingCall: "",
 };
 
@@ -103,7 +103,7 @@ function isCountdownFrom(raw: unknown): raw is number {
 }
 
 function isQuestionSound(raw: unknown): raw is QuestionSound {
-  return raw === "custom" || isStingId(raw);
+  return raw === "custom" || isSoundId(raw);
 }
 
 function isStingVolume(raw: unknown): raw is number {
@@ -133,14 +133,20 @@ export function cleanStingUrl(raw: unknown): string {
  * nothing uploaded yet plays the default, so the room still hears something.
  */
 export function chosenSting(settings: Pick<ScreenSettings, "sting" | "stingUrl">): QuestionSound {
-  return settings.sting === "custom" && !settings.stingUrl ? DEFAULT_STING : settings.sting;
+  return settings.sting === "custom" && !settings.stingUrl ? DEFAULT_SOUND : settings.sting;
+}
+
+/** The file the projector fetches for these settings: the host's own upload, or the built-in recording. */
+export function soundUrl(settings: Pick<ScreenSettings, "sting" | "stingUrl">): string {
+  const sting = chosenSting(settings);
+  return sting === "custom" ? settings.stingUrl : soundFile(sting);
 }
 
 /** What the Control Center calls that sound: a built-in one's name, or the file name of the host's own. */
 export function stingName(settings: Pick<ScreenSettings, "sting" | "stingUrl">): string {
   const sting = chosenSting(settings);
   if (sting === "custom") return uploadedFileName(settings.stingUrl);
-  return STINGS.find((entry) => entry.id === sting)?.label ?? sting;
+  return QUESTION_SOUNDS.find((entry) => entry.id === sting)?.label ?? sting;
 }
 
 /** The stored settings. Anything missing or malformed reads as its default. */

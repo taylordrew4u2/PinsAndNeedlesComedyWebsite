@@ -1,10 +1,8 @@
-import { DEFAULT_STING, playSting } from "./stings.ts";
-import type { QuestionSound } from "./screen-settings.ts";
-
 /**
- * The host's own question sound: fetched and decoded once, then played the
- * way the built-in stings are, at the chosen volume and through a limiter.
- * A long file is faded out rather than left to run over the question.
+ * Playing a question sound from its file, one of the built-in recordings or
+ * the host's own upload: fetched and decoded once, then played at the chosen
+ * volume through a limiter. A long file is faded out rather than left to run
+ * over the question.
  */
 
 /** A question sound is a sting, not a song: anything longer fades out by here. */
@@ -56,15 +54,14 @@ export function playCustomSting(context: BaseAudioContext, buffer: AudioBuffer, 
 }
 
 /**
- * Plays the question sound the host chose: their own file when it has
- * loaded, otherwise the built-in one, and the default in place of their own
- * when it hasn't (not uploaded, still loading, or failed), so the room
- * still hears something. Returns how long it plays. (`builtIn` is only
- * ever swapped by a test.)
+ * Plays the question sound: the one the host chose once it has loaded, and
+ * the default recording while it hasn't (just picked and still loading, or
+ * their own file failed), so the room still hears something. Silent only if
+ * neither has loaded. Returns how long it plays.
  */
-export function playQuestionSound(context: BaseAudioContext, sting: QuestionSound, custom: AudioBuffer | null, volume: number, builtIn: typeof playSting = playSting): number {
-  if (sting === "custom" && custom) return playCustomSting(context, custom, { volume });
-  return builtIn(context, sting === "custom" ? DEFAULT_STING : sting, { volume });
+export function playQuestionSound(context: BaseAudioContext, chosen: AudioBuffer | null, fallback: AudioBuffer | null, volume: number): number {
+  const sound = chosen ?? fallback;
+  return sound ? playCustomSting(context, sound, { volume }) : 0;
 }
 
 /**
@@ -90,24 +87,38 @@ export async function loadCustomSting(context: BaseAudioContext, url: string, ou
   }
 }
 
+/** The chosen sound and the default it falls back on, and one more, so switching back to the last sound needs no new load. */
+export const CACHED_SOUNDS = 3;
+
 /**
- * Remembers the one sound file in use, loaded once per address. `want`
+ * Remembers the sound files in use, each loaded once per address. `want`
  * starts loading an address the moment the setting names it (the screen
  * calls it on every poll), so by the time a question goes up it is ready;
  * `ready` gives the decoded sound, or null while it loads or after it failed.
- * A failed load is tried again on a later `want`, after a pause.
+ * A failed load is tried again on a later `want`, after a pause. Only the
+ * CACHED_SOUNDS most lately wanted are kept.
  */
 export function customStingCache<T>(load: (url: string) => Promise<T>, now: () => number = Date.now) {
-  let entry: { url: string; value: T | null; loading: boolean; failedAt: number } | null = null;
+  const entries = new Map<string, { value: T | null; loading: boolean; failedAt: number }>();
   const want = (url: string) => {
-    if (entry?.url === url && (entry.value !== null || entry.loading || now() - entry.failedAt < CUSTOM_STING_RETRY_MS)) return;
-    const current = { url, value: null as T | null, loading: true, failedAt: 0 };
-    entry = current;
+    const entry = entries.get(url);
+    // Kept in the order last wanted, so the oldest is the one let go.
+    entries.delete(url);
+    if (entry) {
+      entries.set(url, entry);
+      if (entry.value !== null || entry.loading || now() - entry.failedAt < CUSTOM_STING_RETRY_MS) return;
+    }
+    const current = { value: null as T | null, loading: true, failedAt: 0 };
+    entries.set(url, current);
+    for (const old of entries.keys()) {
+      if (entries.size <= CACHED_SOUNDS) break;
+      entries.delete(old);
+    }
     load(url).then(
       (value) => { current.value = value; current.loading = false; },
       () => { current.loading = false; current.failedAt = now(); },
     );
   };
-  const ready = (url: string): T | null => (entry?.url === url ? entry.value : null);
+  const ready = (url: string): T | null => entries.get(url)?.value ?? null;
   return { want, ready };
 }

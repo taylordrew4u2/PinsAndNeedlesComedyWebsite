@@ -2,15 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_LOOK, DEFAULT_SCREEN, SCREEN_TEXT, SOUND_TEST_FRESH_MS, STING_URL_MAX, STING_VOLUME_MAX, STING_VOLUME_MIN,
-  changedScreen, chosenSting, cleanScreenText, cleanStingUrl, freshSoundTest, markBadDecisions, parseScreenChange, parseScreenSettings, screenLook, stingName,
+  changedScreen, chosenSting, cleanScreenText, cleanStingUrl, freshSoundTest, markBadDecisions, parseScreenChange, parseScreenSettings, screenLook, soundUrl, stingName,
 } from "../src/lib/screen-settings.ts";
 import { EXAMPLE_QUESTION } from "../src/lib/explainer.ts";
-import { DEFAULT_STING, STINGS } from "../src/lib/stings.ts";
+import { DEFAULT_SOUND, QUESTION_SOUNDS } from "../src/lib/question-sounds.ts";
 
 test("defaults are the screen as it has always been", () => {
   assert.deepEqual(DEFAULT_LOOK, {
     countdown: true, countdownFrom: 3, intro: true, introWord: "Incoming", sound: true,
-    sting: DEFAULT_STING, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "Now on stage",
+    sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "Now on stage",
     howHeading: "How it works", howStep1: "Scan the QR", howStep2: "Tell us your bad decision", howStep3: "A comedian weighs in, live",
     listenLine: "When you hear this…", exampleQuestion: EXAMPLE_QUESTION,
     closingLine: "That sound means a bad decision just hit the screen.", closingCall: "Scan to send yours.",
@@ -100,17 +100,19 @@ test("only a recent sound test reaches the live screen", () => {
   assert.equal(freshSoundTest(null, start), null);
 });
 
-test("the question sound starts as today's sound at today's loudness", () => {
-  assert.equal(DEFAULT_SCREEN.sting, DEFAULT_STING);
+test("the question sound starts as the default recording, as recorded", () => {
+  assert.equal(DEFAULT_SCREEN.sting, DEFAULT_SOUND);
   assert.equal(DEFAULT_SCREEN.stingVolume, 100);
   assert.equal(DEFAULT_SCREEN.stingUrl, "");
-  assert.equal(DEFAULT_STING, STINGS[0].id);
+  assert.equal(DEFAULT_SOUND, QUESTION_SOUNDS[0].id);
 });
 
 test("any built-in sound, or the host's own, is read back; anything else is the default", () => {
-  for (const { id } of STINGS) assert.equal(parseScreenSettings({ sting: id }).sting, id);
+  for (const { id } of QUESTION_SOUNDS) assert.equal(parseScreenSettings({ sting: id }).sting, id);
   assert.equal(parseScreenSettings({ sting: "custom", stingUrl: "/uploads/abc.mp3" }).sting, "custom");
-  for (const sting of ["kazoo", "", "DOOM", 3, null, ["doom"]]) assert.equal(parseScreenSettings({ sting }).sting, DEFAULT_STING, JSON.stringify(sting));
+  for (const sting of ["kazoo", "", "OOH", 3, null, ["ooh"]]) assert.equal(parseScreenSettings({ sting }).sting, DEFAULT_SOUND, JSON.stringify(sting));
+  // The synthesized stings are gone: a screen still set to one of them gets the default.
+  for (const sting of ["doom", "air-horn", "siren", "soft-chime"]) assert.equal(parseScreenSettings({ sting }).sting, DEFAULT_SOUND, sting);
 });
 
 test("the volume is a whole percentage from 10 to 150", () => {
@@ -132,7 +134,8 @@ test("the host's own sound is an address on this site or a secure one, and nothi
 });
 
 test("a change to the sound: a known sound, a whole volume in range, and a safe address or none", () => {
-  assert.deepEqual(parseScreenChange({ sting: "air-horn", stingVolume: 80 }), { sting: "air-horn", stingVolume: 80 });
+  assert.deepEqual(parseScreenChange({ sting: "desk-bell", stingVolume: 80 }), { sting: "desk-bell", stingVolume: 80 });
+  assert.equal(parseScreenChange({ sting: "air-horn" }), null, "a sound that no longer exists");
   assert.deepEqual(parseScreenChange({ sting: "custom", stingUrl: " /uploads/a.mp3 " }), { sting: "custom", stingUrl: "/uploads/a.mp3" });
   assert.deepEqual(parseScreenChange({ stingUrl: "" }), { stingUrl: "" });
   assert.deepEqual(parseScreenChange({ stingUrl: "   " }), { stingUrl: "" });
@@ -142,15 +145,21 @@ test("only a changed sound is stored and sent, and it reads back the same", () =
   const settings = parseScreenSettings({ sting: "custom", stingVolume: 130, stingUrl: "/uploads/a.mp3" });
   assert.deepEqual(changedScreen(settings), { sting: "custom", stingVolume: 130, stingUrl: "/uploads/a.mp3" });
   assert.deepEqual(parseScreenSettings(changedScreen(settings)), settings);
-  assert.deepEqual(changedScreen({ ...DEFAULT_SCREEN, sting: DEFAULT_STING, stingVolume: 100 }), {});
-  assert.deepEqual(screenLook({ sting: "gong", stingVolume: 40 }).sting, "gong");
+  assert.deepEqual(changedScreen({ ...DEFAULT_SCREEN, sting: DEFAULT_SOUND, stingVolume: 100 }), {});
+  assert.deepEqual(screenLook({ sting: "wind-chimes", stingVolume: 40 }).sting, "wind-chimes");
 });
 
 test("the host's own sound with nothing uploaded plays the default, and each sound has a name to show", () => {
-  assert.equal(chosenSting({ sting: "custom", stingUrl: "" }), DEFAULT_STING);
+  assert.equal(chosenSting({ sting: "custom", stingUrl: "" }), DEFAULT_SOUND);
   assert.equal(chosenSting({ sting: "custom", stingUrl: "/uploads/a.mp3" }), "custom");
-  assert.equal(chosenSting({ sting: "rimshot", stingUrl: "/uploads/a.mp3" }), "rimshot");
-  for (const { id, label } of STINGS) assert.equal(stingName({ sting: id, stingUrl: "" }), label);
+  assert.equal(chosenSting({ sting: "kalimba", stingUrl: "/uploads/a.mp3" }), "kalimba");
+  for (const { id, label } of QUESTION_SOUNDS) assert.equal(stingName({ sting: id, stingUrl: "" }), label);
   assert.equal(stingName({ sting: "custom", stingUrl: "/uploads/mf3k2a1b-x9y8z7-my-horn.mp3" }), "my-horn.mp3");
-  assert.equal(stingName({ sting: "custom", stingUrl: "" }), STINGS[0].label);
+  assert.equal(stingName({ sting: "custom", stingUrl: "" }), QUESTION_SOUNDS[0].label);
+});
+
+test("the file the screen fetches: the recording, the host's own upload, or the default with nothing uploaded", () => {
+  assert.equal(soundUrl({ sting: "desk-bell", stingUrl: "/uploads/a.mp3" }), "/sounds/question/desk-bell.mp3");
+  assert.equal(soundUrl({ sting: "custom", stingUrl: "/uploads/a.mp3" }), "/uploads/a.mp3");
+  assert.equal(soundUrl({ sting: "custom", stingUrl: "" }), `/sounds/question/${DEFAULT_SOUND}.mp3`);
 });

@@ -1,10 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CUSTOM_STING_FADE_S, CUSTOM_STING_MAX_BYTES, CUSTOM_STING_MAX_S, CUSTOM_STING_RETRY_MS,
+  CACHED_SOUNDS, CUSTOM_STING_FADE_S, CUSTOM_STING_MAX_BYTES, CUSTOM_STING_MAX_S, CUSTOM_STING_RETRY_MS,
   customStingCache, customStingLength, loadCustomSting, playCustomSting, playQuestionSound,
 } from "../src/lib/custom-sting.ts";
-import { DEFAULT_STING, type StingId } from "../src/lib/stings.ts";
 
 type Call = [node: string, method: string, ...args: unknown[]];
 
@@ -68,16 +67,17 @@ test("a custom sound plays for its length, never past the cap", () => {
   assert.equal(customStingLength(-1), 0);
 });
 
-test("the host's own sound plays once loaded; until then, and with none, the default sting plays", () => {
-  const played: [StingId, number | undefined][] = [];
-  const builtIn = (_context: BaseAudioContext, id: StingId, options?: { volume?: number }) => { played.push([id, options?.volume]); return 3.2; };
+test("the chosen sound plays once loaded; until then the default does, and with neither, nothing", () => {
   const { context, calls } = fakeContext();
-  assert.equal(playQuestionSound(context, "custom", sound(2), 1.2, builtIn), 2);
-  assert.deepEqual(played, []);
-  assert.ok(calls.some(([, method]) => method === "start"));
-  assert.equal(playQuestionSound(context, "custom", null, 0.8, builtIn), 3.2);
-  assert.equal(playQuestionSound(context, "air-horn", sound(2), 1, builtIn), 3.2);
-  assert.deepEqual(played, [[DEFAULT_STING, 0.8], ["air-horn", 1]]);
+  const chosen = sound(2);
+  const fallback = sound(3);
+  const played = () => calls.filter(([, method]) => method === "start").length;
+  assert.equal(playQuestionSound(context, chosen, fallback, 1.2), 2);
+  assert.deepEqual(calls.find(([, method]) => method === "gain.set"), ["gain", "gain.set", 1.2, 10]);
+  assert.equal(playQuestionSound(context, null, fallback, 0.8), 3);
+  assert.equal(played(), 2);
+  assert.equal(playQuestionSound(context, null, null, 1), 0);
+  assert.equal(played(), 2, "silent rather than nothing to play");
 });
 
 test("a sound file is fetched and decoded; a missing or oversized one is refused", async () => {
@@ -95,7 +95,7 @@ test("a sound file is fetched and decoded; a missing or oversized one is refused
   }
 });
 
-test("each address loads once, a new one replaces it, and a failed one is retried only after a pause", async () => {
+test("each address loads once, and a failed one is retried only after a pause", async () => {
   let now = 0;
   const loads: string[] = [];
   const outcome = new Map<string, boolean>([["/a.mp3", true], ["/b.mp3", false]]);
@@ -117,7 +117,7 @@ test("each address loads once, a new one replaces it, and a failed one is retrie
   cache.want("/b.mp3");
   await settle();
   assert.equal(cache.ready("/b.mp3"), null);
-  assert.equal(cache.ready("/a.mp3"), null, "only the sound in use is kept");
+  assert.equal(cache.ready("/a.mp3"), "decoded /a.mp3", "the other sound in use is kept too");
   now += CUSTOM_STING_RETRY_MS - 1;
   cache.want("/b.mp3");
   assert.deepEqual(loads, ["/a.mp3", "/b.mp3"], "no retry straight away");
@@ -127,4 +127,20 @@ test("each address loads once, a new one replaces it, and a failed one is retrie
   await settle();
   assert.equal(cache.ready("/b.mp3"), "decoded /b.mp3");
   assert.deepEqual(loads, ["/a.mp3", "/b.mp3", "/b.mp3"]);
+});
+
+test("only the sounds lately wanted are kept: the oldest is let go", async () => {
+  const loads: string[] = [];
+  const cache = customStingCache(async (url) => { loads.push(url); return `decoded ${url}`; });
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const urls = Array.from({ length: CACHED_SOUNDS + 1 }, (_, i) => `/${i}.mp3`);
+  for (const url of urls.slice(0, CACHED_SOUNDS)) cache.want(url);
+  await settle();
+  cache.want(urls[0]);
+  cache.want(urls[CACHED_SOUNDS]);
+  await settle();
+  assert.equal(cache.ready(urls[1]), null, "the least lately wanted went");
+  for (const url of [urls[0], ...urls.slice(2)]) assert.equal(cache.ready(url), `decoded ${url}`);
+  cache.want(urls[0]);
+  assert.equal(loads.filter((url) => url === urls[0]).length, 1, "still loaded only once");
 });

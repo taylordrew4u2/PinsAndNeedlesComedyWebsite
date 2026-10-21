@@ -1,0 +1,28 @@
+The question sounds the live screen plays. Every one is a real recording from
+freesound.org, released under Creative Commons 0 (public domain): free to use,
+change and share, commercially too, with no credit required. Credited here anyway.
+Each was trimmed, given a short fade-in and levelled to -20 LUFS for the show.
+
+desk-bell.mp3  AlaskaRobotics  https://freesound.org/people/AlaskaRobotics/sounds/221515/  CC0 1.0
+triangle.mp3  SamuelGremaud  https://freesound.org/people/SamuelGremaud/sounds/517647/  CC0 1.0
+wind-chimes.mp3  DJczyszy  https://freesound.org/people/DJczyszy/sounds/460482/  CC0 1.0
+sparkle-chimes.mp3  Dann  https://freesound.org/people/Dann/sounds/540295/  CC0 1.0
+music-box.mp3  Sailor55  https://freesound.org/people/Sailor55/sounds/817354/  CC0 1.0
+kalimba.mp3  ondrosik  https://freesound.org/people/ondrosik/sounds/728670/  CC0 1.0
+xylophone.mp3  UsuarioLeal  https://freesound.org/people/UsuarioLeal/sounds/446464/  CC0 1.0
+toy-xylophone.mp3  AntumDeluge  https://freesound.org/people/AntumDeluge/sounds/331653/  CC0 1.0
+harp.mp3  nathanmanaker  https://freesound.org/people/nathanmanaker/sounds/486952/  CC0 1.0
+dream-harp.mp3  3bagbrew  https://freesound.org/people/3bagbrew/sounds/72946/  CC0 1.0
+piano-sweep.mp3  (account since deleted)  https://freesound.org/people/deleted_user_7146007/sounds/383858/  CC0 1.0
+slide-whistle.mp3  v0idation  https://freesound.org/people/v0idation/sounds/497092/  CC0 1.0
+boing.mp3  magnuswaker  https://freesound.org/people/magnuswaker/sounds/540790/  CC0 1.0
+wood-blocks.mp3  sazanami12  https://freesound.org/people/sazanami12/sounds/863784/  CC0 1.0
+ukulele.mp3  Tetoszka  https://freesound.org/people/Tetoszka/sounds/566508/  CC0 1.0
+guitar.mp3  spitefuloctopus  https://freesound.org/people/spitefuloctopus/sounds/315706/  CC0 1.0
+whoosh.mp3  Halgrimm  https://freesound.org/people/Halgrimm/sounds/169867/  CC0 1.0
+ooh.mp3  (account since deleted)  https://freesound.org/people/deleted_user_2104797/sounds/324890/  CC0 1.0
+gameshow-ooh.mp3  noah0189  https://freesound.org/people/noah0189/sounds/264499/  CC0 1.0
+big-ooh.mp3  ShangusBurger  https://freesound.org/people/ShangusBurger/sounds/764325/  CC0 1.0
+aww.mp3  Nox_Sound  https://freesound.org/people/Nox_Sound/sounds/752706/  CC0 1.0
+chuckle.mp3  ehohnke  https://freesound.org/people/ehohnke/sounds/242232/  CC0 1.0
+applause.mp3  ShangusBurger  https://freesound.org/people/ShangusBurger/sounds/764255/  CC0 1.0
