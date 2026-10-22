@@ -18,9 +18,10 @@ export type SoundId =
   | "harp" | "dream-harp" | "piano-sweep"
   | "rimshot" | "drum-roll" | "bongos" | "cowbell"
   | "slide-whistle" | "boing" | "wood-blocks" | "ukulele" | "guitar" | "whoosh"
-  | "ooh" | "gameshow-ooh" | "big-ooh" | "aww" | "chuckle" | "applause";
+  | "ooh" | "gameshow-ooh" | "big-ooh" | "aww" | "chuckle" | "applause"
+  | "spooky-ooh" | "spooky-woooo" | "spooky-music-box" | "spooky-harp";
 
-export type SoundGroup = "Bells and chimes" | "Instruments" | "Drums" | "Playful" | "Crowd";
+export type SoundGroup = "Bells and chimes" | "Instruments" | "Drums" | "Playful" | "Crowd" | "Spooky";
 
 /** What the host sees when choosing: a short plain name, an emoji, one line on what it sounds like, and where it sits in the list. */
 export const QUESTION_SOUNDS: readonly { id: SoundId; label: string; emoji: string; blurb: string; group: SoundGroup }[] = [
@@ -51,13 +52,21 @@ export const QUESTION_SOUNDS: readonly { id: SoundId; label: string; emoji: stri
   { id: "boing", label: "Boing", emoji: "🦘", blurb: "A cartoon boing, on a real jaw harp.", group: "Playful" },
   { id: "wood-blocks", label: "Wood blocks", emoji: "🪵", blurb: "Two temple blocks: tik-tok.", group: "Playful" },
   { id: "whoosh", label: "Whoosh", emoji: "💨", blurb: "A soft, airy swoosh.", group: "Playful" },
+  // Spook mode's sounds, there to pick all year: real recordings slowed, mirrored or reversed into ghosts, each swelling in over half a second or more.
+  { id: "spooky-ooh", label: "Ghostly ooooh", emoji: "👻", blurb: "The room’s ooooh, slowed into a room of ghosts.", group: "Spooky" },
+  { id: "spooky-woooo", label: "Woooo", emoji: "🌕", blurb: "A cartoon ghost’s woooOOOooo, on a slowed slide whistle.", group: "Spooky" },
+  { id: "spooky-music-box", label: "Haunted music box", emoji: "🎃", blurb: "A music box winding down in an empty house.", group: "Spooky" },
+  { id: "spooky-harp", label: "Ghost harp", emoji: "🕯️", blurb: "Piano strings swept backwards: drawn in, never plucked.", group: "Spooky" },
 ];
 
 /** The groups in the order the list shows them. */
-export const SOUND_GROUPS: readonly SoundGroup[] = ["Crowd", "Bells and chimes", "Instruments", "Drums", "Playful"];
+export const SOUND_GROUPS: readonly SoundGroup[] = ["Crowd", "Bells and chimes", "Instruments", "Drums", "Playful", "Spooky"];
 
 /** A small crowd's "ooooh": the room reacting to a bad decision, and it swells in rather than jumping out. */
 export const DEFAULT_SOUND: SoundId = "ooh";
+
+/** What spook mode plays until the host picks another: the same room's ooooh, gone ghostly. */
+export const DEFAULT_SPOOK_SOUND: SoundId = "spooky-ooh";
 
 /** True for one of the sounds above, so a stored or posted choice can be trusted. */
 export function isSoundId(value: unknown): value is SoundId {
