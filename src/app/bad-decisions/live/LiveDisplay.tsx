@@ -14,10 +14,10 @@ import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { customStingCache, loadCustomSting, pickQuestionSound, playCustomSting } from "@/lib/custom-sting";
 import Explainer from "@/components/Explainer";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
-import { DEFAULT_LOOK, screenLook, soundUrl, type ScreenSettings } from "@/lib/screen-settings";
-import { DEFAULT_SOUND, soundFile } from "@/lib/question-sounds";
+import { DEFAULT_LOOK, fallbackSoundUrl, screenLook, soundUrl, type ScreenSettings } from "@/lib/screen-settings";
 import { readPublicMessage } from "@/lib/screen-message";
 import ScreenMessage from "@/components/ScreenMessage";
+import SpookFrame from "@/components/SpookFrame";
 
 /** How long the mouse can sit still before the pointer is hidden. */
 const POINTER_IDLE_MS = 2_500;
@@ -62,6 +62,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   const [board, setBoard] = useState<LiveBoard>(() => parseLiveBoard(null));
   // A newly picked question gets a drum roll first; the screen opening on one does not.
   const [intro, setIntro] = useState(false);
+  // Whether that drum roll is the spooky one, fixed as it starts, so spook mode flipping mid-roll never restarts it.
+  const [introSpook, setIntroSpook] = useState(false);
   const shown = useRef<string | null | undefined>(undefined);
   const introTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // The number up during the countdown before a new question; null when none is running.
@@ -81,6 +83,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   const busyUntil = useRef(0);
   // The host's "Intro" explainer: which step is up, and the start time last acted on (undefined until the first poll).
   const [explainer, setExplainer] = useState<ExplainerStep | null>(null);
+  // The settings as the explainer started, which it keeps if spook mode flips while it plays.
+  const [explainerLook, setExplainerLook] = useState<ScreenSettings>(DEFAULT_LOOK);
   const explainerSeen = useRef<string | null | undefined>(undefined);
   const explainerTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [soundOn, setSoundOn] = useState(false);
@@ -93,8 +97,11 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   // The host's settings from the Control Center (the defaults until a poll says otherwise), whether they muted the sting, and which sound plays how loud.
   const [settings, setSettings] = useState<ScreenSettings>(DEFAULT_LOOK);
   const muted = useRef(false);
-  const soundChoice = useRef<{ volume: number; url: string }>({ volume: DEFAULT_LOOK.stingVolume, url: soundUrl(DEFAULT_LOOK) });
-  // Starts loading the chosen sound and the default; the screen's audio calls it the moment it exists, before any poll.
+  // With the chosen sound, the file that stands in while it loads: the usual default, or spook mode's for a spooky sound.
+  const soundChoice = useRef<{ volume: number; url: string; fallback: string }>({ volume: DEFAULT_LOOK.stingVolume, url: soundUrl(DEFAULT_LOOK), fallback: fallbackSoundUrl(DEFAULT_LOOK) });
+  // Spook mode as of the last poll, so switching it wipes once.
+  const spookSeen = useRef<boolean | undefined>(undefined);
+  // Starts loading the chosen sound and its stand-in; the screen's audio calls it the moment it exists, before any poll.
   const preloadSounds = useRef(() => {});
   // The host's own message, over the question or set until they take it down; and the last "Test sound" acted on.
   const [message, setMessage] = useState<{ text: string; color: string } | null>(null);
@@ -136,17 +143,16 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     let disposed = false;
     let pending = false;
     const controller = new AbortController();
-    // The chosen sound and the default, fetched and decoded on this screen's audio as soon as a poll names them, so they are ready by the time a question goes up.
+    // The chosen sound and its stand-in, fetched and decoded on this screen's audio as soon as a poll names them, so they are ready by the time a question goes up.
     const sounds = customStingCache((url) => {
       const context = audio.current;
       return context ? loadCustomSting(context, url, controller.signal) : Promise.reject(new Error("No audio yet"));
     });
-    const defaultSound = soundFile(DEFAULT_SOUND);
     // Only a screen with sound loads them: the Control Center's mirror never plays one.
     const preload = () => {
       if (!audio.current) return;
       sounds.want(soundChoice.current.url);
-      sounds.want(defaultSound);
+      sounds.want(soundChoice.current.fallback);
     };
     preloadSounds.current = preload;
     /**
@@ -154,16 +160,17 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
      * volume. Ready and with sound running, it plays at once. Otherwise it
      * waits, up to STING_LATE_MS: for a context the browser paused to
      * resume, and for a sound still loading (just picked, or the screen
-     * only just opened), with the default standing in for one that failed
-     * or is slow. Past that the beat passes silently. A browser that wants
-     * a tap first holds every resume until then and lets them all go at
-     * once, so only a sting asked for just now plays then, and none the host
-     * has muted since: no pile of stings in one blast mid-set.
+     * only just opened), with the default (spook mode's, for a spooky sound)
+     * standing in for one that failed or is slow. Past that the beat passes
+     * silently. A browser that wants a tap first holds every resume until
+     * then and lets them all go at once, so only a sting asked for just now
+     * plays then, and none the host has muted since: no pile of stings in
+     * one blast mid-set.
      */
     const sting = () => {
       const context = audio.current;
       if (!context || muted.current) return;
-      const { volume, url } = soundChoice.current;
+      const { volume, url, fallback } = soundChoice.current;
       const play = (sound: AudioBuffer) => {
         const length = playCustomSting(context, sound, { volume: volume / 100 });
         // A long sound keeps the screen from reloading itself over its tail.
@@ -176,17 +183,18 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       }
       const asked = Date.now();
       void Promise.all([
-        pickQuestionSound(sounds, url, defaultSound, STING_LATE_MS),
+        pickQuestionSound(sounds, url, fallback, STING_LATE_MS),
         context.state === "running" ? null : context.resume().catch(() => {}),
       ]).then(([sound]) => {
         if (sound && context.state === "running" && !muted.current && Date.now() - asked < STING_LATE_MS) play(sound);
       });
     };
-    /** Steps through the explainer on timers, playing the sting with its intro step. */
-    const runExplainer = () => {
+    /** Steps through the explainer on timers, playing the sting with its intro step. It remembers the settings it started with. */
+    const runExplainer = (look: ScreenSettings) => {
       explainerTimers.current.forEach(clearTimeout);
       explainerTimers.current = [];
       explaining.current = true;
+      setExplainerLook(look);
       busyUntil.current = Date.now() + EXPLAINER_MS + 1_000;
       setWipe((count) => count + 1);
       let delay = 0;
@@ -251,9 +259,12 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         // The host's settings, missing from an older server's answer: then the defaults, the screen as it always was.
         const setup = screenLook(data?.screen);
         muted.current = !setup.sound;
-        soundChoice.current = { volume: setup.stingVolume, url: soundUrl(setup) };
+        soundChoice.current = { volume: setup.stingVolume, url: soundUrl(setup), fallback: fallbackSoundUrl(setup) };
         preload();
         setSettings((current) => JSON.stringify(current) === JSON.stringify(setup) ? current : setup);
+        // Spook mode switching on or off wipes, once. What is up stays up: a question gets no second countdown, drum roll or sting.
+        if (spookSeen.current !== undefined && setup.spook !== spookSeen.current) setWipe((count) => count + 1);
+        spookSeen.current = setup.spook;
         const countFrom = setup.countdown ? setup.countdownFrom : 0;
         const nextMenu = data?.menu === true;
         const nextMessage = readPublicMessage(data?.message);
@@ -264,7 +275,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           // One that was already running when this screen opened is not replayed.
           const opening = explainerSeen.current === undefined;
           explainerSeen.current = explainerAt;
-          if (explainerAt && !opening) runExplainer();
+          if (explainerAt && !opening) runExplainer(setup);
         }
         const next = typeof data?.question === "string" ? data.question : null;
         // Which question it is, not its words: the host fixing a typo on screen is the same question, with no second countdown or sting.
@@ -286,6 +297,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
             if (covered.current || explaining.current) { held.current = true; return; }
             sting();
             const play = setup.intro && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            setIntroSpook(setup.spook);
             setIntro(play);
             if (play) introTimer.current = setTimeout(() => setIntro(false), INTRO_MS);
           };
@@ -529,22 +541,28 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   }, []);
 
   const qrSrc = `/api/decisions/live/qr${modeQuery(space)}`;
+  const spook = settings.spook;
+  // If spook mode flips while the explainer plays, it keeps the look it started with to its end, so no step swaps or restarts halfway; otherwise the host's word changes show at once, as always.
+  const explainerShows = explainerLook.spook === spook ? settings : explainerLook;
 
   return (
     <>
     {menu ? (
       <main className={`pnc-screen-in select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
-        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} />
+        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} spook={spook} />
       </main>
     ) : (
     <main
-      className={`pnc-screen-in flex h-svh select-none items-center justify-center bg-black px-6 pb-40 pt-10 text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
+      // No z-index here, ever: a full-screen <main> above the "Full screen" button would swallow its clicks. In spook mode the words start below the drips.
+      className={`pnc-screen-in flex h-svh select-none items-center justify-center bg-black px-6 pb-40 ${spook ? "pt-[calc(7vmin+1.5rem)]" : "pt-10"} text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
       aria-label="Live show"
       aria-live="polite"
       aria-atomic="true"
       onDoubleClick={toggleFullscreen}
     >
-      <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
+      {spook ? <SpookFrame idle={!question && !performer && !message} /> : null}
+      {/* Above the spook frame, so every word paints over every decoration. */}
+      <div ref={area} className={`${spook ? "relative z-10 " : ""}flex h-full w-full max-w-6xl items-center justify-center overflow-auto`}>
         {message ? (
           // The host's own message goes over the question or the set until they take it down.
           <div key={`${message.color}${message.text}`} className="pnc-screen-in h-full w-full">
@@ -554,13 +572,25 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           // Sized together, so a long question and its name both fit above the QR.
           <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
-            {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">— {name}</p> : null}
+            {/* In spook mode only the dash turns red; the name stays as it is, to read at any size. */}
+            {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">{spook ? <span className="text-[#ff2e4d]">— </span> : "— "}{name}</p> : null}
           </div>
         ) : !question && performer && !intro && countdown === null ? (
           <div key={performer} className="pnc-screen-in w-full text-center">
-            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">{settings.stageLabel}</p>
+            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {spook ? <img src="/brand/spook-bat-on-dark.svg" alt="" aria-hidden="true" width={128} height={50} className="pnc-spook-bat mx-[0.5em] inline-block h-[1.1em] w-auto align-middle" /> : null}
+              {settings.stageLabel}
+              {/* Mirrored to face the other. The label's letter spacing already trails its last letter, so this side needs less margin to look even. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {spook ? <img src="/brand/spook-bat-on-dark.svg" alt="" aria-hidden="true" width={128} height={50} className="pnc-spook-bat ml-[0.2em] mr-[0.5em] inline-block h-[1.1em] w-auto -scale-x-100 align-middle" /> : null}
+            </p>
             <h1 className="mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none">{performer}</h1>
           </div>
+        ) : spook && !question && !performer ? (
+          // Nothing to read: the show's own flash art holds the screen, the most visibly spooky moment of the night.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key="spook-idle" src="/brand/bad-decisions-dice-on-dark.svg" alt="" aria-hidden="true" width={1620} height={1080} className="pnc-screen-in h-auto max-h-[80%] w-auto max-w-[min(70vw,120vmin)] object-contain opacity-[0.92]" />
         ) : null}
       </div>
       {space === "rehearsal" ? (
@@ -578,11 +608,12 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     )}
     {countdown !== null && !menu && !message && !explainer ? (
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-black text-white" aria-hidden="true">
-        <span key={countdown} className="pnc-countdown font-[family-name:var(--pnc-heading)] font-bold tabular-nums leading-none">{countdown}</span>
+        {/* In spook mode each number bleeds once as it lands. A tighter line box lifts the drip out of the space kept for descenders, so it runs from the number itself. */}
+        <span key={countdown} className={`pnc-countdown font-[family-name:var(--pnc-heading)] font-bold tabular-nums ${spook ? "pnc-spook-bleed leading-[0.75]" : "leading-none"}`}>{countdown}</span>
       </div>
     ) : null}
-    {intro && !menu && !message && !explainer ? <BadDecisionIntro word={settings.introWord} /> : null}
-    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} look={settings} /> : null}
+    {intro && !menu && !message && !explainer ? <BadDecisionIntro spook={introSpook} word={settings.introWord} /> : null}
+    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} look={explainerShows} spook={explainerShows.spook} /> : null}
     {segmentEnd !== null && settings.timer ? (
       <p className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1 font-[family-name:var(--pnc-heading)] text-lg tabular-nums text-white/80 sm:bottom-4 sm:text-2xl" aria-hidden="true">
         {segmentClock(segmentLeft)}
