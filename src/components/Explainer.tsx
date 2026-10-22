@@ -16,12 +16,18 @@ const POSTER = "font-[family-name:var(--font-poster)] uppercase";
  * intro, so the room sees and hears exactly what a new question looks like.
  * The words are the host's from the Control Center, the defaults until they
  * change them; the timings never change.
+ *
+ * `spook` hangs a strip of drips along the top, drops the stage below it, and
+ * makes the intro step spook mode's drum roll, so the room learns the
+ * haunted sound. The words come from `look` as ever.
  */
-export default function Explainer({ step, qrSrc, look = DEFAULT_LOOK }: { step: ExplainerStep; qrSrc?: string; look?: ScreenSettings }) {
-  if (step === "intro") return <BadDecisionIntro word={look.introWord} />;
+export default function Explainer({ step, qrSrc, look = DEFAULT_LOOK, spook = false }: { step: ExplainerStep; qrSrc?: string; look?: ScreenSettings; spook?: boolean }) {
+  if (step === "intro") return <BadDecisionIntro spook={spook} word={look.introWord} />;
   return (
     <div className="fixed inset-0 z-40 overflow-hidden bg-black" style={{ color: CREAM }} aria-live="polite">
-      <div key={step} className="pnc-screen-in absolute inset-[6vmin] flex items-center justify-center">
+      {/* Static, and first, so every step paints over it. */}
+      {spook ? <div className="pnc-spook-drips pointer-events-none absolute inset-x-0 top-0 h-[5vmin]" aria-hidden="true" /> : null}
+      <div key={step} className={`pnc-screen-in absolute ${spook ? "inset-x-[6vmin] bottom-[6vmin] top-[9vmin]" : "inset-[6vmin]"} flex items-center justify-center`}>
         {step === "how" ? <How qrSrc={qrSrc} look={look} /> : step === "listen" ? <Listen line={look.listenLine} /> : step === "example" ? <Example question={look.exampleQuestion} /> : <Send qrSrc={qrSrc} line={look.closingLine} call={look.closingCall} />}
       </div>
       <Progress step={step} />

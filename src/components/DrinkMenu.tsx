@@ -48,8 +48,12 @@ const HOST_LINE = { overflowWrap: "anywhere", maxWidth: 300, lineHeight: 1.15 } 
  * fits as it is, stays exactly at its own size. The marquee crawls at
  * `marqueeSpeed` (board pixels per second) in `marqueeColor`, the text colour
  * when empty.
+ *
+ * `spook` dresses the frame for spook mode: drips hanging from its top edge
+ * and two small webs in its corners, all in the padding around the drinks
+ * and the QR, so the menu itself reads exactly as it always does.
  */
-export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = DRINK_MENU, marqueeSpeed = DEFAULT_MARQUEE_SPEED, marqueeColor, onFit }: {
+export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = DRINK_MENU, marqueeSpeed = DEFAULT_MARQUEE_SPEED, marqueeColor, onFit, spook = false }: {
   qrSrc?: string;
   marquee?: string | null;
   custom?: CustomLook | null;
@@ -58,10 +62,13 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
   marqueeSpeed?: number;
   marqueeColor?: string;
   onFit?: (fit: { size: number; fits: boolean }) => void;
+  spook?: boolean;
 }) {
   const frame = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [drips, setDrips] = useState(DRIPS);
   const note = custom?.note.trim() || "";
   const bartender = custom?.bartender.trim() || "";
   // Anything under the first two columns: the last column then runs down beside it.
@@ -83,6 +90,8 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
   useEffect(() => { report.current = onFit; }, [onFit]);
   // Everything that changes how much room the drinks take; the fit is worked out again when it does.
   const layout = JSON.stringify([drinks, family, k, note, bartender, custom?.bartenderFont, bartenderLabel]);
+  // The same for the QR panel's lines, which spook mode's drips also keep clear of.
+  const panelLayout = JSON.stringify([qrSrc, custom?.headline, caption, title, link]);
 
   useLayoutEffect(() => {
     const box = frame.current;
@@ -134,6 +143,20 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
     return () => { active = false; observer.disconnect(); document.fonts.removeEventListener("loadingdone", fit); };
   }, [layout]);
 
+  // Spook mode's drips hang only as far as the menu leaves room above its first line: a long
+  // list, or a custom menu's bartender and note, starts higher, and the drips shorten to match.
+  // After the fit above, and again whenever a line changes size, as the fit or the fonts land.
+  useLayoutEffect(() => {
+    const left = panel.current;
+    const right = grid.current;
+    if (!spook || !left || !right) return;
+    const measure = () => setDrips(dripLength(headroom([left, right])));
+    const observer = new ResizeObserver(measure);
+    for (const box of [left, right]) for (const item of box.children) observer.observe(item);
+    measure();
+    return () => observer.disconnect();
+  }, [spook, layout, panelLayout]);
+
   return (
     <div ref={frame} className={`${contained ? "absolute" : "fixed"} inset-0 flex items-center justify-center overflow-hidden bg-black`}>
       <div
@@ -147,8 +170,11 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
         <div style={{
           width: "100%", height: "100%", boxSizing: "border-box", border: "1px solid #fff", outline: `1px solid ${RULE}`, outlineOffset: -9, display: "flex",
           transform: marquee ? `scale(${FRAME_SCALE})` : undefined, transformOrigin: "center",
+          // Holds spook mode's trim, so it scales with the frame when a marquee runs.
+          position: spook ? "relative" : undefined,
         }}>
-          <div style={{ width: 380, flexShrink: 0, boxSizing: "border-box", borderRight: "1px solid #fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "64px 40px" }}>
+          {spook ? <SpookTrim drips={drips} /> : null}
+          <div ref={panel} style={{ width: 380, flexShrink: 0, boxSizing: "border-box", borderRight: "1px solid #fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "64px 40px" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/pixelated-records-logo.png" alt="Pixelated Records" width={310} height={158} style={{ width: 310, height: "auto", display: "block" }} />
             <div style={{ fontSize: z(34), fontWeight: 500, letterSpacing: "0.5em", marginRight: "-0.5em" }}>MENU</div>
@@ -213,6 +239,41 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
         </div>
       </div>
     </div>
+  );
+}
+
+/** Spook mode's corner webs: small enough to stay inside the padding around the drinks and the QR. */
+const WEB = 52;
+/** Spook mode's drips at their longest. The longest drip reaches this share of the way down its strip (see spook-drips.svg). */
+const DRIPS = 40;
+const DRIP_REACH = 74 / 80;
+/** The clear space always left between the drips and the menu's first line, and the shortest drips worth hanging: with less room, none hang. */
+const DRIP_GAP = 8;
+const DRIP_MIN = 12;
+
+/** How long the drips can hang with this much room above the menu's first line (0 for none). */
+function dripLength(room: number): number {
+  const length = Math.min(DRIPS, Math.floor((room - DRIP_GAP) / DRIP_REACH));
+  return length >= DRIP_MIN ? length : 0;
+}
+
+/**
+ * Spook mode's trim: a strip of drips hanging `drips` pixels from the
+ * frame's top edge, a web in its top-right corner and another at the foot
+ * of the QR panel, each 10px in. Static, and drawn under everything in the
+ * frame, so even if they ever met, every drink and the QR stay on top.
+ */
+function SpookTrim({ drips }: { drips: number }) {
+  const web = { position: "absolute", width: WEB, height: WEB, opacity: 0.45, zIndex: -1, pointerEvents: "none" } as const;
+  return (
+    <>
+      {/* The web is drawn anchored bottom-left: turned half round, it hangs in the top-right corner, the drips running over it. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/spook-web-corner-on-dark.svg" alt="" aria-hidden="true" width={WEB} height={WEB} style={{ ...web, top: 10, right: 10, transform: "rotate(180deg)" }} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/spook-web-corner-on-dark.svg" alt="" aria-hidden="true" width={WEB} height={WEB} style={{ ...web, bottom: 10, left: 10 }} />
+      {drips ? <div className="pnc-spook-drips" aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: drips, zIndex: -1, pointerEvents: "none" }} /> : null}
+    </>
   );
 }
 
@@ -391,4 +452,20 @@ function overflows(grid: HTMLElement): boolean {
     const edge = item.getBoundingClientRect();
     return edge.top < box.top - slack || edge.bottom > box.bottom + slack || item.scrollWidth > item.clientWidth + 1;
   });
+}
+
+/**
+ * How far below the top of these boxes their first line starts, the least of
+ * them, in board pixels: the room spook mode's drips have to hang in. Measured
+ * on screen like `overflows`, with the board's scaling taken out.
+ */
+function headroom(boxes: HTMLElement[]): number {
+  let room = Infinity;
+  for (const box of boxes) {
+    const edge = box.getBoundingClientRect();
+    if (!edge.height) continue;
+    const ratio = box.offsetHeight / edge.height;
+    for (const item of box.children) room = Math.min(room, (item.getBoundingClientRect().top - edge.top) * ratio);
+  }
+  return room;
 }
