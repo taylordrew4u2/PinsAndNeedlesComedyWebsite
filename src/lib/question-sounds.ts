@@ -16,10 +16,11 @@
 export type SoundId =
   | "desk-bell" | "triangle" | "wind-chimes" | "sparkle-chimes" | "music-box" | "kalimba" | "xylophone" | "toy-xylophone"
   | "harp" | "dream-harp" | "piano-sweep"
+  | "rimshot" | "drum-roll" | "bongos" | "cowbell"
   | "slide-whistle" | "boing" | "wood-blocks" | "ukulele" | "guitar" | "whoosh"
   | "ooh" | "gameshow-ooh" | "big-ooh" | "aww" | "chuckle" | "applause";
 
-export type SoundGroup = "Bells and chimes" | "Instruments" | "Playful" | "Crowd";
+export type SoundGroup = "Bells and chimes" | "Instruments" | "Drums" | "Playful" | "Crowd";
 
 /** What the host sees when choosing: a short plain name, an emoji, one line on what it sounds like, and where it sits in the list. */
 export const QUESTION_SOUNDS: readonly { id: SoundId; label: string; emoji: string; blurb: string; group: SoundGroup }[] = [
@@ -42,6 +43,10 @@ export const QUESTION_SOUNDS: readonly { id: SoundId; label: string; emoji: stri
   { id: "piano-sweep", label: "Piano sweep", emoji: "🎹", blurb: "A real piano glissando, sweeping up.", group: "Instruments" },
   { id: "ukulele", label: "Ukulele ta-da", emoji: "🌺", blurb: "Two cheerful strums: ta-daa.", group: "Instruments" },
   { id: "guitar", label: "Guitar strum", emoji: "🎸", blurb: "One slow acoustic strum that rings out.", group: "Instruments" },
+  { id: "rimshot", label: "Rimshot", emoji: "🥁", blurb: "Ba-dum-tss, softly, on brushes.", group: "Drums" },
+  { id: "drum-roll", label: "Drum roll", emoji: "🪘", blurb: "A brush roll that builds into a soft cymbal swell.", group: "Drums" },
+  { id: "bongos", label: "Bongos", emoji: "🌴", blurb: "A quick bongo roll and one last bop.", group: "Drums" },
+  { id: "cowbell", label: "Cowbell", emoji: "🐄", blurb: "Two light taps: tonk-tonk.", group: "Drums" },
   { id: "slide-whistle", label: "Slide whistle", emoji: "🎈", blurb: "One smooth slide up: wheee.", group: "Playful" },
   { id: "boing", label: "Boing", emoji: "🦘", blurb: "A cartoon boing, on a real jaw harp.", group: "Playful" },
   { id: "wood-blocks", label: "Wood blocks", emoji: "🪵", blurb: "Two temple blocks: tik-tok.", group: "Playful" },
@@ -49,7 +54,7 @@ export const QUESTION_SOUNDS: readonly { id: SoundId; label: string; emoji: stri
 ];
 
 /** The groups in the order the list shows them. */
-export const SOUND_GROUPS: readonly SoundGroup[] = ["Crowd", "Bells and chimes", "Instruments", "Playful"];
+export const SOUND_GROUPS: readonly SoundGroup[] = ["Crowd", "Bells and chimes", "Instruments", "Drums", "Playful"];
 
 /** A small crowd's "ooooh": the room reacting to a bad decision, and it swells in rather than jumping out. */
 export const DEFAULT_SOUND: SoundId = "ooh";

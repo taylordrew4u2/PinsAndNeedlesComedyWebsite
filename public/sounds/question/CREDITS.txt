@@ -26,3 +26,7 @@ big-ooh.mp3  ShangusBurger  https://freesound.org/people/ShangusBurger/sounds/76
 aww.mp3  Nox_Sound  https://freesound.org/people/Nox_Sound/sounds/752706/  CC0 1.0
 chuckle.mp3  ehohnke  https://freesound.org/people/ehohnke/sounds/242232/  CC0 1.0
 applause.mp3  ShangusBurger  https://freesound.org/people/ShangusBurger/sounds/764255/  CC0 1.0
+rimshot.mp3  stomachache (one brushed kit, four hits)  https://freesound.org/people/stomachache/sounds/44865/ https://freesound.org/people/stomachache/sounds/44869/ https://freesound.org/people/stomachache/sounds/44862/ https://freesound.org/people/stomachache/sounds/44854/  CC0 1.0
+drum-roll.mp3  CVLTIV8R (brush roll), davidjwoll (cymbal roll)  https://freesound.org/people/CVLTIV8R/sounds/809782/ https://freesound.org/people/davidjwoll/sounds/85487/  CC0 1.0
+bongos.mp3  soundstack  https://freesound.org/people/soundstack/sounds/408125/  CC0 1.0
+cowbell.mp3  sgossner  https://freesound.org/people/sgossner/sounds/375616/ https://freesound.org/people/sgossner/sounds/375617/  CC0 1.0
