@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { upload } from "../MediaField";
-import { STINGS, playSting } from "@/lib/stings";
+import { QUESTION_SOUNDS, SOUND_GROUPS } from "@/lib/question-sounds";
 import { CUSTOM_STING_MAX_S, loadCustomSting, playCustomSting } from "@/lib/custom-sting";
 import { AUDIO_ACCEPT, AUDIO_MAX_BYTES, audioTypeOf, uploadedFileName } from "@/lib/audio-upload";
-import { STING_VOLUME_MAX, STING_VOLUME_MIN, chosenSting, stingName, type QuestionSound, type ScreenSettings } from "@/lib/screen-settings";
+import { STING_VOLUME_MAX, STING_VOLUME_MIN, chosenSting, soundUrl, stingName, type QuestionSound, type ScreenSettings } from "@/lib/screen-settings";
 
 type Props = {
   sting: QuestionSound;
@@ -24,8 +24,8 @@ function audioContextClass(): typeof AudioContext | undefined {
 
 /**
  * The sound the projector plays with every new question, in the Intro and
- * on 🔊 Test sound: one of the built-in stings or the host's own file, and
- * how loud. ▶ plays a sound here in the host's own browser, at the volume
+ * on 🔊 Test sound: one of the built-in recordings or the host's own file,
+ * and how loud. ▶ plays a sound here in the host's own browser, at the volume
  * set, so they can choose without the room hearing; the TV only changes on
  * Save. The list folds away under the current choice, so the switches and
  * Save stay in reach on a phone.
@@ -37,8 +37,8 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
   // How long the host's own file runs, once this browser has decoded it, to say when it will be faded.
   const [duration, setDuration] = useState<{ url: string; seconds: number } | null>(null);
   const current = useRef<Playing | null>(null);
-  // The host's own sound, decoded once per address; a decoded sound plays on any context.
-  const decoded = useRef<{ url: string; buffer: AudioBuffer } | null>(null);
+  // Each sound previewed, decoded once per address; a decoded sound plays on any context.
+  const decoded = useRef(new Map<string, AudioBuffer>());
   const input = useRef<HTMLInputElement | null>(null);
 
   /** Stops a preview at once: its context is closed, which silences whatever it was playing. */
@@ -74,26 +74,23 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
       current.current = entry;
       setPlaying(id);
       await context.resume();
-      let seconds: number;
-      if (id === "custom") {
-        let buffer = decoded.current?.url === url ? decoded.current.buffer : null;
-        if (!buffer) {
-          buffer = await loadCustomSting(context, url);
-          decoded.current = { url, buffer };
-          setDuration({ url, seconds: buffer.duration });
-        }
-        // Stopped, or another ▶ pressed, while it loaded.
-        if (current.current !== entry) return;
-        seconds = playCustomSting(context, buffer, { volume: volume / 100 });
-      } else {
-        seconds = playSting(context, id, { volume: volume / 100 });
+      const address = soundUrl({ sting: id, stingUrl: url });
+      let buffer = decoded.current.get(address);
+      if (!buffer) {
+        buffer = await loadCustomSting(context, address);
+        decoded.current.set(address, buffer);
       }
+      // Every time, not only on a fresh load: after Replace and then Undo, the earlier file's length shows again.
+      if (id === "custom") setDuration({ url: address, seconds: buffer.duration });
+      // Stopped, or another ▶ pressed, while it loaded.
+      if (current.current !== entry) return;
+      const seconds = playCustomSting(context, buffer, { volume: volume / 100 });
       const started = entry;
       started.timer = setTimeout(() => { if (current.current === started) stop(); }, seconds * 1_000 + 300);
     } catch {
       if (current.current !== entry) return;
       stop();
-      setProblem(id === "custom" ? "Couldn't play your sound in this browser. Press 🔊 Test sound after saving to check the TV, or try an MP3." : "Couldn't play that here.");
+      setProblem(id === "custom" ? "Couldn't play your sound in this browser. Press 🔊 Test sound after saving to check the TV, or try an MP3." : "Couldn't play that here. Check this device's connection, then try again.");
     }
   };
 
@@ -119,7 +116,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
         const Offline = window.OfflineAudioContext;
         if (Offline) {
           const buffer = await new Offline(1, 1, 44_100).decodeAudioData(await file.arrayBuffer());
-          decoded.current = { url: address, buffer };
+          decoded.current.set(address, buffer);
           setDuration({ url: address, seconds: buffer.duration });
         }
       } catch {
@@ -132,7 +129,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
     }
   };
 
-  const chosen = STINGS.find((entry) => entry.id === sting);
+  const chosen = QUESTION_SOUNDS.find((entry) => entry.id === sting);
   const own = url ? uploadedFileName(url) : "";
   const ownSeconds = duration?.url === url ? duration.seconds : null;
   // What the TV would play now against what it will play once saved: the sound, its file, its volume.
@@ -192,13 +189,21 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
         />
         <span className="w-12 text-right tabular-nums text-neutral-300">{volume}%</span>
       </label>
-      <p className="text-xs text-neutral-500">100% is the sound as made. ▶ uses this volume too.</p>
+      <p className="text-xs text-neutral-500">100% is the sound as recorded: every built-in one is about as loud as the others. ▶ uses this volume too.</p>
 
       <details className="rounded-md border border-white/15 p-2">
-        <summary className="cursor-pointer text-sm">Choose another sound ({STINGS.length} to pick from, or your own)</summary>
-        <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
-          {STINGS.map((entry) => row(entry.id, entry.emoji, entry.label, entry.blurb))}
-          <li className={`flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 sm:col-span-2 ${sting === "custom" ? "border-amber-300/80 bg-amber-300/10" : "border-white/15"}`}>
+        <summary className="cursor-pointer text-sm">Choose another sound ({QUESTION_SOUNDS.length} to pick from, or your own)</summary>
+        <p className="mt-2 text-xs text-neutral-500">All real recordings, all gentle: nothing here jumps out at the room.</p>
+        {SOUND_GROUPS.map((group) => (
+          <div key={group} className="mt-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{group}</p>
+            <ul className="mt-1 grid gap-1.5 sm:grid-cols-2">
+              {QUESTION_SOUNDS.filter((entry) => entry.group === group).map((entry) => row(entry.id, entry.emoji, entry.label, entry.blurb))}
+            </ul>
+          </div>
+        ))}
+        <ul className="mt-2 grid gap-1.5">
+          <li className={`flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 ${sting === "custom" ? "border-amber-300/80 bg-amber-300/10" : "border-white/15"}`}>
             <label className={`flex min-w-0 flex-1 basis-48 items-start gap-2 ${url ? "cursor-pointer" : ""}`}>
               <input type="radio" name="question-sound" className="mt-1 h-4 w-4 shrink-0 accent-amber-300" checked={sting === "custom"} disabled={!url} onChange={() => edit({ sting: "custom" })} />
               <span aria-hidden="true" className="mt-0.5 shrink-0">📁</span>

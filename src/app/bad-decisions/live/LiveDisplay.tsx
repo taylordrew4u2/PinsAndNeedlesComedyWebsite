@@ -11,10 +11,11 @@ import { customWording } from "@/lib/drink-menu";
 import { parseLiveBoard, type LiveBoard } from "@/lib/drink-list";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont } from "@/lib/menu-fonts";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
-import { customStingCache, loadCustomSting, playQuestionSound } from "@/lib/custom-sting";
+import { customStingCache, loadCustomSting, pickQuestionSound, playCustomSting } from "@/lib/custom-sting";
 import Explainer from "@/components/Explainer";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
-import { DEFAULT_LOOK, chosenSting, screenLook, type QuestionSound, type ScreenSettings } from "@/lib/screen-settings";
+import { DEFAULT_LOOK, screenLook, soundUrl, type ScreenSettings } from "@/lib/screen-settings";
+import { DEFAULT_SOUND, soundFile } from "@/lib/question-sounds";
 import { readPublicMessage } from "@/lib/screen-message";
 import ScreenMessage from "@/components/ScreenMessage";
 
@@ -92,7 +93,9 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   // The host's settings from the Control Center (the defaults until a poll says otherwise), whether they muted the sting, and which sound plays how loud.
   const [settings, setSettings] = useState<ScreenSettings>(DEFAULT_LOOK);
   const muted = useRef(false);
-  const soundChoice = useRef<{ sting: QuestionSound; volume: number; url: string }>({ sting: DEFAULT_LOOK.sting, volume: DEFAULT_LOOK.stingVolume, url: "" });
+  const soundChoice = useRef<{ volume: number; url: string }>({ volume: DEFAULT_LOOK.stingVolume, url: soundUrl(DEFAULT_LOOK) });
+  // Starts loading the chosen sound and the default; the screen's audio calls it the moment it exists, before any poll.
+  const preloadSounds = useRef(() => {});
   // The host's own message, over the question or set until they take it down; and the last "Test sound" acted on.
   const [message, setMessage] = useState<{ text: string; color: string } | null>(null);
   const messageSeen = useRef<boolean | undefined>(undefined);
@@ -133,34 +136,51 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     let disposed = false;
     let pending = false;
     const controller = new AbortController();
-    // The host's own sound, fetched and decoded on this screen's audio as soon as a poll names it, so it is ready by the time a question goes up.
-    const ownSound = customStingCache((url) => {
+    // The chosen sound and the default, fetched and decoded on this screen's audio as soon as a poll names them, so they are ready by the time a question goes up.
+    const sounds = customStingCache((url) => {
       const context = audio.current;
       return context ? loadCustomSting(context, url, controller.signal) : Promise.reject(new Error("No audio yet"));
     });
+    const defaultSound = soundFile(DEFAULT_SOUND);
+    // Only a screen with sound loads them: the Control Center's mirror never plays one.
+    const preload = () => {
+      if (!audio.current) return;
+      sounds.want(soundChoice.current.url);
+      sounds.want(defaultSound);
+    };
+    preloadSounds.current = preload;
     /**
      * Plays the sting if sound is on: the sound the host picked, at their
-     * volume, or the default while their own file is not loaded. A context
-     * the browser paused is asked to resume first; if it cannot, the beat
-     * passes silently. A browser that wants a tap first holds every resume
-     * until then and lets them all go at once, so only a sting asked for
-     * just now plays then, and none the host has muted since: no pile of
-     * stings in one blast mid-set.
+     * volume. Ready and with sound running, it plays at once. Otherwise it
+     * waits, up to STING_LATE_MS: for a context the browser paused to
+     * resume, and for a sound still loading (just picked, or the screen
+     * only just opened), with the default standing in for one that failed
+     * or is slow. Past that the beat passes silently. A browser that wants
+     * a tap first holds every resume until then and lets them all go at
+     * once, so only a sting asked for just now plays then, and none the host
+     * has muted since: no pile of stings in one blast mid-set.
      */
     const sting = () => {
       const context = audio.current;
       if (!context || muted.current) return;
-      const play = () => {
-        const { sting: chosen, volume, url } = soundChoice.current;
-        const length = playQuestionSound(context, chosen, chosen === "custom" ? ownSound.ready(url) : null, volume / 100);
-        // A long sound of the host's own keeps the screen from reloading itself over its tail.
+      const { volume, url } = soundChoice.current;
+      const play = (sound: AudioBuffer) => {
+        const length = playCustomSting(context, sound, { volume: volume / 100 });
+        // A long sound keeps the screen from reloading itself over its tail.
         busyUntil.current = Math.max(busyUntil.current, Date.now() + (length + 0.5) * 1_000);
       };
-      if (context.state === "running") play();
-      else {
-        const asked = Date.now();
-        context.resume().then(() => { if (context.state === "running" && !muted.current && Date.now() - asked < STING_LATE_MS) play(); }, () => {});
+      const ready = sounds.ready(url);
+      if (ready && context.state === "running") {
+        play(ready);
+        return;
       }
+      const asked = Date.now();
+      void Promise.all([
+        pickQuestionSound(sounds, url, defaultSound, STING_LATE_MS),
+        context.state === "running" ? null : context.resume().catch(() => {}),
+      ]).then(([sound]) => {
+        if (sound && context.state === "running" && !muted.current && Date.now() - asked < STING_LATE_MS) play(sound);
+      });
     };
     /** Steps through the explainer on timers, playing the sting with its intro step. */
     const runExplainer = () => {
@@ -231,9 +251,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         // The host's settings, missing from an older server's answer: then the defaults, the screen as it always was.
         const setup = screenLook(data?.screen);
         muted.current = !setup.sound;
-        soundChoice.current = { sting: chosenSting(setup), volume: setup.stingVolume, url: setup.stingUrl };
-        // Only a screen with sound loads it: the Control Center's mirror never plays one.
-        if (soundChoice.current.sting === "custom" && audio.current) ownSound.want(setup.stingUrl);
+        soundChoice.current = { volume: setup.stingVolume, url: soundUrl(setup) };
+        preload();
         setSettings((current) => JSON.stringify(current) === JSON.stringify(setup) ? current : setup);
         const countFrom = setup.countdown ? setup.countdownFrom : 0;
         const nextMenu = data?.menu === true;
@@ -400,6 +419,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     window.addEventListener("online", resume);
     return () => {
       disposed = true;
+      preloadSounds.current = () => {};
       controller.abort();
       clearTimeout(introTimer.current);
       clearTimeout(switchTimer);
@@ -437,6 +457,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         // Only the current context reports: a replaced or closed one must not flip the button back on.
         context.onstatechange = () => { if (audio.current === context) setSoundOn(context.state === "running"); };
         audio.current = context;
+        preloadSounds.current();
       }
       const context = audio.current;
       // Already on before this, a tap is not what started it: then the browser allows sound here by itself.
