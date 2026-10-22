@@ -135,7 +135,10 @@ test("the host's own sound is an address on this site or a secure one, and nothi
 
 test("a change to the sound: a known sound, a whole volume in range, and a safe address or none", () => {
   assert.deepEqual(parseScreenChange({ sting: "desk-bell", stingVolume: 80 }), { sting: "desk-bell", stingVolume: 80 });
-  assert.equal(parseScreenChange({ sting: "air-horn" }), null, "a sound that no longer exists");
+  assert.equal(parseScreenChange({ sting: "air-horn" }), null, "a sound that no longer exists, and nothing else");
+  // A Control Center opened before an update still sends its old sound with every save: the rest saves, the stored sound stays.
+  assert.deepEqual(parseScreenChange({ sting: "doom", sound: false, stingVolume: 100 }), { sound: false, stingVolume: 100 });
+  for (const sting of [3, null, ["ooh"], { id: "ooh" }]) assert.equal(parseScreenChange({ sting, sound: false }), null, JSON.stringify(sting));
   assert.deepEqual(parseScreenChange({ sting: "custom", stingUrl: " /uploads/a.mp3 " }), { sting: "custom", stingUrl: "/uploads/a.mp3" });
   assert.deepEqual(parseScreenChange({ stingUrl: "" }), { stingUrl: "" });
   assert.deepEqual(parseScreenChange({ stingUrl: "   " }), { stingUrl: "" });

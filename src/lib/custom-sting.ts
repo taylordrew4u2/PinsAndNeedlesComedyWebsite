@@ -13,8 +13,15 @@ export const CUSTOM_STING_FADE_S = 1.5;
 export const CUSTOM_STING_MAX_BYTES = 10 * 1024 * 1024;
 /** A load that has not finished by now is given up, so venue wifi can't leave one hanging. */
 export const CUSTOM_STING_LOAD_MS = 20_000;
-/** After a failed load, the next try waits this long, so a missing file is not fetched every poll. */
+/** After the server refused a file (missing, too big, not sound), the next try waits this long, so it is not fetched every poll. */
 export const CUSTOM_STING_RETRY_MS = 30_000;
+/** After a dropped connection or a load that timed out, the next try comes this soon: venue wifi blipped, the file is fine. */
+export const CUSTOM_STING_RETRY_SOON_MS = 3_000;
+/** When the default is ready, the chosen sound still loading is waited for this much less than the whole beat, so the default can still come in on time. */
+export const FALLBACK_MARGIN_MS = 400;
+
+/** A file the server answered with, but that can't be played: missing, too big or not sound. Unlike a dropped connection, trying again at once won't help. */
+export class SoundFileRefused extends Error {}
 
 /** How long a sound of `duration` seconds plays: all of it, up to the cap. */
 export function customStingLength(duration: number): number {
@@ -53,15 +60,21 @@ export function playCustomSting(context: BaseAudioContext, buffer: AudioBuffer, 
   return length;
 }
 
+type SoundCache<T> = { ready: (url: string) => T | null; within: (url: string, ms: number) => Promise<T | null> };
+
 /**
- * Plays the question sound: the one the host chose once it has loaded, and
- * the default recording while it hasn't (just picked and still loading, or
- * their own file failed), so the room still hears something. Silent only if
- * neither has loaded. Returns how long it plays.
+ * The question sound to play, within `waitMs`: the one the host chose, and
+ * if it is still loading (just picked, or the screen only just opened) it
+ * is waited for; the default when theirs failed or is taking too long, so
+ * the room still hears something. Null only if neither is ready in time.
  */
-export function playQuestionSound(context: BaseAudioContext, chosen: AudioBuffer | null, fallback: AudioBuffer | null, volume: number): number {
-  const sound = chosen ?? fallback;
-  return sound ? playCustomSting(context, sound, { volume }) : 0;
+export async function pickQuestionSound<T>(cache: SoundCache<T>, chosen: string, fallback: string, waitMs: number, now: () => number = Date.now): Promise<T | null> {
+  const until = now() + waitMs;
+  const left = () => until - now();
+  return cache.ready(chosen)
+    ?? await cache.within(chosen, cache.ready(fallback) ? left() - FALLBACK_MARGIN_MS : left())
+    ?? cache.ready(fallback)
+    ?? await cache.within(fallback, left());
 }
 
 /**
@@ -77,10 +90,14 @@ export async function loadCustomSting(context: BaseAudioContext, url: string, ou
   const timer = setTimeout(abort, CUSTOM_STING_LOAD_MS);
   try {
     const response = await fetch(url, { signal: request.signal });
-    if (!response.ok) throw new Error(`The sound file answered ${response.status}`);
+    if (!response.ok) throw new SoundFileRefused(`The sound file answered ${response.status}`);
     const bytes = await response.arrayBuffer();
-    if (bytes.byteLength > CUSTOM_STING_MAX_BYTES) throw new Error("The sound file is too big");
-    return await context.decodeAudioData(bytes);
+    if (bytes.byteLength > CUSTOM_STING_MAX_BYTES) throw new SoundFileRefused("The sound file is too big");
+    try {
+      return await context.decodeAudioData(bytes);
+    } catch {
+      throw new SoundFileRefused("The sound file isn't a sound this browser can play");
+    }
   } finally {
     clearTimeout(timer);
     outer?.removeEventListener("abort", abort);
@@ -94,31 +111,47 @@ export const CACHED_SOUNDS = 3;
  * Remembers the sound files in use, each loaded once per address. `want`
  * starts loading an address the moment the setting names it (the screen
  * calls it on every poll), so by the time a question goes up it is ready;
- * `ready` gives the decoded sound, or null while it loads or after it failed.
- * A failed load is tried again on a later `want`, after a pause. Only the
- * CACHED_SOUNDS most lately wanted are kept.
+ * `ready` gives the decoded sound, or null while it loads or after it failed;
+ * `within` waits up to `ms` for one still loading. A failed load is tried
+ * again on a later `want`: soon after a dropped connection, after a long
+ * pause when the server refused the file. Only the CACHED_SOUNDS most
+ * lately wanted are kept.
  */
 export function customStingCache<T>(load: (url: string) => Promise<T>, now: () => number = Date.now) {
-  const entries = new Map<string, { value: T | null; loading: boolean; failedAt: number }>();
+  type Entry = { value: T | null; loading: boolean; failedAt: number; retryMs: number; done: Promise<T | null> };
+  const entries = new Map<string, Entry>();
   const want = (url: string) => {
     const entry = entries.get(url);
     // Kept in the order last wanted, so the oldest is the one let go.
     entries.delete(url);
     if (entry) {
       entries.set(url, entry);
-      if (entry.value !== null || entry.loading || now() - entry.failedAt < CUSTOM_STING_RETRY_MS) return;
+      if (entry.value !== null || entry.loading || now() - entry.failedAt < entry.retryMs) return;
     }
-    const current = { value: null as T | null, loading: true, failedAt: 0 };
+    const current: Entry = { value: null, loading: true, failedAt: 0, retryMs: CUSTOM_STING_RETRY_MS, done: Promise.resolve(null) };
     entries.set(url, current);
     for (const old of entries.keys()) {
       if (entries.size <= CACHED_SOUNDS) break;
       entries.delete(old);
     }
-    load(url).then(
-      (value) => { current.value = value; current.loading = false; },
-      () => { current.loading = false; current.failedAt = now(); },
+    current.done = load(url).then(
+      (value) => { current.value = value; current.loading = false; return value; },
+      (error) => {
+        current.loading = false;
+        current.failedAt = now();
+        current.retryMs = error instanceof SoundFileRefused ? CUSTOM_STING_RETRY_MS : CUSTOM_STING_RETRY_SOON_MS;
+        return null;
+      },
     );
   };
   const ready = (url: string): T | null => entries.get(url)?.value ?? null;
-  return { want, ready };
+  const within = (url: string, ms: number): Promise<T | null> => {
+    const entry = entries.get(url);
+    if (!entry?.loading || ms <= 0) return Promise.resolve(entry?.value ?? null);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), ms);
+      void entry.done.then((value) => { clearTimeout(timer); resolve(value); });
+    });
+  };
+  return { want, ready, within };
 }

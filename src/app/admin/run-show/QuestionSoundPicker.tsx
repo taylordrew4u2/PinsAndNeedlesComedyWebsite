@@ -79,8 +79,9 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
       if (!buffer) {
         buffer = await loadCustomSting(context, address);
         decoded.current.set(address, buffer);
-        if (id === "custom") setDuration({ url: address, seconds: buffer.duration });
       }
+      // Every time, not only on a fresh load: after Replace and then Undo, the earlier file's length shows again.
+      if (id === "custom") setDuration({ url: address, seconds: buffer.duration });
       // Stopped, or another ▶ pressed, while it loaded.
       if (current.current !== entry) return;
       const seconds = playCustomSting(context, buffer, { volume: volume / 100 });

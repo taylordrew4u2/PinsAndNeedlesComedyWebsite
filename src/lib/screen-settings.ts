@@ -168,7 +168,10 @@ export function parseScreenSettings(raw: unknown): ScreenSettings {
 /**
  * A change the Control Center sent: only known settings, each of the right
  * type, words cleaned. Null for anything else, so a bad request changes
- * nothing rather than part of the screen.
+ * nothing rather than part of the screen. The one exception is a sound this
+ * version no longer has, which an older Control Center still sends with
+ * every save: it is left out, so the switch the host just flipped still
+ * saves.
  */
 export function parseScreenChange(raw: unknown): Partial<ScreenSettings> | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -183,8 +186,9 @@ export function parseScreenChange(raw: unknown): Partial<ScreenSettings> | null 
       if (!isCountdownFrom(value)) return null;
       change.countdownFrom = value;
     } else if (key === "sting") {
-      if (!isQuestionSound(value)) return null;
-      change.sting = value;
+      if (typeof value !== "string") return null;
+      // A sound this version no longer has ("doom", from a Control Center opened before an update): the saved sound stays, the rest still saves.
+      if (isQuestionSound(value)) change.sting = value;
     } else if (key === "stingVolume") {
       if (!isStingVolume(value)) return null;
       change.stingVolume = value;
@@ -201,7 +205,7 @@ export function parseScreenChange(raw: unknown): Partial<ScreenSettings> | null 
       return null;
     }
   }
-  return change;
+  return Object.keys(change).length ? change : null;
 }
 
 /**
