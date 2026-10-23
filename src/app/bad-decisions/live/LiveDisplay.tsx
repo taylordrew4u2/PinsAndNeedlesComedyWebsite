@@ -117,6 +117,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   useWakeLock();
   const area = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const stageName = useRef<HTMLHeadingElement>(null);
 
   // Fit a full audience submission into the projector area without covering the QR.
   useLayoutEffect(() => {
@@ -138,6 +140,32 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     void document.fonts.ready.then(() => { if (active) fit(); });
     return () => { active = false; observer.disconnect(); };
   }, [question, name, menu, intro, countdown, message]);
+
+  // In spook mode the words start lower, below the drips, so a performer's name that wraps to three lines can run out of
+  // room (its last line clipped, a scrollbar beside it). Then the name shrinks just enough to fit, the label as it is.
+  // The usual screen is left exactly as it always was.
+  useLayoutEffect(() => {
+    const box = area.current;
+    const block = stage.current;
+    const heading = stageName.current;
+    if (!settings.spook || !box || !block || !heading) return;
+    const fit = () => {
+      // From its usual size every time, so a bigger window lets it grow back.
+      heading.style.fontSize = "";
+      let size = parseFloat(getComputedStyle(heading).fontSize);
+      while (size > 14 && (block.scrollHeight > box.clientHeight || block.scrollWidth > box.clientWidth)) {
+        size -= 1;
+        heading.style.fontSize = `${size}px`;
+      }
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(box);
+    fit();
+    let active = true;
+    void document.fonts.ready.then(() => { if (active) fit(); });
+    // Spook mode going off leaves the name at its usual size.
+    return () => { active = false; observer.disconnect(); heading.style.fontSize = ""; };
+  }, [settings.spook, settings.stageLabel, performer, question, menu, intro, countdown, message]);
 
   useEffect(() => {
     let disposed = false;
@@ -576,7 +604,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
             {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">{spook ? <span className="text-[#ff2e4d]">— </span> : "— "}{name}</p> : null}
           </div>
         ) : !question && performer && !intro && countdown === null ? (
-          <div key={performer} className="pnc-screen-in w-full text-center">
+          <div key={performer} ref={stage} className="pnc-screen-in w-full text-center">
             <p className={`${spook ? "flex items-center justify-center " : ""}font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]`}>
               {spook ? (
                 // The bats only take the room the label leaves on its line, shrinking rather than wrapping, so the label wraps and
@@ -596,7 +624,9 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
                 </>
               ) : settings.stageLabel}
             </p>
-            <h1 className="mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none">{performer}</h1>
+            {/* In spook mode a little room under the last line, so a tightly fitted name keeps its descenders; and no transitions, since
+                under reduced motion every change eases in over a moment and the fit above would measure the old size all the way down. */}
+            <h1 ref={stageName} className={`mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none${spook ? " pb-[0.1em] transition-none" : ""}`}>{performer}</h1>
           </div>
         ) : spook && !question && !performer ? (
           // Nothing to read: the show's own flash art holds the screen, the most visibly spooky moment of the night.
