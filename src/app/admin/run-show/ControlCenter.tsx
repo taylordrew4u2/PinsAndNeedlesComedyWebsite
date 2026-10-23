@@ -629,7 +629,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     question: Boolean(state.selected),
   });
   // Spook mode left on once Halloween is past, by this device's calendar: a reminder only, it never switches itself off.
-  const lateSpook = Boolean(state) && screenSettings.spook && !keepSpook && !spookSeason(now);
+  // Dated by the last poll as well as the set clock, which only ticks during a set, so a page left open since Halloween still notices.
+  const lateSpook = Boolean(state) && screenSettings.spook && !keepSpook && !spookSeason(Math.max(now, state?.segmentAt ?? 0));
 
   /**
    * 🦇 Spook mode on or off, at once: no Save and no confirm, since it goes
