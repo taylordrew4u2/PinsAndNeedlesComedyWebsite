@@ -78,16 +78,17 @@ export const SCREEN_TEXT: Record<ScreenText, { fallback: string; max: number }> 
 
 /**
  * The same wording in spook mode, used wherever the host left a word as it
- * was. Each fits its box above, and the closing line keeps a "bad decision"
- * for the screen to draw in red.
+ * was. Each fits its box above and is about as long as the usual line, so
+ * it wraps no more on a 4:3 projector, and the closing line keeps a "bad
+ * decision" for the screen to draw in red.
  */
 export const SPOOK_TEXT: Record<ScreenText, string> = {
   introWord: "It’s alive!",
-  stageLabel: "Now haunting the stage",
-  howHeading: "How the haunting works",
+  stageLabel: "Now haunting",
+  howHeading: "How it haunts",
   howStep1: "Scan the cursed QR",
   howStep2: "Confess your bad decision",
-  howStep3: "A comedian judges your soul, live",
+  howStep3: "A comedian judges your soul",
   listenLine: "When you hear this from beyond…",
   exampleQuestion: "Should I get a matching skull tattoo with someone I met at a Halloween party an hour ago?",
   closingLine: "That sound means a bad decision just rose from the grave.",
