@@ -2,15 +2,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_LOOK, DEFAULT_SCREEN, SCREEN_TEXT, SOUND_TEST_FRESH_MS, STING_URL_MAX, STING_VOLUME_MAX, STING_VOLUME_MIN,
-  changedScreen, chosenSting, cleanScreenText, cleanStingUrl, freshSoundTest, markBadDecisions, parseScreenChange, parseScreenSettings, screenLook, soundUrl, stingName,
+  SPOOK_TEXT, changedScreen, chosenSting, cleanScreenText, cleanStingUrl, fallbackSoundUrl, freshSoundTest, markBadDecisions, parseScreenChange, parseScreenSettings,
+  screenFallback, screenLook, soundUrl, spookSeason, stingName, withoutSpook,
 } from "../src/lib/screen-settings.ts";
 import { EXAMPLE_QUESTION } from "../src/lib/explainer.ts";
-import { DEFAULT_SOUND, QUESTION_SOUNDS } from "../src/lib/question-sounds.ts";
+import { DEFAULT_SOUND, DEFAULT_SPOOK_SOUND, QUESTION_SOUNDS } from "../src/lib/question-sounds.ts";
 
 test("defaults are the screen as it has always been", () => {
   assert.deepEqual(DEFAULT_LOOK, {
     countdown: true, countdownFrom: 3, intro: true, introWord: "Incoming", sound: true,
-    sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "Now on stage",
+    sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "Now on stage", spook: false, spookSting: DEFAULT_SPOOK_SOUND,
     howHeading: "How it works", howStep1: "Scan the QR", howStep2: "Tell us your bad decision", howStep3: "A comedian weighs in, live",
     listenLine: "When you hear this…", exampleQuestion: EXAMPLE_QUESTION,
     closingLine: "That sound means a bad decision just hit the screen.", closingCall: "Scan to send yours.",
@@ -165,4 +166,86 @@ test("the file the screen fetches: the recording, the host's own upload, or the 
   assert.equal(soundUrl({ sting: "desk-bell", stingUrl: "/uploads/a.mp3" }), "/sounds/question/desk-bell.mp3");
   assert.equal(soundUrl({ sting: "custom", stingUrl: "/uploads/a.mp3" }), "/uploads/a.mp3");
   assert.equal(soundUrl({ sting: "custom", stingUrl: "" }), `/sounds/question/${DEFAULT_SOUND}.mp3`);
+});
+
+test("spook mode's words fit their boxes, keep the red bad decision, and count as defaults", () => {
+  for (const [key, line] of Object.entries(SPOOK_TEXT) as [keyof typeof SPOOK_TEXT, string][]) {
+    assert.ok(line.length <= SCREEN_TEXT[key].max, `${key} fits`);
+    assert.equal(line, line.replace(/\s+/g, " ").trim(), `${key} is one clean line`);
+    assert.equal(cleanScreenText(key, SPOOK_TEXT[key]), "", `${key}: the spooky default is not stored as the host's own`);
+    assert.equal(screenFallback(key, true), line);
+    assert.equal(screenFallback(key, false), SCREEN_TEXT[key].fallback);
+  }
+  assert.match(SPOOK_TEXT.closingLine, /bad decisions?/i);
+  assert.ok(markBadDecisions(SPOOK_TEXT.closingLine).some((part) => part.mark));
+});
+
+test("spook mode fills only the words the host left empty", () => {
+  const look = screenLook({ spook: true, introWord: "Brace yourselves" });
+  assert.equal(look.introWord, "Brace yourselves", "the host's own word wins");
+  assert.equal(look.stageLabel, SPOOK_TEXT.stageLabel);
+  assert.equal(look.closingCall, SPOOK_TEXT.closingCall);
+  assert.equal(screenLook({ spook: false }).stageLabel, SCREEN_TEXT.stageLabel.fallback);
+});
+
+test("either mode's default counts as left as it was, so it follows spook mode rather than sticking", () => {
+  // On purpose: typed in the other mode, a default line is still a default, not the host's own words.
+  assert.equal(cleanScreenText("stageLabel", SCREEN_TEXT.stageLabel.fallback), "");
+  assert.equal(screenLook({ spook: true, stageLabel: SCREEN_TEXT.stageLabel.fallback }).stageLabel, SPOOK_TEXT.stageLabel);
+  assert.equal(screenLook({ spook: false, closingCall: SPOOK_TEXT.closingCall }).closingCall, SCREEN_TEXT.closingCall.fallback);
+  // Any other change to it is the host's own, and wins in both modes.
+  assert.equal(screenLook({ spook: true, stageLabel: "Now On Stage" }).stageLabel, "Now On Stage");
+});
+
+test("spook mode and its sound are read back; junk reads as off and the spooky default", () => {
+  const saved = parseScreenSettings({ spook: true, spookSting: "spooky-harp" });
+  assert.equal(saved.spook, true);
+  assert.equal(saved.spookSting, "spooky-harp");
+  assert.equal(parseScreenSettings({ spookSting: "usual" }).spookSting, "usual");
+  for (const junk of ["doom", "", 3, null, "custom"]) assert.equal(parseScreenSettings({ spook: "yes", spookSting: junk }).spookSting, DEFAULT_SPOOK_SOUND, String(junk));
+  assert.equal(parseScreenSettings({ spook: "yes" }).spook, false);
+  assert.deepEqual(parseScreenChange({ spook: true }), { spook: true });
+  assert.deepEqual(parseScreenChange({ spookSting: "usual" }), { spookSting: "usual" });
+  assert.deepEqual(parseScreenChange({ spookSting: "doom", sound: false }), { sound: false }, "an unknown sound is left out, the rest saves");
+  assert.equal(parseScreenChange({ spook: "on" }), null);
+  assert.equal(parseScreenChange({ spookSting: 3 }), null);
+  assert.deepEqual(parseScreenChange(DEFAULT_SCREEN), DEFAULT_SCREEN);
+  assert.deepEqual(changedScreen({ ...DEFAULT_SCREEN, spook: true }), { spook: true });
+  assert.deepEqual(changedScreen(DEFAULT_SCREEN), {});
+});
+
+test("in spook mode the spooky sound plays, unless the host keeps their usual one", () => {
+  const usual = { sting: "kalimba" as const, stingUrl: "" };
+  assert.equal(soundUrl({ ...usual, spook: true, spookSting: DEFAULT_SPOOK_SOUND }), `/sounds/question/${DEFAULT_SPOOK_SOUND}.mp3`);
+  assert.equal(soundUrl({ ...usual, spook: true, spookSting: "usual" }), "/sounds/question/kalimba.mp3");
+  assert.equal(soundUrl({ ...usual, spook: false, spookSting: "spooky-harp" }), "/sounds/question/kalimba.mp3");
+  assert.equal(soundUrl({ sting: "custom", stingUrl: "/uploads/a.mp3", spook: true, spookSting: "usual" }), "/uploads/a.mp3");
+  assert.equal(stingName({ ...usual, spook: true, spookSting: "spooky-harp" }), "Ghost harp");
+  assert.equal(chosenSting(usual), "kalimba", "the picker's previews, with no spook fields, are unaffected");
+  assert.equal(fallbackSoundUrl({ spook: true, spookSting: "spooky-harp" }), `/sounds/question/${DEFAULT_SPOOK_SOUND}.mp3`);
+  assert.equal(fallbackSoundUrl({ spook: true, spookSting: "usual" }), `/sounds/question/${DEFAULT_SOUND}.mp3`);
+  assert.equal(fallbackSoundUrl({ spook: false, spookSting: "spooky-harp" }), `/sounds/question/${DEFAULT_SOUND}.mp3`);
+  for (const id of ["spooky-ooh", "spooky-woooo", "spooky-music-box", "spooky-harp"]) assert.ok(QUESTION_SOUNDS.some((sound) => sound.id === id && sound.group === "Spooky"), id);
+});
+
+test("the live screen settings card never sends spook mode, so its Save and Use defaults can't switch it", () => {
+  assert.equal("spook" in withoutSpook({ ...DEFAULT_SCREEN, spook: true }), false);
+  assert.equal("spook" in withoutSpook(DEFAULT_SCREEN), false, "Use defaults");
+  assert.equal(parseScreenChange(withoutSpook({ ...DEFAULT_SCREEN, spook: true }))?.spook, undefined);
+  assert.deepEqual(withoutSpook({ ...DEFAULT_SCREEN, sound: false }), { ...withoutSpook(DEFAULT_SCREEN), sound: false }, "everything else is sent");
+  // Saved as the server saves it, merged into what is stored: a card still holding "off" leaves spook mode on.
+  const saved = parseScreenSettings({ spook: true });
+  for (const card of [{ ...DEFAULT_SCREEN, spook: false, sound: false }, DEFAULT_SCREEN]) {
+    assert.equal(parseScreenSettings({ ...saved, ...parseScreenChange(withoutSpook(card)) }).spook, true);
+  }
+});
+
+test("Halloween is all of October and November 1st, by the device's own calendar", () => {
+  const at = (month: number, day: number, hour = 0, minute = 0) => new Date(2026, month, day, hour, minute).getTime();
+  assert.equal(spookSeason(at(8, 30, 23, 59)), false, "Sep 30");
+  assert.equal(spookSeason(at(9, 1)), true, "Oct 1");
+  assert.equal(spookSeason(at(9, 31, 23, 59)), true, "Oct 31");
+  assert.equal(spookSeason(at(10, 1, 23, 59)), true, "Nov 1, for a show past midnight");
+  assert.equal(spookSeason(at(10, 2)), false, "Nov 2");
+  assert.equal(spookSeason(at(11, 25, 20)), false, "Dec 25");
 });

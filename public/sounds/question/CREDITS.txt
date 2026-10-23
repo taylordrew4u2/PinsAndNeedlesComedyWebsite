@@ -30,3 +30,7 @@ rimshot.mp3  stomachache (one brushed kit, four hits)  https://freesound.org/peo
 drum-roll.mp3  CVLTIV8R (brush roll), davidjwoll (cymbal roll)  https://freesound.org/people/CVLTIV8R/sounds/809782/ https://freesound.org/people/davidjwoll/sounds/85487/  CC0 1.0
 bongos.mp3  soundstack  https://freesound.org/people/soundstack/sounds/408125/  CC0 1.0
 cowbell.mp3  sgossner  https://freesound.org/people/sgossner/sounds/375616/ https://freesound.org/people/sgossner/sounds/375617/  CC0 1.0
+spooky-ooh.mp3  (account since deleted), slowed, with vibrato and a small room  https://freesound.org/people/deleted_user_2104797/sounds/324890/  CC0 1.0
+spooky-woooo.mp3  SamuelGremaud, mirrored, slowed, with vibrato  https://freesound.org/people/SamuelGremaud/sounds/517633/  CC0 1.0
+spooky-music-box.mp3  Sailor55, slowed, with vibrato  https://freesound.org/people/Sailor55/sounds/817354/  CC0 1.0
+spooky-harp.mp3  3bagbrew, reversed and slowed  https://freesound.org/people/3bagbrew/sounds/72946/  CC0 1.0
