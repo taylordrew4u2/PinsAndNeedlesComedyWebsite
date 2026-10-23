@@ -2,50 +2,72 @@
 
 import { useState, type ReactNode } from "react";
 import {
-  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, SCREEN_TEXT, changedScreen, parseScreenSettings, stingName,
+  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, SCREEN_TEXT, changedScreen, parseScreenSettings, screenFallback, stingName,
   type ScreenSettings, type ScreenSwitch, type ScreenText,
 } from "@/lib/screen-settings";
 import QuestionSoundPicker from "./QuestionSoundPicker";
+import SpookSoundPicker from "./SpookSoundPicker";
+import { useSoundPreview } from "./SoundPreview";
 
 type Props = {
   /** What is saved now; "" words are the defaults. */
   saved: ScreenSettings;
   busy: boolean;
-  save: (settings: ScreenSettings) => Promise<boolean>;
+  /** Everything but `spook`: only the 🦇 Spook mode button above the live screen switches that. */
+  save: (settings: Omit<ScreenSettings, "spook">) => Promise<boolean>;
 };
 
 const COUNT_FROM = Array.from({ length: COUNTDOWN_MAX - COUNTDOWN_MIN + 1 }, (_, index) => COUNTDOWN_MIN + index);
 
 /**
- * How the live screen behaves and what its fixed words say: the countdown
- * and drum roll before a new question, the sound (which one, how loud),
- * the set timer, names under questions, the line above a performer's name,
- * and the Intro explainer's wording. Nothing reaches the projector until
- * Save (a sound's ▶ only plays it here, for the host), and every
- * box is capped so the words always fit the screen. The switches a host
- * reaches for mid-show come first, right above Save; the Intro's wording is
- * folded away under them.
+ * The settings as this card sends them: never `spook`. A card opened before
+ * the 🦇 button was pressed still holds the old value, and saving it must
+ * not quietly switch spook mode back.
+ */
+function withoutSpook(settings: ScreenSettings): Omit<ScreenSettings, "spook"> {
+  const sent: Partial<ScreenSettings> = { ...settings };
+  delete sent.spook;
+  return sent as Omit<ScreenSettings, "spook">;
+}
+
+/**
+ * How the live screen behaves and what its fixed words say: spook mode's
+ * sound, the countdown and drum roll before a new question, the sound
+ * (which one, how loud), the set timer, names under questions, the line
+ * above a performer's name, and the Intro explainer's wording. Nothing
+ * reaches the projector until Save (a sound's ▶ only plays it here, for the
+ * host), and every box is capped so the words always fit the screen. Spook
+ * mode itself is switched only by its 🦇 button, at once; this card says
+ * whether it is on and never sends it. The switches a host reaches for
+ * mid-show come next, right above Save; the Intro's wording is folded away
+ * under them.
  */
 export default function ScreenSettingsCard({ saved, busy, save }: Props) {
   // Only what the host has touched; everything else shows the saved value.
   const [draft, setDraft] = useState<Partial<ScreenSettings>>({});
+  // One ▶ player for the whole card, so the usual and the spooky lists never play over each other.
+  const preview = useSoundPreview();
   const edit = (change: Partial<ScreenSettings>) => setDraft((current) => ({ ...current, ...change }));
   const value = { ...saved, ...draft };
   // Cleaned the way the server cleans it, so "changed" means something would really change.
   const next = parseScreenSettings(value);
   const changed = JSON.stringify(changedScreen(next)) !== JSON.stringify(changedScreen(saved));
-  const atDefaults = !Object.keys(changedScreen(saved)).length;
+  // Spook mode isn't this card's to change: on its own it isn't "customised", and leaves Use defaults nothing to do.
+  const atDefaults = Object.keys(changedScreen(saved)).every((key) => key === "spook");
 
   const submit = async (settings: ScreenSettings) => {
     // Only what was sent is cleared: anything changed while it saves stays, ready for the next Save.
     const sent = draft;
-    if (await save(settings)) {
+    if (await save(withoutSpook(settings))) {
       setDraft((current) => Object.fromEntries(Object.entries(current).filter(([key, entry]) => sent[key as keyof ScreenSettings] !== entry)));
     }
   };
 
   const backToDefaults = () => {
-    if (!window.confirm(`Put the live screen back to its defaults? Sound, names under questions, the countdown (from 3), drum roll and set timer all go back on, the question sound goes back to ${stingName(DEFAULT_SCREEN)} at 100%, and your wording for the Intro, under the dice and above a performer's name is cleared.`)) return;
+    // Spook mode's sound goes back too, so it is named when it will change; spook mode itself stays, and says so while it is on.
+    const spooky = saved.spookSting !== DEFAULT_SCREEN.spookSting ? ` (${stingName({ ...DEFAULT_SCREEN, spook: true })} in spook mode)` : "";
+    const spook = saved.spook ? " Spook mode stays as it is; use the 🦇 Spook mode button to turn it off." : "";
+    if (!window.confirm(`Put the live screen back to its defaults? Sound, names under questions, the countdown (from 3), drum roll and set timer all go back on, the question sound goes back to ${stingName(DEFAULT_SCREEN)} at 100%${spooky}, and your wording for the Intro, under the dice and above a performer's name is cleared.${spook}`)) return;
     void submit(DEFAULT_SCREEN);
   };
 
@@ -60,21 +82,25 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
   );
 
   // A saved default shows its words in the box, ready to edit; clearing the box goes back to the default.
-  const words = (key: ScreenText, label: string, hint?: string) => (
-    <div>
-      <label htmlFor={`screen-${key}`} className="block text-xs text-neutral-400">{label}</label>
-      <input
-        id={`screen-${key}`}
-        type="text"
-        value={value[key] || (draft[key] === undefined ? SCREEN_TEXT[key].fallback : "")}
-        onChange={(event) => edit({ [key]: event.target.value })}
-        maxLength={SCREEN_TEXT[key].max}
-        placeholder={SCREEN_TEXT[key].fallback}
-        className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
-      />
-      {hint ? <p className="mt-1 text-xs text-neutral-500">{hint}</p> : null}
-    </div>
-  );
+  // In spook mode that is the spooky line, since that is what the screen shows for a box left as it was.
+  const words = (key: ScreenText, label: string, hint?: string) => {
+    const fallback = screenFallback(key, saved.spook);
+    return (
+      <div>
+        <label htmlFor={`screen-${key}`} className="block text-xs text-neutral-400">{label}</label>
+        <input
+          id={`screen-${key}`}
+          type="text"
+          value={value[key] || (draft[key] === undefined ? fallback : "")}
+          onChange={(event) => edit({ [key]: event.target.value })}
+          maxLength={SCREEN_TEXT[key].max}
+          placeholder={fallback}
+          className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+        />
+        {hint ? <p className="mt-1 text-xs text-neutral-500">{hint}</p> : null}
+      </div>
+    );
+  };
 
   return (
     <details className="mt-4 rounded-lg border border-white/20 p-4">
@@ -84,6 +110,16 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
       </summary>
       <form className="mt-3 space-y-5" onSubmit={(event) => { event.preventDefault(); void submit(next); }}>
         <p className="text-sm text-neutral-400">How the projector behaves and what it says. Saved changes reach it within a couple of seconds; nothing changes until you press Save.</p>
+
+        <fieldset className="space-y-2">
+          <legend className="mb-2 text-xs uppercase tracking-widest text-neutral-400">Spook mode</legend>
+          <p className="text-sm">
+            {saved.spook ? "Spook mode is on." : "Spook mode is off."}{" "}
+            <span className="text-neutral-400">Switch it with the 🦇 Spook mode button above the live screen; it changes at once, no Save.</span>
+          </p>
+          <SpookSoundPicker spookSting={value.spookSting} usual={value} volume={value.stingVolume} saved={saved} preview={preview} edit={edit} />
+          <p className="text-xs text-neutral-500">Your own words always win: boxes you filled keep your words; empty boxes use the spooky lines while spook mode is on.</p>
+        </fieldset>
 
         <fieldset className="space-y-2">
           <legend className="mb-2 text-xs uppercase tracking-widest text-neutral-400">When a new question goes up</legend>
@@ -109,7 +145,7 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
           <legend className="mb-2 text-xs uppercase tracking-widest text-neutral-400">Question sound</legend>
           {toggle("sound", "Play the sound on the projector")}
           {value.sound ? null : <p className="text-xs text-amber-200">Muted: no sound with new questions, the Intro or Test sound.</p>}
-          <QuestionSoundPicker sting={value.sting} volume={value.stingVolume} url={value.stingUrl} saved={saved} edit={edit} />
+          <QuestionSoundPicker sting={value.sting} volume={value.stingVolume} url={value.stingUrl} saved={saved} preview={preview} edit={edit} />
         </fieldset>
 
         <fieldset className="space-y-2">

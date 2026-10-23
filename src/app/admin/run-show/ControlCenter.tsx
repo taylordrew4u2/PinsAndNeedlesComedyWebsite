@@ -156,6 +156,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   const [search, setSearch] = useState("");
   // Ticks while the segment runs, so its clock counts down between polls.
   const [now, setNow] = useState(() => Date.now());
+  // "Keep it on" pressed on the after-Halloween reminder: it stays away until the page reloads, and nothing is stored.
+  const [keepSpook, setKeepSpook] = useState(false);
   const ping = useSyncExternalStore(subscribePing, readPing, () => false);
   useWakeLock();
   const revision = useRef(0);
@@ -626,6 +628,25 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     set: running ? { name: onStage?.name ?? "", index: setClock.index } : null,
     question: Boolean(state.selected),
   });
+  // Spook mode left on once Halloween is past, by this device's calendar: a reminder only, it never switches itself off.
+  const lateSpook = Boolean(state) && screenSettings.spook && !keepSpook && !spookSeason(now);
+
+  /**
+   * 🦇 Spook mode on or off, at once: no Save and no confirm, since it goes
+   * back just as fast. It sends nothing but `spook`, and is the only thing
+   * that does, so the settings card's Save can never flip it back.
+   */
+  const setSpook = (on: boolean) => {
+    // The sound it names is the one spook mode will play, unless the host muted it.
+    const sound = screenSettings.sound ? ` and new questions play ${stingName({ ...screenSettings, spook: true })}` : "";
+    return screenAction(
+      { screen: { spook: on } },
+      on
+        ? `Spook mode on. The projector turns spooky within a couple of seconds${sound}; phones that scan from now on get the spooky page.`
+        : "Spook mode off. The projector is back to normal within a couple of seconds.",
+      "Could not switch spook mode.",
+    );
+  };
   // Where "+ Set" would put a question; null when no card has an open slot, and the button says why it waits.
   const openSlot = state ? firstEmptySlot(state.lineup, setClock) : null;
 
@@ -656,6 +677,15 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             The live screen (the TV) is running an older version of the site, so new features may not show. It couldn&rsquo;t update itself without interrupting the room (full screen, sound that needed a tap, or a reload that didn&rsquo;t take). Between sets, on the TV laptop press <kbd className="rounded border border-amber-200/40 px-1">F5</kbd> (<kbd className="rounded border border-amber-200/40 px-1">⌘R</kbd> on a Mac), then <kbd className="rounded border border-amber-200/40 px-1">F</kbd> for full screen and click once for sound.
           </div>
         ) : null}
+        {lateSpook ? (
+          <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300/60 bg-amber-950/40 px-4 py-2 text-sm text-amber-100">
+            <span>🦇 Spook mode is still on. Halloween&rsquo;s over&hellip; or is it?</span>
+            <span className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void setSpook(false)} disabled={busy} className="rounded-md bg-amber-300 px-3 py-1.5 font-semibold text-black disabled:opacity-50">Turn it off</button>
+              <button type="button" onClick={() => setKeepSpook(true)} className="rounded-md border border-amber-200/40 px-3 py-1.5">Keep it on</button>
+            </span>
+          </div>
+        ) : null}
         {/* Pinned to the window rather than the page, so a press far down (a sold-out tap, a settings save) still shows what happened. */}
         <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4">
           {error ? (
@@ -676,7 +706,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
-                <p className="text-sm">{status}</p>
+                <p className="text-sm">{status}{state && screenSettings.spook ? " · 🦇 Spook mode" : ""}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {screenMessage.on ? (
@@ -693,6 +723,16 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   className="rounded-md border border-[#ff2e4d] px-4 py-2 text-sm font-semibold text-[#ff8a9c] disabled:opacity-50"
                 >
                   {explaining ? "Intro playing…" : "Intro"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void setSpook(!screenSettings.spook)}
+                  disabled={busy || !state}
+                  aria-pressed={screenSettings.spook}
+                  title={screenSettings.spook ? "The projector and the phones are in the show's Halloween look. Press to go back to normal, at once." : "The show's Halloween look on the projector and the phones. Changes at once, no Save; press again to go back."}
+                  className={`rounded-md border border-[#ff2e4d] px-4 py-2 text-sm font-semibold disabled:opacity-50 ${screenSettings.spook ? "bg-[#ff2e4d] text-black" : "text-[#ff8a9c]"}`}
+                >
+                  {screenSettings.spook ? "🦇 Spook mode on" : "🦇 Spook mode"}
                 </button>
                 <TestSoundButton sound={screenSettings.sound} name={stingName(screenSettings)} busy={busy || !state} test={() => screenAction({ soundTest: true }, `The projector is playing ${stingName(screenSettings)}. Nothing heard? Click the live screen once to turn its sound on, then test again.`, "Could not test the sound.")} />
                 {(["standard", "custom"] as const).map((style) => {
@@ -1039,6 +1079,15 @@ function gaveUp(failure: unknown): boolean {
 function plainError(failure: unknown, fallback: string): string {
   if (!(failure instanceof Error) || failure.name === "AbortError" || failure.name === "TimeoutError" || failure instanceof SyntaxError) return fallback;
   return failure.message;
+}
+
+/**
+ * Halloween by this device's own calendar: all of October, and November 1st
+ * too, for a Halloween show that runs past midnight.
+ */
+function spookSeason(at: number): boolean {
+  const date = new Date(at);
+  return date.getMonth() === 9 || (date.getMonth() === 10 && date.getDate() === 1);
 }
 
 function timeOf(iso: string): string {
