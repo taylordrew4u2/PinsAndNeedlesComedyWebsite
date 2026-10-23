@@ -74,6 +74,8 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
   // In spook mode that is the spooky line, since that is what the screen shows for a box left as it was.
   const words = (key: ScreenText, label: string, hint?: string) => {
     const fallback = screenFallback(key, saved.spook);
+    // The other mode's default typed in: it counts as left as it was, so Save has nothing to keep. Said here, so it isn't a mystery.
+    const otherDefault = draft[key]?.replace(/\s+/g, " ").trim() === screenFallback(key, !saved.spook);
     return (
       <div>
         <label htmlFor={`screen-${key}`} className="block text-xs text-neutral-400">{label}</label>
@@ -86,6 +88,11 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
           placeholder={fallback}
           className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
         />
+        {otherDefault ? (
+          <p className="mt-1 text-xs text-amber-200">
+            That&rsquo;s the {saved.spook ? "usual" : "spooky"} default, so it follows spook mode and can&rsquo;t be saved as your own. Change a word, or a letter&rsquo;s case, to keep it.
+          </p>
+        ) : null}
         {hint ? <p className="mt-1 text-xs text-neutral-500">{hint}</p> : null}
       </div>
     );
@@ -107,7 +114,7 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
             <span className="text-neutral-400">Switch it with the 🦇 Spook mode button above the live screen; it changes at once, no Save.</span>
           </p>
           <SpookSoundPicker spookSting={value.spookSting} usual={value} volume={value.stingVolume} saved={saved} preview={preview} edit={edit} />
-          <p className="text-xs text-neutral-500">Your own words always win: boxes you filled keep your words; empty boxes use the spooky lines while spook mode is on.</p>
+          <p className="text-xs text-neutral-500">Your own words always win. Boxes left as they were, or set to either default line, use the spooky lines while spook mode is on.</p>
         </fieldset>
 
         <fieldset className="space-y-2">

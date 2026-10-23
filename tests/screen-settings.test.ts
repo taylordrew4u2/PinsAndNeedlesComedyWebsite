@@ -188,6 +188,15 @@ test("spook mode fills only the words the host left empty", () => {
   assert.equal(screenLook({ spook: false }).stageLabel, SCREEN_TEXT.stageLabel.fallback);
 });
 
+test("either mode's default counts as left as it was, so it follows spook mode rather than sticking", () => {
+  // On purpose: typed in the other mode, a default line is still a default, not the host's own words.
+  assert.equal(cleanScreenText("stageLabel", SCREEN_TEXT.stageLabel.fallback), "");
+  assert.equal(screenLook({ spook: true, stageLabel: SCREEN_TEXT.stageLabel.fallback }).stageLabel, SPOOK_TEXT.stageLabel);
+  assert.equal(screenLook({ spook: false, closingCall: SPOOK_TEXT.closingCall }).closingCall, SCREEN_TEXT.closingCall.fallback);
+  // Any other change to it is the host's own, and wins in both modes.
+  assert.equal(screenLook({ spook: true, stageLabel: "Now On Stage" }).stageLabel, "Now On Stage");
+});
+
 test("spook mode and its sound are read back; junk reads as off and the spooky default", () => {
   const saved = parseScreenSettings({ spook: true, spookSting: "spooky-harp" });
   assert.equal(saved.spook, true);
