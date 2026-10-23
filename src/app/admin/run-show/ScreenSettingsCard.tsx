@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import {
-  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, SCREEN_TEXT, changedScreen, parseScreenSettings, screenFallback, stingName,
+  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, SCREEN_TEXT, changedScreen, parseScreenSettings, screenFallback, stingName, withoutSpook,
   type ScreenSettings, type ScreenSwitch, type ScreenText,
 } from "@/lib/screen-settings";
 import QuestionSoundPicker from "./QuestionSoundPicker";
@@ -13,22 +13,11 @@ type Props = {
   /** What is saved now; "" words are the defaults. */
   saved: ScreenSettings;
   busy: boolean;
-  /** Everything but `spook`: only the 🦇 Spook mode button above the live screen switches that. */
-  save: (settings: Omit<ScreenSettings, "spook">) => Promise<boolean>;
+  /** Everything but `spook`: only the 🦇 Spook mode button above the live screen switches that, so whole settings (with it) don't type-check here. */
+  save: (settings: Omit<ScreenSettings, "spook"> & { spook?: never }) => Promise<boolean>;
 };
 
 const COUNT_FROM = Array.from({ length: COUNTDOWN_MAX - COUNTDOWN_MIN + 1 }, (_, index) => COUNTDOWN_MIN + index);
-
-/**
- * The settings as this card sends them: never `spook`. A card opened before
- * the 🦇 button was pressed still holds the old value, and saving it must
- * not quietly switch spook mode back.
- */
-function withoutSpook(settings: ScreenSettings): Omit<ScreenSettings, "spook"> {
-  const sent: Partial<ScreenSettings> = { ...settings };
-  delete sent.spook;
-  return sent as Omit<ScreenSettings, "spook">;
-}
 
 /**
  * How the live screen behaves and what its fixed words say: spook mode's

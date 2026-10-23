@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_LOOK, DEFAULT_SCREEN, SCREEN_TEXT, SOUND_TEST_FRESH_MS, STING_URL_MAX, STING_VOLUME_MAX, STING_VOLUME_MIN,
   SPOOK_TEXT, changedScreen, chosenSting, cleanScreenText, cleanStingUrl, fallbackSoundUrl, freshSoundTest, markBadDecisions, parseScreenChange, parseScreenSettings,
-  screenFallback, screenLook, soundUrl, stingName,
+  screenFallback, screenLook, soundUrl, spookSeason, stingName, withoutSpook,
 } from "../src/lib/screen-settings.ts";
 import { EXAMPLE_QUESTION } from "../src/lib/explainer.ts";
 import { DEFAULT_SOUND, DEFAULT_SPOOK_SOUND, QUESTION_SOUNDS } from "../src/lib/question-sounds.ts";
@@ -217,4 +217,26 @@ test("in spook mode the spooky sound plays, unless the host keeps their usual on
   assert.equal(fallbackSoundUrl({ spook: true, spookSting: "usual" }), `/sounds/question/${DEFAULT_SOUND}.mp3`);
   assert.equal(fallbackSoundUrl({ spook: false, spookSting: "spooky-harp" }), `/sounds/question/${DEFAULT_SOUND}.mp3`);
   for (const id of ["spooky-ooh", "spooky-woooo", "spooky-music-box", "spooky-harp"]) assert.ok(QUESTION_SOUNDS.some((sound) => sound.id === id && sound.group === "Spooky"), id);
+});
+
+test("the live screen settings card never sends spook mode, so its Save and Use defaults can't switch it", () => {
+  assert.equal("spook" in withoutSpook({ ...DEFAULT_SCREEN, spook: true }), false);
+  assert.equal("spook" in withoutSpook(DEFAULT_SCREEN), false, "Use defaults");
+  assert.equal(parseScreenChange(withoutSpook({ ...DEFAULT_SCREEN, spook: true }))?.spook, undefined);
+  assert.deepEqual(withoutSpook({ ...DEFAULT_SCREEN, sound: false }), { ...withoutSpook(DEFAULT_SCREEN), sound: false }, "everything else is sent");
+  // Saved as the server saves it, merged into what is stored: a card still holding "off" leaves spook mode on.
+  const saved = parseScreenSettings({ spook: true });
+  for (const card of [{ ...DEFAULT_SCREEN, spook: false, sound: false }, DEFAULT_SCREEN]) {
+    assert.equal(parseScreenSettings({ ...saved, ...parseScreenChange(withoutSpook(card)) }).spook, true);
+  }
+});
+
+test("Halloween is all of October and November 1st, by the device's own calendar", () => {
+  const at = (month: number, day: number, hour = 0, minute = 0) => new Date(2026, month, day, hour, minute).getTime();
+  assert.equal(spookSeason(at(8, 30, 23, 59)), false, "Sep 30");
+  assert.equal(spookSeason(at(9, 1)), true, "Oct 1");
+  assert.equal(spookSeason(at(9, 31, 23, 59)), true, "Oct 31");
+  assert.equal(spookSeason(at(10, 1, 23, 59)), true, "Nov 1, for a show past midnight");
+  assert.equal(spookSeason(at(10, 2)), false, "Nov 2");
+  assert.equal(spookSeason(at(11, 25, 20)), false, "Dec 25");
 });

@@ -264,6 +264,28 @@ export function parseScreenChange(raw: unknown): Partial<ScreenSettings> | null 
 }
 
 /**
+ * The settings as the live screen settings card sends them: never `spook`,
+ * which only the 🦇 Spook mode button switches. A card opened before that
+ * button was pressed still holds the old value, and its Save or Use defaults
+ * must not quietly switch spook mode back.
+ */
+export function withoutSpook(settings: ScreenSettings): Omit<ScreenSettings, "spook"> {
+  const sent: Partial<ScreenSettings> = { ...settings };
+  delete sent.spook;
+  return sent as Omit<ScreenSettings, "spook">;
+}
+
+/**
+ * Halloween by the device's own calendar: all of October, and November 1st
+ * too, for a Halloween show that runs past midnight. Outside it, spook mode
+ * still on gets a reminder in the Control Center (it never switches itself off).
+ */
+export function spookSeason(at: number): boolean {
+  const date = new Date(at);
+  return date.getMonth() === 9 || (date.getMonth() === 10 && date.getDate() === 1);
+}
+
+/**
  * Only the settings that differ from the defaults: what is stored and what
  * the live screen's poll carries, so both stay small. {} until the host
  * changes something.

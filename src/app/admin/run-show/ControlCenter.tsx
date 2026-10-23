@@ -19,7 +19,7 @@ import LiveMirror from "./LiveMirror";
 import MessageCard from "./MessageCard";
 import ScreenSettingsCard from "./ScreenSettingsCard";
 import TestSoundButton from "./TestSoundButton";
-import { parseScreenSettings, stingName, type ScreenSettings } from "@/lib/screen-settings";
+import { parseScreenSettings, spookSeason, stingName, type ScreenSettings } from "@/lib/screen-settings";
 import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
 import { screenStatus } from "@/lib/screen-status";
 import QuestionEditor from "./QuestionEditor";
@@ -1079,15 +1079,6 @@ function gaveUp(failure: unknown): boolean {
 function plainError(failure: unknown, fallback: string): string {
   if (!(failure instanceof Error) || failure.name === "AbortError" || failure.name === "TimeoutError" || failure instanceof SyntaxError) return fallback;
   return failure.message;
-}
-
-/**
- * Halloween by this device's own calendar: all of October, and November 1st
- * too, for a Halloween show that runs past midnight.
- */
-function spookSeason(at: number): boolean {
-  const date = new Date(at);
-  return date.getMonth() === 9 || (date.getMonth() === 10 && date.getDate() === 1);
 }
 
 function timeOf(iso: string): string {
