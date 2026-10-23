@@ -577,13 +577,24 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           </div>
         ) : !question && performer && !intro && countdown === null ? (
           <div key={performer} className="pnc-screen-in w-full text-center">
-            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {spook ? <img src="/brand/spook-bat-on-dark.svg" alt="" aria-hidden="true" width={128} height={50} className="pnc-spook-bat mx-[0.5em] inline-block h-[1.1em] w-auto align-middle" /> : null}
-              {settings.stageLabel}
-              {/* Mirrored to face the other. The label's letter spacing already trails its last letter, so this side needs less margin to look even. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {spook ? <img src="/brand/spook-bat-on-dark.svg" alt="" aria-hidden="true" width={128} height={50} className="pnc-spook-bat ml-[0.2em] mr-[0.5em] inline-block h-[1.1em] w-auto -scale-x-100 align-middle" /> : null}
+            <p className={`${spook ? "flex items-center justify-center " : ""}font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]`}>
+              {spook ? (
+                // The bats only take the room the label leaves on its line, shrinking rather than wrapping, so the label wraps and
+                // stands exactly as it does without them; too small to read as bats, they go. Each box is a bat 1.1em tall (2.82em
+                // wide) plus its gap to the label, kept in proportion as it shrinks. The label's letter spacing already trails its
+                // last letter, so the right-hand gap is smaller to look even; that bat is mirrored to face the other.
+                <>
+                  <span aria-hidden="true" className="pnc-spook-bat @container flex w-[3.32em] min-w-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/brand/spook-bat-on-dark.svg" alt="" width={128} height={50} className="hidden aspect-[3.32/1.1] h-auto w-full object-contain object-left @min-[1.3em]:block" />
+                  </span>
+                  <span className="max-w-full shrink-0">{settings.stageLabel}</span>
+                  <span aria-hidden="true" className="pnc-spook-bat @container flex w-[3.02em] min-w-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/brand/spook-bat-on-dark.svg" alt="" width={128} height={50} className="hidden aspect-[3.02/1.1] h-auto w-full -scale-x-100 object-contain object-left @min-[1.3em]:block" />
+                  </span>
+                </>
+              ) : settings.stageLabel}
             </p>
             <h1 className="mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none">{performer}</h1>
           </div>
