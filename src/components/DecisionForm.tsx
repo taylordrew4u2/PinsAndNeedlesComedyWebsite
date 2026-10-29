@@ -5,7 +5,6 @@ import { DECISION_MAX, NAME_MAX } from "@/lib/decisions";
 import { countdownParts } from "@/lib/countdown";
 import { formatPhone, smsHref } from "@/lib/sms";
 import type { Space } from "@/lib/space";
-import styles from "./DecisionForm.module.css";
 
 /**
  * The submission form. Built for a phone in a bar: one field, one choice,
@@ -34,7 +33,6 @@ export default function DecisionForm({
   initialServerNow,
   smsNumber,
   smsNote,
-  spook = false,
 }: {
   /** Which show this form belongs to; the rehearsal saves to its own pile. */
   space?: Space;
@@ -54,12 +52,6 @@ export default function DecisionForm({
   initialServerNow: number;
   smsNumber: string;
   smsNote: string;
-  /**
-   * Spook mode (the host's 🦇 switch), as it was when the page loaded. It
-   * only adds a few touches of its own: the host's words, the fields and the
-   * send flow stay exactly as they are.
-   */
-  spook?: boolean;
 }) {
   const [decision, setDecision] = useState("");
   const [named, setNamed] = useState(false);
@@ -173,7 +165,6 @@ export default function DecisionForm({
   };
 
   const remaining = DECISION_MAX - decision.length;
-  const blocked = busy || !decision.trim();
 
   // Some people will never scan a code. The number is a link so that tapping
   // it on a phone opens a composed message rather than making them copy it.
@@ -207,10 +198,9 @@ export default function DecisionForm({
     const parts = countdownParts(opensAt, now);
     return (
       <section className="text-center" aria-label="Countdown to Bad Decisions submissions">
-        {spook ? <HauntedBadge className="mb-6 justify-center" /> : null}
         {parts ? (
           <>
-            <h1 className="text-[11px] uppercase tracking-[0.24em] text-[var(--pnc-muted)]">{spook ? "Next séance · submissions open in" : "Next show · submissions open in"}</h1>
+            <h1 className="text-[11px] uppercase tracking-[0.24em] text-[var(--pnc-muted)]">Next show · submissions open in</h1>
             <div role="timer" aria-live="off" className="mt-6 grid grid-cols-4 gap-2 sm:gap-5">
               {Object.entries(parts).map(([unit, value]) => (
                 <div key={unit}>
@@ -227,14 +217,7 @@ export default function DecisionForm({
 
   if (done) {
     return (
-      <div className={spook ? "relative overflow-hidden border border-[var(--pnc-accent)]/50 p-5 sm:p-6" : "border border-white/15 p-5 sm:p-6"}>
-        {spook ? (
-          // The only motion on the phone: one bat crosses the card once, inside its top padding. With reduced motion it sits perched at the top-right.
-          <div aria-hidden="true" className={`pointer-events-none absolute inset-x-0 top-1 pr-2 ${styles.flight}`}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/spook-bat-on-dark.svg" alt="" width={128} height={50} className={`block h-auto w-9 ${styles.flap}`} />
-          </div>
-        ) : null}
+      <div className="border border-white/15 p-5 sm:p-6">
         <p className="text-[17px] leading-relaxed">{thanksText}</p>
         <div className="mt-4">{counter}</div>
         <button
@@ -255,7 +238,6 @@ export default function DecisionForm({
 
   return (
     <form onSubmit={submit}>
-      {spook ? <HauntedBadge className="mb-4" /> : null}
       <h1 ref={heading} tabIndex={-1} id="decision-question" className="text-3xl leading-tight outline-none sm:text-4xl">{question}</h1>
       <label className="block">
         <span className="sr-only">Your decision</span>
@@ -292,9 +274,7 @@ export default function DecisionForm({
             <span className="mt-1 block text-[13px] text-[var(--pnc-muted)]">We&apos;ll put your name up with it.</span>
           ) : (
             <span className="mt-1 block text-[13px] font-semibold text-[var(--pnc-accent)]">
-              {spook
-                ? "Don’t go anonymous. No ghosting. Put your name on it so the room knows who to blame."
-                : "Don't go anonymous. Own it. Put your name on it so the room knows who to blame."}
+              Don&apos;t go anonymous. Own it. Put your name on it so the room knows who to blame.
             </span>
           )}
         </span>
@@ -322,15 +302,11 @@ export default function DecisionForm({
 
       <button
         type="submit"
-        disabled={blocked}
+        disabled={busy || !decision.trim()}
         className="mt-5 block w-full bg-[var(--pnc-fg)] px-5 py-3.5 text-center text-[13px] uppercase tracking-[0.22em] text-[var(--pnc-bg)] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? "Sending…" : submitLabel}
       </button>
-      {spook ? (
-        // A red drip hangs just under the button, outside what a thumb can tap, and dims with it while it can't send.
-        <div aria-hidden="true" className={`pnc-spook-drips pointer-events-none h-2.5 transition-opacity${blocked ? " opacity-40" : ""}`} />
-      ) : null}
 
       {error ? <p className="mt-3 text-[13px] text-[var(--pnc-accent)]">{error}</p> : null}
 
@@ -340,16 +316,5 @@ export default function DecisionForm({
       {texting ? <div className="mt-2">{texting}</div> : null}
       <div className="mt-3">{counter}</div>
     </form>
-  );
-}
-
-/** Spook mode's small label over the form or the countdown. Plain text, not a heading, so the host's question stays the h1 and the focus target. */
-function HauntedBadge({ className }: { className: string }) {
-  return (
-    <p className={`flex items-center gap-2 font-[family-name:var(--font-poster)] text-[12px] font-semibold uppercase tracking-[0.3em] text-[var(--pnc-accent)] ${className}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/spook-bat-on-dark.svg" alt="" width={128} height={50} className="h-auto w-[22px]" />
-      Haunted edition
-    </p>
   );
 }

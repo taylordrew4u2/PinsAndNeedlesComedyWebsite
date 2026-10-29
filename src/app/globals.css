@@ -220,37 +220,6 @@
   50% { opacity: 0; }
 }
 
-/*
- * The drum roll in spook mode: the same two flashes, a touch softer; a bone
- * web wheel turning slowly where the red rays were; a drip growing under the
- * dice; one bat gliding across.
- */
-.pnc-intro-flash-spook {
-  opacity: 0;
-  animation: pnc-intro-flash-spook 0.7s ease-out;
-}
-@keyframes pnc-intro-flash-spook {
-  0%, 40% { opacity: 0.8; }
-  20%, 100% { opacity: 0; }
-}
-.pnc-intro-rays.pnc-intro-rays-spook {
-  background:
-    repeating-conic-gradient(from 0deg, rgb(242 237 220 / 0.3) 0deg 0.6deg, transparent 0.6deg 30deg),
-    repeating-radial-gradient(circle, transparent 0 5.4vmin, rgb(242 237 220 / 0.22) 5.4vmin 6vmin);
-  animation: pnc-intro-rays-in 0.4s ease-out 0.55s forwards, pnc-intro-spin 18s linear infinite;
-}
-.pnc-spook-dice-drip {
-  transform-origin: top;
-  animation: pnc-spook-bleed 0.9s ease-out 1.05s both;
-}
-.pnc-spook-glide {
-  animation: pnc-spook-glide 2.4s ease-in-out 0.6s both;
-}
-@keyframes pnc-spook-glide {
-  from { transform: translateX(-25vw); }
-  to { transform: translateX(125vw); }
-}
-
 /* Live screen: the silent 3, 2, 1 before a new question. Each number pops in, then fades as the next arrives. */
 .pnc-countdown {
   font-size: min(60vh, 50vw);
@@ -262,67 +231,6 @@
   25% { opacity: 1; transform: scale(1); }
   80% { opacity: 1; transform: scale(0.95); }
   100% { opacity: 0.15; transform: scale(0.9); }
-}
-
-/*
- * Spook mode (the Control Center's 🦇 switch): flash-style blood drips,
- * bone webs, a spider and bats, in the brand's red, bone and black. Only
- * transform and opacity ever animate, so a TV can run it for hours.
- */
-.pnc-spook-drips {
-  background: url(/brand/spook-drips.svg) repeat-x top left / auto 100%;
-}
-/* The spider on its thread: the only thing that moves while there is something to read. */
-.pnc-spook-bob {
-  animation: pnc-spook-bob 7s ease-in-out infinite alternate;
-}
-@keyframes pnc-spook-bob {
-  from { transform: translateY(0); }
-  to { transform: translateY(1.5vmin); }
-}
-/* Bats cross the idle screen; each wrapper sets --pnc-spook-fly-s and --pnc-spook-fly-delay. */
-.pnc-spook-fly {
-  animation: pnc-spook-fly var(--pnc-spook-fly-s, 28s) linear var(--pnc-spook-fly-delay, 0s) infinite;
-}
-@keyframes pnc-spook-fly {
-  from { transform: translateX(-15vw); }
-  to { transform: translateX(115vw); }
-}
-.pnc-spook-fly-back {
-  animation: pnc-spook-fly-back var(--pnc-spook-fly-s, 37s) linear var(--pnc-spook-fly-delay, 0s) infinite;
-}
-@keyframes pnc-spook-fly-back {
-  from { transform: translateX(115vw); }
-  to { transform: translateX(-15vw); }
-}
-.pnc-spook-flap {
-  animation: pnc-spook-flap 0.45s ease-in-out infinite alternate;
-}
-@keyframes pnc-spook-flap {
-  from { transform: scaleY(1); }
-  to { transform: scaleY(0.55); }
-}
-/* A countdown number bleeds once as it lands: a drip grows down from under it. */
-.pnc-spook-bleed::after {
-  content: "";
-  display: block;
-  width: 0.62em;
-  height: 0.16em;
-  margin: -0.04em auto 0;
-  background: url(/brand/spook-drips.svg) repeat-x top center / auto 100%;
-  transform-origin: top;
-  animation: pnc-spook-bleed 0.8s ease-out both;
-}
-@keyframes pnc-spook-bleed {
-  from { transform: scaleY(0); }
-  to { transform: scaleY(1); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  /* No bats at all: a bat frozen mid-flight would just sit on the screen. */
-  .pnc-spook-bat {
-    display: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
