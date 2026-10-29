@@ -134,6 +134,20 @@ The corner QR uses the same signed audience entry as the admin's downloadable QR
 its public image endpoint intentionally makes that audience entry available from
 the live display, without publishing the question list.
 
+The rest of the live show lives beside it in `live-show/`: `screen.json` (the
+screen's switches, sound and every word it draws, plus where the show screens'
+QR leads: `qrKind` "" for the question form, "link" for the host's `qrTo`,
+"picture" for their `qrImage`, and `qrSize` as a percentage), `menu.json`
+(which drink menu is up, the marquee, and the daytime custom menu: its own
+`qrKind`/`qrTo`/`qrImage`/`qrSize` with no QR by default, its heading, its
+rotation `rotateOn`/`rotateFull`/`rotateSection`, its own marquee
+`customMarquee`, and `samePriceLine` for both menus) and `drinks.json` (the
+host's drink list; an old sold-out mark in it is ignored). Only stored fields
+are read; a missing one is its default. A host's own QR link is drawn only from
+an address the poll signs with `ADMIN_SECRET`, so without that secret (local dev
+with no env var) the show screens fall back to the question form and the custom
+menu shows no QR.
+
 ### Printing the submission QR
 
 Download the QR from the control center (**Admin → Control center → QR code
