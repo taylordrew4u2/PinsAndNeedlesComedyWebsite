@@ -39,8 +39,8 @@ export const DRINK_MENU: DrinkSection[][] = [
     {
       title: "Shots, Neat & Rocks",
       drinks: [
-        { name: "Well Shot (1.5 oz)", price: "$7" },
-        { name: "Well Neat or Rocks (2 oz)", price: "$9", detail: "Inquire about pricing for premium spirits." },
+        { name: "Well (1.5 oz) Shot", price: "$7" },
+        { name: "Well (2 oz) Neat or Rocks", price: "$9", detail: "Inquire about pricing for premium spirits." },
       ],
     },
     {
@@ -56,8 +56,9 @@ export const DRINK_MENU: DrinkSection[][] = [
       title: "Highballs",
       price: "$11",
       drinks: [
-        { name: "Choice of Well Spirit + Mixer", detail: "Gin · Rum · Tequila · Vodka · Whiskey" },
-        { name: "Mixers", detail: "Club Soda · Tonic · Lemon/Sour · Ginger Ale · Cranberry · Cola · Sugar-Free Cola · Red Bull · Red Bull Sugar-Free" },
+        { name: "Choice of Well Spirit + Mixer" },
+        { name: "Spirit", detail: "Gin · Rum · Tequila · Vodka · Whiskey" },
+        { name: "Mixer", detail: "Club Soda · Tonic · Lemon/Sour · Ginger Ale · Cranberry · Cola · Sugar-Free Cola · Red Bull · Red Bull Sugar-Free" },
       ],
     },
     {
@@ -87,7 +88,7 @@ export const DRINK_MENU: DrinkSection[][] = [
   ],
   [
     {
-      title: "Red Wine",
+      title: "Red",
       drinks: [
         { name: "Vigna Madre Kriya", price: "$8", detail: "Montepulciano · Italy" },
         { name: "Bernardus", price: "$9", detail: "Pinot Noir · Santa Lucia Highlands · 2023" },
@@ -95,19 +96,23 @@ export const DRINK_MENU: DrinkSection[][] = [
       ],
     },
     {
-      title: "White & Orange Wine",
+      title: "White",
       drinks: [
         { name: "Oyster Bay", price: "$9", detail: "Sauvignon Blanc · New Zealand" },
         { name: "Cave de Lugny Mâcon-Villages", price: "$9", detail: "Chardonnay · France · 2023" },
-        { name: "Viña Echeverría · No Es Pituko", price: "$11", detail: "Orange · Chile" },
       ],
     },
     {
-      title: "Rosé & Sparkling",
-      drinks: [
-        { name: "Josh Scott · Bla Bla Bla", price: "$8", detail: "Rosé · New Zealand · 2022" },
-        { name: "Maschio DOC Treviso Brut", price: "$10", detail: "Prosecco · Italy" },
-      ],
+      title: "Orange",
+      drinks: [{ name: "Viña Echeverría · No Es Pituko", price: "$11", detail: "Orange · Chile" }],
+    },
+    {
+      title: "Rosé",
+      drinks: [{ name: "Josh Scott · Bla Bla Bla", price: "$8", detail: "Rosé · New Zealand · 2022" }],
+    },
+    {
+      title: "Sparkling",
+      drinks: [{ name: "Maschio DOC Treviso Brut", price: "$10", detail: "Prosecco · Italy" }],
     },
     {
       title: "Sparkling Cocktails",

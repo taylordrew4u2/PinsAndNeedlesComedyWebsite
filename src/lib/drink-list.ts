@@ -11,7 +11,7 @@ import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MARQUEE_SPEEDS, cleanColor, cleanLin
  * stored record small (the GitHub store commits every save).
  */
 export const DRINK_COLUMNS = 3;
-export const MAX_SECTIONS_PER_COLUMN = 4;
+export const MAX_SECTIONS_PER_COLUMN = 6;
 export const MAX_DRINKS_PER_SECTION = 10;
 /** A little over the printed menu's 41: about as many as still fit once the board has set its type as small as it goes. */
 export const MAX_DRINKS = 48;
