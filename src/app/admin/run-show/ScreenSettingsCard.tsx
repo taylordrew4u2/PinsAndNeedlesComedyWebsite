@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import {
-  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, QR_SIZE_MAX, QR_SIZE_MIN, SCREEN_TEXT, changedScreen, parseScreenSettings, stingName,
+  BEHAVIOUR_KEYS, COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, QR_SIZE_MAX, QR_SIZE_MIN, SCREEN_TEXT, TEXT_KEYS, changedScreen, screenChanges, stingName,
   type ScreenSettings, type ScreenSwitch, type ScreenText,
 } from "@/lib/screen-settings";
 import QuestionSoundPicker from "./QuestionSoundPicker";
@@ -11,8 +11,12 @@ type Props = {
   /** What is saved now; "" words are the defaults. */
   saved: ScreenSettings;
   busy: boolean;
-  save: (settings: ScreenSettings) => Promise<boolean>;
+  /** Only the settings that changed. True once saved. */
+  save: (change: Partial<ScreenSettings>) => Promise<boolean>;
 };
+
+/** The settings this card looks after: everything but where the QR leads, which has a card of its own. */
+const OWN_KEYS: readonly (keyof ScreenSettings)[] = [...BEHAVIOUR_KEYS, ...TEXT_KEYS, "qrSize"];
 
 const COUNT_FROM = Array.from({ length: COUNTDOWN_MAX - COUNTDOWN_MIN + 1 }, (_, index) => COUNTDOWN_MIN + index);
 
@@ -31,22 +35,22 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
   const [draft, setDraft] = useState<Partial<ScreenSettings>>({});
   const edit = (change: Partial<ScreenSettings>) => setDraft((current) => ({ ...current, ...change }));
   const value = { ...saved, ...draft };
-  // Cleaned the way the server cleans it, so "changed" means something would really change.
-  const next = parseScreenSettings(value);
-  const changed = JSON.stringify(changedScreen(next)) !== JSON.stringify(changedScreen(saved));
+  // Cleaned the way the server cleans it, so "changed" means something would really change, and only that is sent.
+  const pending = screenChanges(saved, value, OWN_KEYS);
+  const changed = Object.keys(pending).length > 0;
   const atDefaults = !Object.keys(changedScreen(saved)).length;
 
-  const submit = async (settings: ScreenSettings) => {
+  const submit = async (change: Partial<ScreenSettings>) => {
     // Only what was sent is cleared: anything changed while it saves stays, ready for the next Save.
     const sent = draft;
-    if (await save(settings)) {
+    if (await save(change)) {
       setDraft((current) => Object.fromEntries(Object.entries(current).filter(([key, entry]) => sent[key as keyof ScreenSettings] !== entry)));
     }
   };
 
   const backToDefaults = () => {
     if (!window.confirm(`Put the live screen back to its defaults? Sound, names under questions, the countdown (from 3), drum roll and set timer all go back on, the question sound goes back to ${stingName(DEFAULT_SCREEN)} at 100%, and your wording for the Intro, under the dice and above a performer's name is cleared.`)) return;
-    void submit(DEFAULT_SCREEN);
+    void submit(screenChanges(saved, DEFAULT_SCREEN, OWN_KEYS));
   };
 
   const toggle = (key: ScreenSwitch, label: string, extra?: ReactNode) => (
@@ -82,7 +86,7 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
         📺 Live screen settings{atDefaults ? "" : " (customised)"}
         {changed ? <span className="ml-2 rounded bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold text-amber-200">unsaved</span> : null}
       </summary>
-      <form className="mt-3 space-y-5" onSubmit={(event) => { event.preventDefault(); void submit(next); }}>
+      <form className="mt-3 space-y-5" onSubmit={(event) => { event.preventDefault(); void submit(pending); }}>
         <p className="text-sm text-neutral-400">How the projector behaves and what it says. Saved changes reach it within a couple of seconds; nothing changes until you press Save.</p>
 
         <fieldset className="space-y-2">

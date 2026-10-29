@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MENU_WORDING, type CustomLook, type DrinkSection } from "@/lib/drink-menu";
+import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MENU_WORDING, type BoardWords, type CustomLook, type DrinkSection } from "@/lib/drink-menu";
 import { menuFontScale, scriptFontScale } from "@/lib/menu-fonts";
+import type { MenuPage } from "@/lib/menu-rotation";
+import { boardQr, type BoardQr } from "@/lib/screen-qr";
+import { PRINTED_WORDS } from "@/lib/screen-settings";
 import { MENU_FONT_FAMILY, SCRIPT_FONT_FAMILY } from "./menu-font-faces";
 
 /** Designed at TV size and scaled as one piece, so every screen matches. */
@@ -16,7 +19,7 @@ const FONT = "var(--font-poster), 'Barlow Condensed', 'Arial Narrow', sans-serif
 const BAND = 64;
 /** The menu's frame sits inside the board's 28px padding; with a marquee it scales to clear the band. */
 const FRAME_SCALE = (HEIGHT - 2 * BAND) / (HEIGHT - 2 * 28);
-/** The brand red, for the marquee's separators and the SOLD OUT tag. */
+/** The brand red, for the marquee's separators. */
 const ACCENT = "#FF2E4D";
 const SEPARATOR = "\u2003\u2726\u2003";
 /**
@@ -31,14 +34,17 @@ const FIT_STEP = 0.02;
 const HOST_LINE = { overflowWrap: "anywhere", maxWidth: 300, lineHeight: 1.15 } as const;
 
 /**
- * The between-sets screen: the venue's drink menu on black, with the Bad
- * Decisions QR in the left panel when `qrSrc` is given, and `marquee` text
+ * The between-sets screen: the venue's drink menu on black, with the show
+ * screens' QR (`qr`: the Bad Decisions code, the host's link or their
+ * picture, at its side in board pixels) in the left panel when there is one,
+ * `words` around it (the printed wording when left out), and `marquee` text
  * running around the edge when there is one.
  *
- * `custom` makes it the custom menu: the same board, its text in the host's
- * colour and font, with their line above the QR code (and so only when there
- * is one), and, in the space under the first two columns, tonight's bartender
- * in a glowing script and their note, each in a colour of its own.
+ * `custom` makes it the custom (daytime) menu: the same board, its text in
+ * the host's colour and font, its own heading and its own QR (never the show
+ * screens'), with their line above it and words under it only when there is
+ * one, and, in the space under the first two columns, tonight's bartender in
+ * a glowing script and their note, each in a colour of its own.
  * `contained` fills the nearest positioned box instead of the whole window,
  * for a preview.
  *
@@ -47,25 +53,29 @@ const HOST_LINE = { overflowWrap: "anywhere", maxWidth: 300, lineHeight: 1.15 } 
  * small and whether it fits even then. The printed menu, and any board that
  * fits as it is, stays exactly at its own size. The marquee crawls at
  * `marqueeSpeed` (board pixels per second) in `marqueeColor`, the text colour
- * when empty.
+ * when empty. `page` is one page of the custom menu's turning (see
+ * menu-rotation.ts); left out or the full page, the whole board.
  */
-export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contained, drinks = DRINK_MENU, marqueeSpeed = DEFAULT_MARQUEE_SPEED, marqueeColor, onFit }: {
-  qrSrc?: string;
-  /** The QR code's size, 1 being its usual 220 board pixels; the left panel widens to hold a bigger one. */
-  qrScale?: number;
+export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, contained, drinks = DRINK_MENU, marqueeSpeed = DEFAULT_MARQUEE_SPEED, marqueeColor, page, onFit }: {
+  qr?: BoardQr | null;
+  words?: BoardWords;
   marquee?: string | null;
   custom?: CustomLook | null;
   contained?: boolean;
   drinks?: DrinkSection[][];
   marqueeSpeed?: number;
   marqueeColor?: string;
-  onFit?: (fit: { size: number; fits: boolean }) => void;
+  page?: MenuPage | null;
+  onFit?: (fit: { size: number; fits: boolean; panelFits: boolean }) => void;
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const note = custom?.note.trim() || "";
-  const bartender = custom?.bartender.trim() || "";
+  // A section page shows just its sections, one column of them, and the bartender and note wait for the full board.
+  const sectionPage = Boolean(page?.sections.length);
+  const columns = page && sectionPage ? [page.sections.map((entry) => entry.section)] : drinks;
+  const note = sectionPage ? "" : custom?.note.trim() || "";
+  const bartender = sectionPage ? "" : custom?.bartender.trim() || "";
   // Anything under the first two columns: the last column then runs down beside it.
   const below = Boolean(note || bartender);
   const family = custom ? MENU_FONT_FAMILY[custom.font] : FONT;
@@ -76,18 +86,20 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
   const fitted = (px: number) => `calc(${px}px * var(--fit, 1))`;
   // The drinks' type: the font's size, then shrunk to fit.
   const d = (size: number) => fitted(z(size));
-  // The QR at the host's size, and a left panel wide enough for it (its usual 380, or the QR, its white edge and the panel's padding).
-  const qrSide = Math.round(220 * qrScale);
-  const panelWidth = qrSrc ? Math.max(380, qrSide + 28 + 80) : 380;
-  // The custom menu's wording; the standard menu always has the printed wording.
-  const caption = custom?.qrCaption ?? MENU_WORDING.qrCaption.fallback;
-  const title = custom?.qrTitle ?? MENU_WORDING.qrTitle.fallback;
-  const link = custom?.qrLink ?? MENU_WORDING.qrLink.fallback;
+  // The custom menu has its own QR (or none); the standard one has the show screens'.
+  const code = custom ? boardQr(custom.qr, "menu") : qr ?? null;
+  // A left panel wide enough for the QR: its usual 380, or the QR, its white edge and the panel's padding.
+  const panelWidth = code ? Math.max(380, code.side + 28 + 80) : 380;
+  // The words beside it: the custom menu's own, or the show-night menu's (the printed wording unless the host changed it).
+  const heading = custom ? custom.heading : words.heading;
+  const caption = custom ? custom.qrCaption : words.caption;
+  const title = custom ? custom.qrTitle : words.title;
+  const link = custom ? custom.qrLink : words.link;
   const bartenderLabel = custom?.bartenderLabel ?? MENU_WORDING.bartenderLabel.fallback;
   const report = useRef(onFit);
   useEffect(() => { report.current = onFit; }, [onFit]);
   // Everything that changes how much room the drinks take; the fit is worked out again when it does.
-  const layout = JSON.stringify([drinks, family, k, note, bartender, custom?.bartenderFont, bartenderLabel, panelWidth]);
+  const layout = JSON.stringify([columns, family, k, note, bartender, custom?.bartenderFont, bartenderLabel, panelWidth]);
 
   useLayoutEffect(() => {
     const box = frame.current;
@@ -124,7 +136,7 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
         size = Math.max(FIT_FLOOR, Math.round((size - FIT_STEP) * 100) / 100);
         apply(size);
       }
-      const result = { size, fits: !overflows(box) };
+      const result = { size, fits: !overflows(box), panelFits: true };
       if (JSON.stringify(result) !== last) {
         last = JSON.stringify(result);
         report.current?.(result);
@@ -158,39 +170,47 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
           <div style={{ width: panelWidth, flexShrink: 0, boxSizing: "border-box", borderRight: "1px solid #fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "64px 40px" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/pixelated-records-logo.png" alt="Pixelated Records" width={310} height={158} style={{ width: 310, height: "auto", display: "block" }} />
-            <div style={{ fontSize: z(34), fontWeight: 500, letterSpacing: "0.5em", marginRight: "-0.5em" }}>MENU</div>
-            {qrSrc ? <div style={{ width: 64, height: 1, background: RULE, margin: "20px 0 16px" }} /> : null}
+            <div style={{ fontSize: z(34), fontWeight: 500, letterSpacing: "0.5em", marginRight: "-0.5em", textTransform: "uppercase", overflowWrap: "anywhere" }}>{heading}</div>
+            {code ? <div style={{ width: 64, height: 1, background: RULE, margin: "20px 0 16px" }} /> : null}
             {/* The custom line belongs to the QR ("scan here"): no QR, no line. */}
-            {custom && qrSrc ? (
+            {custom?.headline && code ? (
               <div style={{ fontSize: z(34), fontWeight: 700, lineHeight: 1.12, letterSpacing: "0.03em", textTransform: "uppercase", textAlign: "center", overflowWrap: "anywhere", maxWidth: 300 }}>
                 {custom.headline}
               </div>
             ) : null}
-            {qrSrc ? (
+            {code ? (
               <>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrSrc} alt="Scan to submit your bad decision" width={220} height={220} style={{ width: qrSide, height: qrSide, display: "block", background: "#fff", padding: 14, borderRadius: 10, boxSizing: "content-box" }} />
-                  {/* The printed wording is set exactly as it always was; the host's own is kept to the panel, the two lines above in capitals. */}
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, textAlign: "center" }}>
-                    <div style={{ fontSize: z(20), fontWeight: 600, letterSpacing: "0.24em", marginRight: "-0.24em", color: MUTED, ...(caption === MENU_WORDING.qrCaption.fallback ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{caption}</div>
-                    <div style={{ fontSize: z(30), fontWeight: 700, letterSpacing: "0.06em", ...(title === MENU_WORDING.qrTitle.fallback ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{title}</div>
-                    <div style={{ fontSize: z(19), fontWeight: 500, color: MUTED, marginTop: 6, ...(link === MENU_WORDING.qrLink.fallback ? { whiteSpace: "nowrap" } : HOST_LINE) }}>{link}</div>
-                  </div>
+                  {code.picture ? (
+                    // The host's own picture: no white frame, fitted into the square a code would take.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={code.src} alt={code.alt} width={220} height={220} decoding="async" style={{ width: code.side + 28, height: code.side + 28, display: "block", objectFit: "contain" }} />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={code.src} alt={code.alt} width={220} height={220} style={{ width: code.side, height: code.side, display: "block", background: "#fff", padding: 14, borderRadius: 10, boxSizing: "content-box" }} />
+                  )}
+                  {/* The printed wording is set exactly as it always was; the host's own is kept to the panel, the two lines above in capitals. An empty line is left off. */}
+                  {caption || title || link ? (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, textAlign: "center" }}>
+                      {caption ? <div style={{ fontSize: z(20), fontWeight: 600, letterSpacing: "0.24em", marginRight: "-0.24em", color: MUTED, ...(caption === PRINTED_WORDS.caption ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{caption}</div> : null}
+                      {title ? <div style={{ fontSize: z(30), fontWeight: 700, letterSpacing: "0.06em", ...(title === PRINTED_WORDS.title ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{title}</div> : null}
+                      {link ? <div style={{ fontSize: z(19), fontWeight: 500, color: MUTED, marginTop: 6, ...(link === PRINTED_WORDS.link ? { whiteSpace: "nowrap" } : HOST_LINE) }}>{link}</div> : null}
+                    </div>
+                  ) : null}
                 </div>
               </>
             ) : null}
           </div>
 
-          <div ref={grid} style={{ flexGrow: 1, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", columnGap: 56, padding: 64, alignContent: "center", alignItems: "start", overflow: "hidden" }}>
-            {drinks.map((column, index) => (
+          <div ref={grid} key={page?.key ?? "full"} className={page ? "pnc-page-in" : undefined} style={{ flexGrow: 1, display: "grid", gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`, columnGap: 56, padding: 64, alignContent: "center", alignItems: "start", overflow: "hidden" }}>
+            {columns.map((column, index) => (
               // With a bartender or note, the last (longest) column runs down both rows and they sit under the others.
-              <div key={index} style={{ display: "flex", flexDirection: "column", gap: d(34), minWidth: 0, ...(below ? { gridColumn: index + 1, gridRow: index === drinks.length - 1 ? "1 / span 2" : 1 } : {}) }}>
+              <div key={index} style={{ display: "flex", flexDirection: "column", gap: d(34), minWidth: 0, ...(below ? { gridColumn: index + 1, gridRow: index === columns.length - 1 ? "1 / span 2" : 1 } : {}) }}>
                 {column.map((section) => <Section key={section.id ?? section.title} section={section} d={d} />)}
               </div>
             ))}
             {custom && below ? (
-              <div style={{ gridColumn: `1 / span ${drinks.length - 1}`, gridRow: 2, marginTop: fitted(bartender ? 32 : 40), display: "flex", flexDirection: "column", alignItems: "center", gap: fitted(16), textAlign: "center", minWidth: 0 }}>
+              <div style={{ gridColumn: `1 / span ${columns.length - 1}`, gridRow: 2, marginTop: fitted(bartender ? 32 : 40), display: "flex", flexDirection: "column", alignItems: "center", gap: fitted(16), textAlign: "center", minWidth: 0 }}>
                 {bartender ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", maxWidth: "100%" }}>
                     <div style={{ fontSize: d(18), fontWeight: 600, letterSpacing: "0.32em", marginRight: "-0.32em", color: MUTED, textTransform: "uppercase", ...(bartenderLabel === MENU_WORDING.bartenderLabel.fallback ? {} : { overflowWrap: "anywhere" }) }}>{bartenderLabel}</div>
@@ -223,11 +243,7 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
   );
 }
 
-/**
- * One section of drinks, its type sized by `d`. A sold-out drink stays where
- * it is, struck through and dimmed with a SOLD OUT tag, so the room can see it
- * is gone rather than wonder where it went.
- */
+/** One section of drinks, its type sized by `d`. */
 function Section({ section, d }: { section: DrinkSection; d: (size: number) => string }) {
   // Sections with one shared price list their drinks as names and details only.
   const shared = Boolean(section.price) || section.shared === true;
@@ -237,50 +253,26 @@ function Section({ section, d }: { section: DrinkSection; d: (size: number) => s
         <span>{section.title}</span>
         {section.price ? <span>{section.price}</span> : null}
       </h2>
-      {section.drinks.map((drink) => {
-        const gone = drink.soldOut ? SOLD_OUT_TEXT : undefined;
-        return (
-          <div key={drink.id ?? drink.name} style={{ display: "flex", flexDirection: "column", gap: shared ? 4 : 0 }}>
-            {shared ? (
-              drink.soldOut ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: d(29), fontWeight: 600 }}>
-                  <span style={gone}>{drink.name}</span>
-                  <SoldOut d={d} />
-                </div>
-              ) : <div style={{ fontSize: d(29), fontWeight: 600 }}>{drink.name}</div>
-            ) : (
-              <div style={{ display: "flex", alignItems: "baseline", gap: 12, fontSize: d(28), fontWeight: 600 }}>
-                <span style={gone}>{drink.name}</span>
-                {drink.soldOut ? <SoldOut d={d} /> : null}
-                {/* A drink the host left without a price has no dots running to nothing. */}
-                {drink.price ? (
-                  <>
-                    <span style={{ flexGrow: 1, minWidth: 24, borderBottom: `2px dotted ${RULE}`, transform: "translateY(-7px)" }} />
-                    <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums", ...gone }}>{drink.price}</span>
-                  </>
-                ) : null}
-              </div>
-            )}
-            {drink.detail ? <div style={{ fontSize: d(22), fontWeight: 500, lineHeight: 1.3, color: MUTED, overflowWrap: "anywhere", ...(drink.soldOut ? { opacity: 0.55 } : {}) }}>{drink.detail}</div> : null}
-          </div>
-        );
-      })}
+      {section.drinks.map((drink) => (
+        <div key={drink.id ?? drink.name} style={{ display: "flex", flexDirection: "column", gap: shared ? 4 : 0 }}>
+          {shared ? (
+            <div style={{ fontSize: d(29), fontWeight: 600 }}>{drink.name}</div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, fontSize: d(28), fontWeight: 600 }}>
+              <span>{drink.name}</span>
+              {/* A drink the host left without a price has no dots running to nothing. */}
+              {drink.price ? (
+                <>
+                  <span style={{ flexGrow: 1, minWidth: 24, borderBottom: `2px dotted ${RULE}`, transform: "translateY(-7px)" }} />
+                  <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{drink.price}</span>
+                </>
+              ) : null}
+            </div>
+          )}
+          {drink.detail ? <div style={{ fontSize: d(22), fontWeight: 500, lineHeight: 1.3, color: MUTED, overflowWrap: "anywhere" }}>{drink.detail}</div> : null}
+        </div>
+      ))}
     </div>
-  );
-}
-
-/** A sold-out drink's name and price: struck through and dimmed, still readable. */
-const SOLD_OUT_TEXT = { textDecoration: "line-through", textDecorationThickness: 3, opacity: 0.55 } as const;
-
-/** The small red tag beside a sold-out drink. */
-function SoldOut({ d }: { d: (size: number) => string }) {
-  return (
-    <span style={{
-      alignSelf: "center", flexShrink: 0, fontSize: d(16), fontWeight: 700, letterSpacing: "0.12em", lineHeight: 1.2,
-      padding: "0.2em 0.5em 0.15em", borderRadius: 4, background: ACCENT, color: "#fff", whiteSpace: "nowrap",
-    }}>
-      SOLD OUT
-    </span>
   );
 }
 

@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import DrinkMenu from "@/components/DrinkMenu";
+import { compactMenu } from "@/lib/drink-menu";
+import type { BoardQr } from "@/lib/screen-qr";
 import {
   DRINK_DETAIL_MAX, DRINK_NAME_MAX, DRINK_PRICE_MAX, MAX_DRINKS, MAX_DRINKS_PER_SECTION, MAX_SECTIONS_PER_COLUMN, SECTION_TITLE_MAX,
   addDrink, addSection, defaultDrinkList, drinkCount, listIds, moveDrink, moveSection, newListId, parseDrinkList, removeDrink, removeSection, sameList,
@@ -14,13 +16,14 @@ type Props = {
   saved: DrinkList | null;
   /** A drink menu is on the live screen right now, so a save shows at once. */
   live: boolean;
-  /** The live screen shows the QR code, so the preview does too. */
-  qr: boolean;
+  /** The show screens' QR as the standard menu draws it, for the preview; null while the screen shows none. */
+  qr: BoardQr | null;
   busy: boolean;
   /** The whole list; `from` is the saved list this screen last saw, so the server can refuse when another screen changed it since. */
   save: (drinks: DrinkList | null, message: string, from?: DrinkList | null) => Promise<boolean>;
-  /** One drink sold out or back, applied by the server to the list as saved now. */
-  mark: (drinkId: string, soldOut: boolean, message: string) => Promise<boolean>;
+  /** Drinks of one price, with no detail line, on one line on both menus; and the switch for it, saved straight away. */
+  samePriceLine: boolean;
+  saveSamePriceLine: (on: boolean) => Promise<boolean>;
 };
 
 type Edit = (change: (list: DrinkList) => DrinkList) => void;
@@ -29,17 +32,14 @@ const COLUMN_NAMES = ["Left column", "Middle column", "Right column"];
 const INPUT = "rounded-md border border-white/30 bg-black px-2.5 py-1.5 text-sm text-white placeholder:text-neutral-500";
 
 /**
- * The drink list both menus show. Up top, for the middle of a show: every
- * drink as a button that marks it sold out (crossed out on the board with a
- * SOLD OUT tag) and back, saved at once. Below, folded away: the whole list
- * to edit, with a preview of the board, saved only with Save. "Back to the
- * printed menu" puts the venue's printed list back.
+ * The drink list both menus show: the whole list to edit, with a preview of
+ * the board, saved only with Save. "Back to the printed menu" puts the
+ * venue's printed list back. Nothing is ever sold out.
  */
-export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Props) {
+export default function DrinkListCard({ saved, live, qr, busy, save, samePriceLine, saveSamePriceLine }: Props) {
   // The whole list as the host is editing it; null until they change something, so the saved list shows.
   const [draft, setDraft] = useState<DrinkList | null>(null);
-  // The saved list that edit started from (null: the printed menu), plus this screen's own quick taps since,
-  // to tell when another screen has changed the list underneath it.
+  // The saved list that edit started from (null: the printed menu), to tell when another screen has changed the list underneath it.
   const [from, setFrom] = useState<DrinkList | null>(null);
   // How the preview fitted the list: the drinks' type size, and whether it fits at all.
   const [fit, setFit] = useState({ size: 1, fits: true });
@@ -47,6 +47,8 @@ export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Pro
   const value = draft ?? base;
   // Previewed as it would save: cleaned, so "7" shows as "$7" and a drink without a name is left off.
   const shown = useMemo(() => visibleMenu(parseDrinkList(value)), [value]);
+  // As the board draws it: one price's drinks on one line when that is on.
+  const board = useMemo(() => (samePriceLine ? compactMenu(shown) : shown), [shown, samePriceLine]);
   const changed = draft !== null && !sameList(draft, base);
   // A list with nothing left to show would leave the drinks side of the board blank: it cannot be saved.
   const empty = !shown.flat().length;
@@ -56,34 +58,19 @@ export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Pro
     setDraft((current) => change(current ?? base));
   };
 
-  /**
-   * Sold out or back, straight to the screen. Only this drink is sent, so a
-   * tap from another screen a moment ago is kept. A list being edited below
-   * takes the same mark, so its Save does not undo it.
-   */
-  const markSoldOut = async (drink: ListDrink) => {
-    const soldOut = !drink.soldOut;
-    const ok = await mark(drink.id, soldOut, soldOut ? `“${drink.name}” is marked sold out.` : `“${drink.name}” is back on the menu.`);
-    if (!ok) return;
-    setDraft((current) => current && updateDrink(current, drink.id, { soldOut }));
-    setFrom((current) => updateDrink(current ?? defaultDrinkList(), drink.id, { soldOut }));
-  };
-
   const submit = async () => {
     if (!draft || empty) return;
     // Saving the whole list would quietly undo whatever another screen changed after this edit began.
     if (!sameList(from ?? defaultDrinkList(), base)
-      && !window.confirm("The drink list was changed on another screen since you started editing (a drink marked sold out, say). Save your list over it anyway?")) return;
+      && !window.confirm("The drink list was changed on another screen since you started editing (edited on another phone, say). Save your list over it anyway?")) return;
     if (!fit.fits && !window.confirm("This list is too long for the screen: the bottom of it will be cut off. Save it anyway?")) return;
     if (await save(draft, live ? "Drink list saved. The live screen has it now." : "Drink list saved. Both drink menus use it.", saved)) setDraft(null);
   };
 
   const backToPrinted = async () => {
-    if (!window.confirm("Go back to the printed drink menu? Your own list, hidden drinks and sold-out marks are all cleared.")) return;
+    if (!window.confirm("Go back to the printed drink menu? Your own list and hidden drinks are all cleared.")) return;
     if (await save(null, "The printed drink menu is back.")) setDraft(null);
   };
-
-  const onMenu = base.columns.flat().filter((section) => !section.hidden && section.drinks.some((drink) => !drink.hidden));
 
   // Save and Undo, above the list as well as below it: the whole list runs to thousands of pixels, so an
   // edit near the top is never left unsaved for want of scrolling to the bottom.
@@ -96,38 +83,16 @@ export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Pro
 
   return (
     <details className="mt-4 rounded-lg border border-white/20 p-4">
-      <summary className="cursor-pointer text-sm">🍸 Drink list and sold out</summary>
+      <summary className="cursor-pointer text-sm">🍸 Drink list</summary>
       <p className="mt-3 text-sm text-neutral-400">
         Both drink menus show this list. {saved ? "It is your own list." : "It is the printed menu until you change something."}
       </p>
 
-      <p className="mt-4 text-sm">Sold out tonight</p>
-      <p className="mt-1 text-xs text-neutral-500">
-        Tap a drink to cross it out on the menu with a SOLD OUT tag; tap it again when it is back. Saves straight away{live ? ", and the live screen changes with it" : ""}.
-      </p>
-      <div className="mt-2 space-y-2">
-        {onMenu.map((section) => (
-          <div key={section.id}>
-            <p className="text-xs uppercase tracking-wider text-neutral-500">{section.title || "Untitled section"}</p>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {section.drinks.filter((drink) => !drink.hidden).map((drink) => (
-                <button
-                  key={drink.id}
-                  type="button"
-                  aria-pressed={drink.soldOut}
-                  onClick={() => void markSoldOut(drink)}
-                  disabled={busy}
-                  className={`rounded-md border px-2.5 py-1.5 text-left text-sm disabled:opacity-50 ${drink.soldOut ? "border-[#ff2e4d] bg-[#ff2e4d]/15 text-neutral-300" : "border-white/25 text-white"}`}
-                >
-                  <span className={drink.soldOut ? "line-through" : ""}>{drink.name}</span>
-                  {drink.soldOut ? <span className="ml-1.5 rounded bg-[#ff2e4d] px-1 py-0.5 text-[10px] font-bold tracking-wider text-white">SOLD OUT</span> : null}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-        {onMenu.length ? null : <p className="text-sm text-neutral-500">No drinks are showing. Open the list below to add some or show hidden ones.</p>}
-      </div>
+      <label className="mt-3 flex items-center gap-2 text-sm">
+        <input type="checkbox" className="h-4 w-4 accent-amber-300" checked={samePriceLine} disabled={busy} onChange={(event) => void saveSamePriceLine(event.target.checked)} />
+        Put drinks with the same price on one line
+      </label>
+      <p className="mt-1 text-xs text-neutral-500">Drinks with no small line under them that cost the same share one line, to make room. Saved straight away{live ? ", and the live screen changes with it" : ""}.</p>
 
       <details className="mt-5 rounded-md border border-white/15 p-2 sm:p-3">
         <summary className="cursor-pointer text-sm">
@@ -169,7 +134,7 @@ export default function DrinkListCard({ saved, live, qr, busy, save, mark }: Pro
         ))}
 
         <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-md border border-white/15" aria-label="Preview of the drink menu">
-          <DrinkMenu contained drinks={shown} qrSrc={qr ? "/api/decisions/live/qr" : undefined} onFit={setFit} />
+          <DrinkMenu contained drinks={board} qr={qr} onFit={setFit} />
         </div>
         <p className={`mt-2 text-xs ${fit.fits ? "text-neutral-500" : "text-amber-200"}`}>
           {!fit.fits
@@ -292,7 +257,7 @@ function SectionEditor({ section, column, index, first, last, full, listFull, ed
   );
 }
 
-/** One drink to edit: name, price (unless the section shares one), details, and its place, sold-out and hidden marks. */
+/** One drink to edit: name, price (unless the section shares one), details, and its place and hidden mark. */
 function DrinkEditor({ drink, index, section, shared, first, last, edit }: {
   drink: ListDrink;
   /** Its place in the section, and the section's name, to name a drink with no name yet. */
@@ -316,7 +281,7 @@ function DrinkEditor({ drink, index, section, shared, first, last, edit }: {
           onChange={(event) => change({ name: event.target.value })}
           maxLength={DRINK_NAME_MAX}
           placeholder="Drink name"
-          className={`${INPUT} min-w-0 flex-1 basis-full sm:basis-40 ${drink.hidden ? "opacity-50" : ""} ${drink.soldOut ? "line-through" : ""}`}
+          className={`${INPUT} min-w-0 flex-1 basis-full sm:basis-40 ${drink.hidden ? "opacity-50" : ""}`}
         />
         {shared ? null : (
           <input
@@ -331,7 +296,6 @@ function DrinkEditor({ drink, index, section, shared, first, last, edit }: {
         )}
         <Small label={`Move ${name} up`} onClick={() => edit((list) => moveDrink(list, drink.id, -1))} disabled={first}>↑</Small>
         <Small label={`Move ${name} down`} onClick={() => edit((list) => moveDrink(list, drink.id, 1))} disabled={last}>↓</Small>
-        <Toggle on={drink.soldOut} onClick={() => change({ soldOut: !drink.soldOut })} title="Crossed out on the menu with a SOLD OUT tag" name={name}>Sold out</Toggle>
         <Toggle on={drink.hidden} onClick={() => change({ hidden: !drink.hidden })} title="Kept in the list but off the menu" name={name}>{drink.hidden ? "Hidden" : "Hide"}</Toggle>
         <Small label={`Remove ${name}`} onClick={() => edit((list) => removeDrink(list, drink.id))}>✕</Small>
       </div>

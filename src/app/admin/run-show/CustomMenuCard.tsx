@@ -3,132 +3,87 @@
 import { useMemo, useState } from "react";
 import DrinkMenu from "@/components/DrinkMenu";
 import { MENU_FONT_FAMILY, SCRIPT_FONT_FAMILY } from "@/components/menu-font-faces";
-import { BARTENDER_MAX, DEFAULT_HEADLINE, DEFAULT_MARQUEE, DEFAULT_MENU_COLOR, HEADLINE_MAX, MENU_COLORS, MENU_WORDING, NOTE_MAX, customWording, marqueeSpeedOf, type MenuWording, type WordingKey } from "@/lib/drink-menu";
-import { visibleMenu, type DrinkList } from "@/lib/drink-list";
-import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, MENU_FONTS, SCRIPT_FONTS, isMenuFont, isScriptFont } from "@/lib/menu-fonts";
+import {
+  BARTENDER_MAX, DEFAULT_CUSTOM_MENU, HEADLINE_MAX, MENU_COLORS, MENU_WORDING, NOTE_MAX, customLookOf, customMenuChanges, marqueeSpeedOf,
+  type CustomMenuSettings, type MarqueeStyle, type WordingKey,
+} from "@/lib/drink-menu";
+import { boardDrinks, type DrinkList } from "@/lib/drink-list";
+import { SCRIPT_FONTS, MENU_FONTS } from "@/lib/menu-fonts";
+import { adminQrPreviewSrc, qrChoiceProblem } from "@/lib/screen-qr";
+import QrChooser from "./QrChooser";
 
-/**
- * What the card saves. "" means the default: the brand red, the 9 PM line,
- * the standard font, Great Vibes; no note or bartender; for the note and
- * bartender colours, the menu's text colour; and the printed wording under
- * the QR code and over the bartender.
- */
-export type CustomMenuInput = {
-  color: string; headline: string; note: string; noteColor: string;
-  font: string; bartender: string; bartenderFont: string; bartenderColor: string;
-} & MenuWording;
-
-type Props = CustomMenuInput & {
-  /** The saved marquee, so the preview runs the same text the room will see. */
-  marquee: string;
-  /** How the marquee runs (on or off, speed, colour), for the preview; left out, as it always has. */
-  marqueeStyle?: { on: boolean; speed: string; color: string };
-  /** The host's drink list, for the preview; null or left out, the printed menu. */
-  drinks?: DrinkList | null;
+type Props = {
+  /** What is saved now ("" for each default). */
+  saved: CustomMenuSettings;
+  /** How the marquee runs (on or off, speed, colour), for the preview. */
+  marqueeStyle: MarqueeStyle;
+  /** The host's drink list, for the preview; null for the printed menu. */
+  drinks: DrinkList | null;
+  /** Drinks of one price on one line, as both menus draw them. */
+  samePriceLine: boolean;
   /** The custom menu is on the live screen right now. */
   live: boolean;
-  /** The live screen shows the QR (the Bad Decisions page is on), and so the line above it. */
-  qr: boolean;
-  /** The QR is switched off on this menu, and the switch that saves it straight away. */
-  qrOff: boolean;
-  setQrOff: (off: boolean) => Promise<boolean>;
   busy: boolean;
-  save: (look: CustomMenuInput) => Promise<boolean>;
+  /** Only the settings that changed. True once saved. */
+  save: (change: Partial<CustomMenuSettings>) => Promise<boolean>;
+  /** Takes the host to the one box for tonight's bartender, under the live screen. */
+  editBartender: () => void;
 };
 
-const EMPTY: CustomMenuInput = {
-  color: "", headline: "", note: "", noteColor: "", font: "", bartender: "", bartenderFont: "", bartenderColor: "",
-  qrCaption: "", qrTitle: "", qrLink: "", bartenderLabel: "",
-};
-
-/** Drawn as typed, so a change of capitals is a change; everything else on the board is in capitals (or a colour). */
-const AS_TYPED: (keyof CustomMenuInput)[] = ["bartender", "qrLink"];
+/** The custom menu's QR choices: none (the default, nothing about the show), a code for the host's link, or their picture. */
+const QR_CHOICES = [{ id: "", label: "No QR code" }, { id: "link", label: "QR to my link" }, { id: "picture", label: "My picture" }] as const;
 
 /**
- * The custom drink menu's differences from the standard one: its text colour
- * and font, the line above the QR code and the wording under it, and, in the
- * empty space under the first two columns, tonight's bartender and a note,
- * each in its own colour. Shows a preview of the board as the edits are made,
- * before anything is saved. Folded until opened: it is setup, and its typing
- * stays put while it is folded.
+ * The custom (daytime) drink menu: its text colour and font, its own QR (none
+ * until the host adds one) with their line above it and wording under it,
+ * tonight's bartender and a note, each in its own colour. Shows a preview of
+ * the board as the edits are made, before anything is saved. Folded until
+ * opened: it is setup, and its typing stays put while it is folded.
  */
-export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr, qrOff, setQrOff, busy, save, ...saved }: Props) {
+export default function CustomMenuCard({ saved, marqueeStyle, drinks, samePriceLine, live, busy, save }: Props) {
   // Only what the host has touched; everything else shows the saved value.
-  const [draft, setDraft] = useState<Partial<CustomMenuInput>>({});
+  const [draft, setDraft] = useState<Partial<CustomMenuSettings>>({});
   // How the drinks fit this board: a longer list, a bartender and a note all take room.
   const [fit, setFit] = useState({ size: 1, fits: true });
-  const edit = (change: Partial<CustomMenuInput>) => setDraft((current) => ({ ...current, ...change }));
-  const value = { ...saved, ...draft };
+  const edit = (change: Partial<CustomMenuSettings>) => setDraft((current) => ({ ...current, ...change }));
+  const value: CustomMenuSettings = { ...saved, ...draft };
 
-  // What the board shows, defaults filled in, exactly as the live screen will draw it.
-  const color = value.color || DEFAULT_MENU_COLOR;
-  const look = {
-    color,
-    headline: value.headline.trim() || DEFAULT_HEADLINE,
-    note: value.note,
-    noteColor: value.noteColor || color,
-    font: isMenuFont(value.font) ? value.font : DEFAULT_MENU_FONT,
-    bartender: value.bartender,
-    bartenderFont: isScriptFont(value.bartenderFont) ? value.bartenderFont : DEFAULT_SCRIPT_FONT,
-    bartenderColor: value.bartenderColor || color,
-    qrOff,
-    ...customWording(value),
-  };
-  const shownDrinks = useMemo(() => visibleMenu(drinks ?? null), [drinks]);
+  // What the board shows, defaults filled in, exactly as the live screen will draw it (a link's code from the signed-in preview).
+  const look = customLookOf(value, adminQrPreviewSrc);
+  const color = look.color;
+  const shownDrinks = useMemo(() => boardDrinks(drinks, samePriceLine), [drinks, samePriceLine]);
 
-  // The printed wording, as a draft or saved value: saved as "" so it keeps following the printed wording.
-  const printed = (key: WordingKey) => {
-    const text = value[key].trim();
-    const fallback = MENU_WORDING[key].fallback;
-    return AS_TYPED.includes(key) ? text === fallback : text.toUpperCase() === fallback.toUpperCase();
-  };
-
-  // Saved with defaults as "", so a value left at its default keeps following it.
-  const toSave = (): CustomMenuInput => ({
-    color: value.color.toUpperCase() === DEFAULT_MENU_COLOR ? "" : value.color,
-    headline: value.headline.trim() === DEFAULT_HEADLINE ? "" : value.headline,
-    note: value.note,
-    noteColor: value.noteColor,
-    font: value.font === DEFAULT_MENU_FONT ? "" : value.font,
-    bartender: value.bartender,
-    bartenderFont: value.bartenderFont === DEFAULT_SCRIPT_FONT ? "" : value.bartenderFont,
-    bartenderColor: value.bartenderColor,
-    qrCaption: printed("qrCaption") ? "" : value.qrCaption,
-    qrTitle: printed("qrTitle") ? "" : value.qrTitle,
-    qrLink: printed("qrLink") ? "" : value.qrLink,
-    bartenderLabel: printed("bartenderLabel") ? "" : value.bartenderLabel,
-  });
-  const next = toSave();
-  // Case only matters where the board shows it as typed: the bartender's name and the web address. Colours compare as hex, the rest is drawn in capitals.
-  const changed = (Object.keys(EMPTY) as (keyof CustomMenuInput)[])
-    .some((key) => AS_TYPED.includes(key)
-      ? next[key].trim() !== saved[key].trim()
-      : next[key].trim().toUpperCase() !== saved[key].trim().toUpperCase());
-  /** A wording box: the printed wording until the host types, and empty (the printed wording again) once they clear it. */
+  const pending = customMenuChanges(saved, value);
+  const changed = Object.keys(pending).length > 0;
+  // A QR picked without a link or picture that works can't be saved: the chooser says what is wrong.
+  const qrProblem = qrChoiceProblem({ kind: value.qrKind, to: value.qrTo, image: value.qrImage });
+  /** A wording box: the default until the host types, and empty (the default again) once they clear it. */
   const wordingValue = (key: WordingKey) => value[key] || (draft[key] === undefined ? MENU_WORDING[key].fallback : "");
 
-  const submit = async (input: CustomMenuInput) => {
+  const submit = async (change: Partial<CustomMenuSettings>) => {
     // Only what was sent is cleared: anything typed while it saves stays in its box, ready for the next Save.
     const sent = draft;
-    if (await save(input)) {
-      setDraft((current) => Object.fromEntries(Object.entries(current).filter(([key, entry]) => sent[key as keyof CustomMenuInput] !== entry)));
+    if (await save(change)) {
+      setDraft((current) => Object.fromEntries(Object.entries(current).filter(([key, entry]) => sent[key as keyof CustomMenuSettings] !== entry)));
     }
   };
 
+  // Back to the defaults, all but the menu's own marquee, which the marquee card looks after.
+  const reset = customMenuChanges(saved, { ...DEFAULT_CUSTOM_MENU, customMarquee: saved.customMarquee });
   const backToDefaults = () => {
-    if (!window.confirm(`Put the custom menu back to its defaults? Tonight's bartender, the note, colours, fonts and the wording around the QR code are all cleared.${live ? " It is on screen now, so the room sees the change at once." : ""}`)) return;
-    void submit(EMPTY);
+    if (!window.confirm(`Put the daytime menu back to its defaults? Colours, fonts, the heading, the QR (back to none), its wording, tonight's bartender, the note and the rotation timings are all reset.${live ? " It is on screen now, so the room sees the change at once." : ""}`)) return;
+    void submit(reset);
   };
 
   return (
     <details className="mt-4 rounded-lg border border-amber-300/40 p-4">
       <summary className="cursor-pointer text-sm">
-        🎨 Custom drink menu
+        🌞 Custom menu (daytime)
         {live ? <span className="ml-2 rounded-full bg-amber-300 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-black">On screen</span> : null}
         {changed ? <span className="ml-2 rounded bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold text-amber-200">unsaved</span> : null}
       </summary>
-      <form className="mt-3" onSubmit={(event) => { event.preventDefault(); void submit(next); }}>
-        <p className="text-sm text-neutral-400">Same drinks as the standard menu, in your colour and font, with a line above the QR code, tonight&rsquo;s bartender and a note in the empty space.{live ? " It is on screen now; saving updates it live." : ""}</p>
+      <form className="mt-3" onSubmit={(event) => { event.preventDefault(); void submit(pending); }}>
+        <p className="text-sm text-neutral-400">Up at the venue during the day: no Bad Decisions code or wording unless you add your own.{live ? " It is on screen now; saving updates it live." : ""}</p>
 
         <ColorRow label="Text colour" value={color} onPick={(pick) => edit({ color: pick })} />
 
@@ -148,50 +103,55 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
           ))}
         </div>
 
-        <label className="mt-4 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-amber-300"
-            checked={!qrOff}
-            disabled={busy}
-            onChange={(event) => void setQrOff(!event.target.checked)}
+        <p className="mt-4 text-xs text-neutral-400">QR code on this menu</p>
+        <div className="mt-1">
+          <QrChooser
+            value={{ kind: value.qrKind, to: value.qrTo, image: value.qrImage, size: value.qrSize }}
+            onChange={(change) => edit({
+              ...(change.kind !== undefined ? { qrKind: change.kind } : {}),
+              ...(change.to !== undefined ? { qrTo: change.to } : {}),
+              ...(change.image !== undefined ? { qrImage: change.image } : {}),
+              ...(change.size !== undefined ? { qrSize: change.size } : {}),
+            })}
+            kinds={QR_CHOICES}
+            places={["menu"]}
+            busy={busy}
+            idPrefix="custom-menu"
+            blankIsNone
           />
-          Show the QR code on this menu
-        </label>
-        <p className="mt-1 text-xs text-neutral-500">
-          {qrOff
-            ? "Off: no QR code, no line above it and no wording under it, for a menu that is up when there is no show. Saved straight away."
-            : "Untick it for a menu with no QR code. Saved straight away."}
-        </p>
-
-        <label htmlFor="menu-headline" className="mt-4 block text-xs text-neutral-400">Above the QR code</label>
-        <input
-          id="menu-headline"
-          type="text"
-          value={value.headline || (draft.headline === undefined ? DEFAULT_HEADLINE : "")}
-          onChange={(event) => edit({ headline: event.target.value })}
-          maxLength={HEADLINE_MAX}
-          placeholder={DEFAULT_HEADLINE}
-          className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
-        />
-        {qr ? null : <p className="mt-1 text-xs text-amber-200">The Bad Decisions page is switched off, so the screen has no QR code, and this line stays off with it. Open questions to bring both back.</p>}
-
-        <p className="mt-4 text-xs text-neutral-400">Under the QR code (empty goes back to the printed wording)</p>
-        <div className="mt-1 grid gap-2 sm:grid-cols-2">
-          {(["qrCaption", "qrTitle", "qrLink"] as const).map((key) => (
-            <label key={key} className={`block text-xs text-neutral-500 ${key === "qrLink" ? "sm:col-span-2" : ""}`}>
-              {MENU_WORDING[key].label}{key === "qrLink" ? "" : " (in capitals)"}
-              <input
-                type="text"
-                value={wordingValue(key)}
-                onChange={(event) => edit({ [key]: event.target.value })}
-                maxLength={MENU_WORDING[key].max}
-                placeholder={MENU_WORDING[key].fallback}
-                className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
-              />
-            </label>
-          ))}
         </div>
+
+        {value.qrKind ? (
+          <>
+            <label htmlFor="menu-headline" className="mt-4 block text-xs text-neutral-400">Line above the QR code (optional)</label>
+            <input
+              id="menu-headline"
+              type="text"
+              value={value.headline}
+              onChange={(event) => edit({ headline: event.target.value })}
+              maxLength={HEADLINE_MAX}
+              placeholder="e.g. Follow us for tonight's events"
+              className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+            />
+
+            <p className="mt-4 text-xs text-neutral-400">Under the QR code (empty lines are left off)</p>
+            <div className="mt-1 grid gap-2 sm:grid-cols-2">
+              {(["qrCaption", "qrTitle", "qrLink"] as const).map((key) => (
+                <label key={key} className={`block text-xs text-neutral-500 ${key === "qrLink" ? "sm:col-span-2" : ""}`}>
+                  {MENU_WORDING[key].label}{MENU_WORDING[key].caps ? " (in capitals)" : ""}
+                  <input
+                    type="text"
+                    value={wordingValue(key)}
+                    onChange={(event) => edit({ [key]: event.target.value })}
+                    maxLength={MENU_WORDING[key].max}
+                    placeholder={MENU_WORDING[key].placeholder}
+                    className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+                  />
+                </label>
+              ))}
+            </div>
+          </>
+        ) : null}
 
         <div className="mt-4 rounded-md border border-white/15 p-3">
           <label htmlFor="menu-bartender" className="block text-xs text-neutral-400">Bartender tonight (shows under &ldquo;{look.bartenderLabel}&rdquo;)</label>
@@ -228,7 +188,7 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
               value={wordingValue("bartenderLabel")}
               onChange={(event) => edit({ bartenderLabel: event.target.value })}
               maxLength={MENU_WORDING.bartenderLabel.max}
-              placeholder={MENU_WORDING.bartenderLabel.fallback}
+              placeholder={MENU_WORDING.bartenderLabel.placeholder}
               className="mt-1 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
             />
           </label>
@@ -250,10 +210,9 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
         <div className="relative mt-3 aspect-video w-full overflow-hidden rounded-md border border-white/15" aria-label="Preview of the custom menu">
           <DrinkMenu
             contained
-            qrSrc={qr && !qrOff ? "/api/decisions/live/qr" : undefined}
-            marquee={marqueeStyle?.on === false ? null : marquee || DEFAULT_MARQUEE}
-            marqueeSpeed={marqueeSpeedOf(marqueeStyle?.speed)}
-            marqueeColor={marqueeStyle?.color}
+            marquee={marqueeStyle.on && saved.customMarquee ? saved.customMarquee : null}
+            marqueeSpeed={marqueeSpeedOf(marqueeStyle.speed)}
+            marqueeColor={marqueeStyle.color}
             custom={look}
             drinks={shownDrinks}
             onFit={setFit}
@@ -268,12 +227,12 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
         )}
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="submit" disabled={busy || !changed} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
+          <button type="submit" disabled={busy || !changed || Boolean(qrProblem)} className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
           {Object.keys(draft).length ? <button type="button" onClick={() => setDraft({})} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button> : null}
           <button
             type="button"
             onClick={backToDefaults}
-            disabled={busy || (Object.values(saved).every((entry) => !entry) && !Object.keys(draft).length)}
+            disabled={busy || (!Object.keys(reset).length && !Object.keys(draft).length)}
             className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40"
           >
             Use defaults

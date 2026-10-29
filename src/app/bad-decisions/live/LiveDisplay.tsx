@@ -6,15 +6,14 @@ import { fetchWithin } from "@/lib/fetch-within";
 import { isNewerBuild, maySelfReload, quietScreen, screenSignature, soundNeededTap } from "@/lib/build";
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu from "@/components/DrinkMenu";
-import type { CustomLook } from "@/lib/drink-menu";
-import { customWording } from "@/lib/drink-menu";
+import { readCustomLook, type CustomLook } from "@/lib/drink-menu";
 import { parseLiveBoard, type LiveBoard } from "@/lib/drink-list";
-import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, isMenuFont, isScriptFont } from "@/lib/menu-fonts";
+import { FORM_QR, boardQr, qrPercent, readShownQr, type ShownQr } from "@/lib/screen-qr";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { customStingCache, loadCustomSting, pickQuestionSound, playCustomSting } from "@/lib/custom-sting";
 import Explainer from "@/components/Explainer";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
-import { DEFAULT_LOOK, screenLook, soundUrl, type ScreenSettings } from "@/lib/screen-settings";
+import { DEFAULT_LOOK, screenLook, soundUrl, standardMenuWords, type ScreenSettings } from "@/lib/screen-settings";
 import { DEFAULT_SOUND, soundFile } from "@/lib/question-sounds";
 import { readPublicMessage } from "@/lib/screen-message";
 import ScreenMessage from "@/components/ScreenMessage";
@@ -56,8 +55,10 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   // Which menu was up at the last poll ("off", "standard" or "custom"), so a switch between them wipes too.
   const menuSeen = useRef<string | undefined>(undefined);
   const [marquee, setMarquee] = useState<string | null>(null);
-  // The custom menu's colour and line above the QR; null for the standard menu.
+  // The custom menu's look, its own QR included; null for the standard menu.
   const [menuCustom, setMenuCustom] = useState<CustomLook | null>(null);
+  // The show screens' QR: the question form until a poll says the host picked their own link or picture.
+  const [screenQr, setScreenQr] = useState<ShownQr>(FORM_QR);
   // The host's drinks and the marquee's speed and colour; the printed menu at the usual pace until the first poll says otherwise.
   const [board, setBoard] = useState<LiveBoard>(() => parseLiveBoard(null));
   // A newly picked question gets a drum roll first; the screen opening on one does not.
@@ -254,6 +255,9 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         soundChoice.current = { volume: setup.stingVolume, url: soundUrl(setup) };
         preload();
         setSettings((current) => JSON.stringify(current) === JSON.stringify(setup) ? current : setup);
+        // An older server sends no QR choice: then the question form, at the size its settings say.
+        const nextQr = readShownQr(data?.screenQr) ?? { ...FORM_QR, size: setup.qrSize };
+        setScreenQr((current) => JSON.stringify(current) === JSON.stringify(nextQr) ? current : nextQr);
         const countFrom = setup.countdown ? setup.countdownFrom : 0;
         const nextMenu = data?.menu === true;
         const nextMessage = readPublicMessage(data?.message);
@@ -320,20 +324,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         if (performerSeen.current !== undefined && nextPerformer !== performerSeen.current && !(performerSeen.current && next)) setWipe((count) => count + 1);
         performerSeen.current = nextPerformer;
         setPerformer(nextPerformer);
-        const look = data?.menuCustom;
-        const custom: CustomLook | null = nextMenu && look && typeof look.color === "string" && typeof look.headline === "string"
-          ? {
-            color: look.color, headline: look.headline,
-            note: typeof look.note === "string" ? look.note : "",
-            noteColor: typeof look.noteColor === "string" ? look.noteColor : look.color,
-            font: isMenuFont(look.font) ? look.font : DEFAULT_MENU_FONT,
-            bartender: typeof look.bartender === "string" ? look.bartender : "",
-            bartenderFont: isScriptFont(look.bartenderFont) ? look.bartenderFont : DEFAULT_SCRIPT_FONT,
-            bartenderColor: typeof look.bartenderColor === "string" ? look.bartenderColor : look.color,
-            qrOff: look.qrOff === true,
-            ...customWording(look),
-          }
-          : null;
+        const custom = nextMenu ? readCustomLook(data?.menuCustom) : null;
         const which = nextMenu ? (custom ? "custom" : "standard") : "off";
         if (menuSeen.current !== undefined && which !== menuSeen.current) setWipe((count) => count + 1);
         menuSeen.current = which;
@@ -530,17 +521,19 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   }, []);
 
   const qrSrc = `/api/decisions/live/qr${modeQuery(space)}`;
+  // The question form's code comes from this screen's own address (it knows its space); the host's link or picture from the poll.
+  const showQrCode: ShownQr = screenQr.kind === "form" ? { ...screenQr, src: qrSrc } : screenQr;
 
   return (
     <>
     {menu ? (
       <main className={`pnc-screen-in select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
-        <DrinkMenu qrSrc={showQr && !menuCustom?.qrOff ? qrSrc : undefined} qrScale={settings.qrSize / 100} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} />
+        <DrinkMenu qr={showQr ? boardQr(showQrCode, "menu") : null} words={standardMenuWords(settings)} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} />
       </main>
     ) : (
     <main
       // A bigger QR code takes more of the bottom band, so questions end above it whatever its size.
-      style={{ "--qr-k": settings.qrSize / 100 } as React.CSSProperties}
+      style={{ "--qr-k": qrPercent("corner", showQrCode.size) / 100 } as React.CSSProperties}
       className={`pnc-screen-in flex h-svh select-none items-center justify-center bg-black px-6 pb-[max(10rem,calc(6rem*var(--qr-k)+3rem))] pt-10 text-white sm:px-12 sm:pb-[max(14rem,calc(10rem*var(--qr-k)+4rem))] ${pointerIdle ? "cursor-none" : ""}`}
       aria-label="Live show"
       aria-live="polite"
@@ -572,9 +565,9 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         </p>
       ) : null}
       {showQr ? (
-        <div className="fixed bottom-3 right-3 bg-white p-3 sm:bottom-4 sm:right-4">
+        <div className={`fixed bottom-3 right-3 p-3 sm:bottom-4 sm:right-4 ${showQrCode.kind === "picture" ? "" : "bg-white"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrSrc} alt="Scan to submit your question" width={160} height={160} className="h-[calc(6rem*var(--qr-k))] w-[calc(6rem*var(--qr-k))] sm:h-[calc(10rem*var(--qr-k))] sm:w-[calc(10rem*var(--qr-k))]" />
+          <img src={showQrCode.src} alt={showQrCode.kind === "picture" ? "" : showQrCode.kind === "link" ? "Scan me" : "Scan to submit your question"} width={160} height={160} className="h-[calc(6rem*var(--qr-k))] w-[calc(6rem*var(--qr-k))] object-contain sm:h-[calc(10rem*var(--qr-k))] sm:w-[calc(10rem*var(--qr-k))]" />
         </div>
       ) : null}
     </main>
@@ -585,7 +578,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       </div>
     ) : null}
     {intro && !menu && !message && !explainer ? <BadDecisionIntro word={settings.introWord} /> : null}
-    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} qrScale={settings.qrSize / 100} look={settings} /> : null}
+    {explainer ? <Explainer step={explainer} qr={showQr ? boardQr(showQrCode, "explainer") : null} look={settings} /> : null}
     {segmentEnd !== null && settings.timer ? (
       <p className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1 font-[family-name:var(--pnc-heading)] text-lg tabular-nums text-white/80 sm:bottom-4 sm:text-2xl" aria-hidden="true">
         {segmentClock(segmentLeft)}

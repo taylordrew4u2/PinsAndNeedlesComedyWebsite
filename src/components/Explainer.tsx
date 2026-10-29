@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import BadDecisionIntro from "@/components/BadDecisionIntro";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
+import type { BoardQr } from "@/lib/screen-qr";
 import { DEFAULT_LOOK, markBadDecisions, type ScreenSettings } from "@/lib/screen-settings";
 
 /** The brand's cream (the flash art's ink) and red. */
@@ -15,21 +16,22 @@ const POSTER = "font-[family-name:var(--font-poster)] uppercase";
  * and a thin progress line along the bottom. The intro step is the real
  * intro, so the room sees and hears exactly what a new question looks like.
  * The words are the host's from the Control Center, the defaults until they
- * change them; the timings never change.
+ * change them; the timings never change. `qr` is the show screens' QR, its
+ * side in vmin (none while the Bad Decisions page is off).
  */
-export default function Explainer({ step, qrSrc, qrScale = 1, look = DEFAULT_LOOK }: { step: ExplainerStep; qrSrc?: string; qrScale?: number; look?: ScreenSettings }) {
+export default function Explainer({ step, qr, look = DEFAULT_LOOK }: { step: ExplainerStep; qr?: BoardQr | null; look?: ScreenSettings }) {
   if (step === "intro") return <BadDecisionIntro word={look.introWord} />;
   return (
     <div className="fixed inset-0 z-40 overflow-hidden bg-black" style={{ color: CREAM }} aria-live="polite">
       <div key={step} className="pnc-screen-in absolute inset-[6vmin] flex items-center justify-center">
-        {step === "how" ? <How qrSrc={qrSrc} qrScale={qrScale} look={look} /> : step === "listen" ? <Listen line={look.listenLine} /> : step === "example" ? <Example question={look.exampleQuestion} /> : <Send qrSrc={qrSrc} qrScale={qrScale} line={look.closingLine} call={look.closingCall} />}
+        {step === "how" ? <How qr={qr} look={look} /> : step === "listen" ? <Listen line={look.listenLine} /> : step === "example" ? <Example question={look.exampleQuestion} /> : <Send qr={qr} line={look.closingLine} call={look.closingCall} />}
       </div>
       <Progress step={step} />
     </div>
   );
 }
 
-function How({ qrSrc, qrScale, look }: { qrSrc?: string; qrScale: number; look: ScreenSettings }) {
+function How({ qr, look }: { qr?: BoardQr | null; look: ScreenSettings }) {
   const steps = [look.howStep1, look.howStep2, look.howStep3];
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-[5vmin]">
@@ -49,7 +51,7 @@ function How({ qrSrc, qrScale, look }: { qrSrc?: string; qrScale: number; look: 
             ))}
           </ol>
         </div>
-        {qrSrc ? <Qr src={qrSrc} scale={qrScale} /> : null}
+        {qr ? <Qr qr={qr} /> : null}
       </div>
     </div>
   );
@@ -75,7 +77,7 @@ function Example({ question }: { question: string }) {
 }
 
 /** The closing lines. "Bad decision" stays red wherever it falls in the host's words. */
-function Send({ qrSrc, qrScale, line, call }: { qrSrc?: string; qrScale: number; line: string; call: string }) {
+function Send({ qr, line, call }: { qr?: BoardQr | null; line: string; call: string }) {
   return (
     <div className="flex w-full max-w-[150vmin] items-center justify-center gap-[7vmin]">
       <div className="flex min-w-0 max-w-[95vmin] flex-col gap-[4vmin]">
@@ -86,21 +88,26 @@ function Send({ qrSrc, qrScale, line, call }: { qrSrc?: string; qrScale: number;
           {call}
         </p>
       </div>
-      {qrSrc ? <Qr src={qrSrc} scale={qrScale} /> : null}
+      {qr ? <Qr qr={qr} /> : null}
     </div>
   );
 }
 
-/** The QR at the host's size, up to 1.4 times the usual: past that the steps beside it would have no room. */
-function Qr({ src, scale }: { src: string; scale: number }) {
-  const side = `${Math.round(40 * Math.min(scale, 1.4) * 10) / 10}vmin`;
+/** The QR at the host's size (qrSide stops it at 140% here: past that the steps beside it would have no room). A picture goes in the red frame without the white. */
+function Qr({ qr }: { qr: BoardQr }) {
+  const side = `${qr.side}vmin`;
   return (
     <div className="flex shrink-0 flex-col items-center gap-[2vmin]">
       <div className="rounded-[2.4vmin] p-[1vmin]" style={{ background: RED }}>
-        <div className="rounded-[1.6vmin] bg-white p-[2vmin]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="QR code to submit your bad decision" width={400} height={400} className="block" style={{ width: side, height: side }} />
-        </div>
+        {qr.picture ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qr.src} alt={qr.alt} width={400} height={400} decoding="async" className="block rounded-[1.6vmin] bg-black object-contain" style={{ width: `calc(${side} + 4vmin)`, height: `calc(${side} + 4vmin)` }} />
+        ) : (
+          <div className="rounded-[1.6vmin] bg-white p-[2vmin]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qr.src} alt={qr.alt || "QR code to submit your bad decision"} width={400} height={400} className="block" style={{ width: side, height: side }} />
+          </div>
+        )}
       </div>
       <p className={`${POSTER} text-[3.6vmin] font-bold tracking-[0.3em]`}>Scan me</p>
     </div>

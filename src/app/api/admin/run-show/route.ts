@@ -6,10 +6,9 @@ import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/li
 import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
 import { DEFAULT_TIMING, MAX_PERFORMERS, QUESTIONS_MAX, clearFinished, parseCardTiming, parseTiming, rearrange, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotCountFor, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
 import { readDrinks, writeDrinks } from "@/lib/live-store";
-import { cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, type MenuState } from "@/lib/drink-menu";
-import { WORDING_KEYS, isMarqueeSpeed, wordingChange } from "@/lib/drink-menu";
-import { cleanDrinkListInput, defaultDrinkList, parseDrinkList, sameList, setSoldOut } from "@/lib/drink-list";
-import { isMenuFont, isScriptFont } from "@/lib/menu-fonts";
+import { cleanColor, cleanMarquee, menuView, parseCustomMenuChange } from "@/lib/drink-menu";
+import { isMarqueeSpeed } from "@/lib/drink-menu";
+import { cleanDrinkListInput, defaultDrinkList, parseDrinkList, sameList } from "@/lib/drink-list";
 import { drawable, selectionFor, type LiveSelection } from "@/lib/live-selection";
 import { spaceOf, type Space } from "@/lib/space";
 import { currentBuild, staleScreen } from "@/lib/build";
@@ -39,18 +38,6 @@ function spaceFrom(request: Request): Space {
 /** What the control center needs to draw the lineup: every card, and the set running now. */
 function lineupView(lineup: Lineup) {
   return { lineup, segment: segmentStatus(lineup, Date.now()) };
-}
-
-/** The drink menu as the control center shows it: which one is up, and the saved text and colour ("" for a default). */
-function menuView(menu: MenuState) {
-  return {
-    menu: menu.on, menuStyle: menu.style, marquee: menu.marquee,
-    menuColor: menu.color, menuHeadline: menu.headline, menuNote: menu.note, menuNoteColor: menu.noteColor,
-    menuFont: menu.font, menuBartender: menu.bartender, menuBartenderFont: menu.bartenderFont, menuBartenderColor: menu.bartenderColor,
-    marqueeOn: menu.marqueeOn, marqueeSpeed: menu.marqueeSpeed, marqueeColor: menu.marqueeColor,
-    menuQrCaption: menu.qrCaption, menuQrTitle: menu.qrTitle, menuQrLink: menu.qrLink, menuBartenderLabel: menu.bartenderLabel,
-    menuQrOff: menu.qrOff,
-  };
 }
 
 function currentOnly(list: Submission[], shows: Show[], space: Space): Submission[] {
@@ -196,43 +183,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Could not update the marquee. Try again." }, { status: 503, headers });
     }
   }
-  if ("menuQrOff" in body) {
-    if (typeof body.menuQrOff !== "boolean") {
-      return NextResponse.json({ error: "Invalid custom menu QR setting" }, { status: 400, headers });
-    }
-    try {
-      return NextResponse.json(menuView(await writeMenu({ qrOff: body.menuQrOff }, space)), { headers });
-    } catch (error) {
-      console.error("[run-show] custom menu QR failed", error);
-      return NextResponse.json({ error: "Could not save the custom menu. Try again." }, { status: 503, headers });
-    }
-  }
   if ("customMenu" in body) {
-    const look = body.customMenu as Record<string, unknown> | null;
-    const badColor = (value: unknown) => typeof value !== "string" || Boolean(value.trim() && !cleanColor(value));
-    // Optional fields may be left out (they keep what is saved); a font is "" for the default or a known id.
-    const badOptional = (value: unknown, bad: (value: unknown) => boolean) => value !== undefined && bad(value);
-    if (!look || typeof look !== "object" || typeof look.headline !== "string" || badColor(look.color)
-      || badOptional(look.note, (value) => typeof value !== "string") || badOptional(look.noteColor, badColor)
-      || badOptional(look.font, (value) => value !== "" && !isMenuFont(value))
-      || badOptional(look.bartender, (value) => typeof value !== "string")
-      || badOptional(look.bartenderFont, (value) => value !== "" && !isScriptFont(value))
-      || badOptional(look.bartenderColor, badColor)
-      || WORDING_KEYS.some((key) => badOptional(look[key], (value) => typeof value !== "string"))) {
-      return NextResponse.json({ error: "Invalid custom menu" }, { status: 400, headers });
-    }
+    // Any of the custom menu's settings, each checked; what is left out keeps what is saved. An older Control Center's whole look is fine too.
+    const parsed = parseCustomMenuChange(body.customMenu);
+    if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400, headers });
     try {
       // Saved whether or not it is up; empty text or colour means the default (and an empty note, none).
-      const menu = await writeMenu({
-        color: cleanColor(look.color), headline: cleanHeadline(look.headline),
-        ...(look.note !== undefined ? { note: cleanNote(look.note) } : {}),
-        ...(look.noteColor !== undefined ? { noteColor: cleanColor(look.noteColor) } : {}),
-        ...(look.font !== undefined ? { font: look.font as string } : {}),
-        ...(look.bartender !== undefined ? { bartender: cleanBartender(look.bartender) } : {}),
-        ...(look.bartenderFont !== undefined ? { bartenderFont: look.bartenderFont as string } : {}),
-        ...(look.bartenderColor !== undefined ? { bartenderColor: cleanColor(look.bartenderColor) } : {}),
-        ...wordingChange(look),
-      }, space);
+      const menu = await writeMenu(parsed.change, space);
       return NextResponse.json(menuView(menu), { headers });
     } catch (error) {
       console.error("[run-show] custom menu failed", error);
@@ -518,18 +475,18 @@ export async function POST(request: Request) {
     }
   }
   if ("soldOut" in body) {
-    const mark = body.soldOut as Record<string, unknown> | null;
-    if (!mark || typeof mark !== "object" || typeof mark.id !== "string" || !ID.test(mark.id) || typeof mark.on !== "boolean") {
-      return NextResponse.json({ error: "Invalid sold-out mark" }, { status: 400, headers });
+    // Drinks are never sold out any more. A Control Center opened before that changed still has the taps: they change nothing, and say why.
+    return NextResponse.json({ error: "Sold out has been removed: nothing is ever sold out now. Reload the Control Center." }, { status: 410, headers });
+  }
+  if ("samePriceLine" in body) {
+    if (typeof body.samePriceLine !== "boolean") {
+      return NextResponse.json({ error: "Invalid drink list setting" }, { status: 400, headers });
     }
     try {
-      // Just this one drink, on the list as saved now: a mark made from another screen a moment ago stays.
-      const next = setSoldOut((await readDrinks(space)) ?? defaultDrinkList(), mark.id, mark.on);
-      if (!next) return NextResponse.json({ error: "That drink is no longer on the list. Refresh and try again." }, { status: 404, headers });
-      await writeDrinks(next, space);
-      return NextResponse.json({ drinks: next }, { headers });
+      // Both menus, whichever is up: drinks of one price, with no detail line, on one line, or each on its own.
+      return NextResponse.json(menuView(await writeMenu({ samePriceLine: body.samePriceLine }, space)), { headers });
     } catch (error) {
-      console.error("[run-show] sold out failed", error);
+      console.error("[run-show] same price line failed", error);
       return NextResponse.json({ error: "Could not save the drink list. Try again." }, { status: 503, headers });
     }
   }
@@ -542,7 +499,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid drink list" }, { status: 400, headers });
     }
     try {
-      // Changed from another screen since the editor last looked (a sold-out tap, say): saving would quietly undo that.
+      // Changed from another screen since the editor last looked (edited on another phone, say): saving would quietly undo that.
       if (from !== undefined && !sameList((await readDrinks(space)) ?? defaultDrinkList(), parseDrinkList(from) ?? defaultDrinkList())) {
         return NextResponse.json({ error: "The drink list was just changed on another screen. Look it over and press Save again." }, { status: 409, headers });
       }

@@ -233,6 +233,28 @@
   100% { opacity: 0.15; transform: scale(0.9); }
 }
 
+/*
+ * Live screen: the custom menu turning to its next page. The new page fades
+ * in; opacity only, so nothing moves while the board measures whether the
+ * page fits (a slide would shift it and make it shrink for nothing).
+ */
+.pnc-page-in {
+  animation: pnc-page-in 0.5s ease-out;
+}
+@keyframes pnc-page-in {
+  from { opacity: 0; }
+}
+
+/* Control Center: a card's badge pops once as a save lands. */
+.pnc-saved-pop {
+  animation: pnc-saved-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes pnc-saved-pop {
+  0% { transform: scale(0.85); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

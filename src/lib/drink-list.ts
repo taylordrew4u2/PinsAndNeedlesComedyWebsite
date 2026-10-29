@@ -1,10 +1,12 @@
-import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MARQUEE_SPEEDS, cleanColor, cleanLine, type Drink, type DrinkSection } from "./drink-menu.ts";
+import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MARQUEE_SPEEDS, cleanColor, cleanLine, compactMenu, type Drink, type DrinkSection } from "./drink-menu.ts";
 
 /**
  * The drink list the host keeps in the Control Center, shared by both menus.
  * Never saved (or put back) it is the printed menu, DRINK_MENU. It is kept
- * whole, hidden and sold-out drinks included, so a drink can come back with
- * one tap; the live screen is only ever sent what shows (see visibleMenu).
+ * whole, hidden drinks included, so a drink can come back with one tap; the
+ * live screen is only ever sent what shows (see visibleMenu). Nothing is ever
+ * marked sold out: a list saved back when drinks could be may still carry
+ * the marks, and reading it drops them.
  *
  * The board has three columns, so a list always has exactly three. The
  * limits keep the board readable once it has shrunk its type to fit, and the
@@ -20,7 +22,7 @@ export const DRINK_NAME_MAX = 48;
 export const DRINK_PRICE_MAX = 10;
 export const DRINK_DETAIL_MAX = 120;
 
-export type ListDrink = { id: string; name: string; price: string; detail: string; soldOut: boolean; hidden: boolean };
+export type ListDrink = { id: string; name: string; price: string; detail: string; hidden: boolean };
 /** `shared` lists the drinks under one price, `price`, in the heading; the drinks' own prices are kept for when it is turned off. */
 export type ListSection = { id: string; title: string; shared: boolean; price: string; hidden: boolean; drinks: ListDrink[] };
 /** Always DRINK_COLUMNS columns, left to right, each its sections top to bottom. */
@@ -42,7 +44,7 @@ export function defaultDrinkList(): DrinkList {
       return {
         id: `s${section}`, title: printed.title, shared: Boolean(printed.price), price: printed.price ?? "", hidden: false,
         drinks: printed.drinks.map((drink, index) => ({
-          id: `s${section}-${index + 1}`, name: drink.name, price: drink.price ?? "", detail: drink.detail ?? "", soldOut: false, hidden: false,
+          id: `s${section}-${index + 1}`, name: drink.name, price: drink.price ?? "", detail: drink.detail ?? "", hidden: false,
         })),
       };
     })),
@@ -88,10 +90,7 @@ export function parseDrinkList(raw: unknown): DrinkList | null {
         const name = cleanLine(drink.name, DRINK_NAME_MAX);
         if (!name) continue;
         count += 1;
-        drinks.push({
-          id: idOf(drink.id), name, price: cleanPrice(drink.price), detail: cleanLine(drink.detail, DRINK_DETAIL_MAX),
-          soldOut: drink.soldOut === true, hidden: drink.hidden === true,
-        });
+        drinks.push({ id: idOf(drink.id), name, price: cleanPrice(drink.price), detail: cleanLine(drink.detail, DRINK_DETAIL_MAX), hidden: drink.hidden === true });
       }
       const title = cleanLine(section.title, SECTION_TITLE_MAX);
       if (!title && !drinks.length) continue;
@@ -108,7 +107,8 @@ const isFlag = (value: unknown) => value === undefined || typeof value === "bool
 /**
  * A list sent from the Control Center: exactly three columns and within the
  * limits, every field the right kind, or null to turn it away. Text is then
- * cleaned as any stored list is.
+ * cleaned as any stored list is. A sold-out mark from a Control Center
+ * opened before sold out was removed is not checked, and dropped.
  */
 export function cleanDrinkListInput(raw: unknown): DrinkList | null {
   if (!raw || typeof raw !== "object") return null;
@@ -125,7 +125,7 @@ export function cleanDrinkListInput(raw: unknown): DrinkList | null {
       for (const item of section.drinks) {
         if (!item || typeof item !== "object") return null;
         const drink = item as Record<string, unknown>;
-        if (typeof drink.name !== "string" || !isText(drink.id) || !isText(drink.price) || !isText(drink.detail) || !isFlag(drink.soldOut) || !isFlag(drink.hidden)) return null;
+        if (typeof drink.name !== "string" || !isText(drink.id) || !isText(drink.price) || !isText(drink.detail) || !isFlag(drink.hidden)) return null;
         count += 1;
       }
     }
@@ -145,7 +145,6 @@ export function visibleMenu(list: DrinkList | null): DrinkSection[][] {
       id: drink.id, name: drink.name,
       ...(!section.shared && drink.price ? { price: drink.price } : {}),
       ...(drink.detail ? { detail: drink.detail } : {}),
-      ...(drink.soldOut ? { soldOut: true } : {}),
     }));
     if (!drinks.length) return [];
     return [{
@@ -158,9 +157,20 @@ export function visibleMenu(list: DrinkList | null): DrinkSection[][] {
 }
 
 /**
+ * The board's drinks: what shows of the list, with drinks of one price on one
+ * line when `samePriceLine` is on (see compactSection). The live screen is
+ * sent exactly this, so every screen, an older one included, draws the same.
+ */
+export function boardDrinks(list: DrinkList | null, samePriceLine: boolean): DrinkSection[][] {
+  const menu = visibleMenu(list);
+  return samePriceLine ? compactMenu(menu) : menu;
+}
+
+/**
  * The drinks as the live screen receives them, checked; null (the printed
- * menu) for anything that is not three columns of sections. Unset marks are
- * left off, as visibleMenu leaves them.
+ * menu) for anything that is not three columns of sections. Unset fields are
+ * left off, as visibleMenu leaves them; a line standing for several drinks
+ * keeps their names. An older server's sold-out marks are dropped.
  */
 export function parseVisibleMenu(raw: unknown): DrinkSection[][] | null {
   if (!Array.isArray(raw) || raw.length !== DRINK_COLUMNS || !raw.every(Array.isArray)) return null;
@@ -175,7 +185,8 @@ export function parseVisibleMenu(raw: unknown): DrinkSection[][] | null {
       for (const item of section.drinks) {
         const drink = item && typeof item === "object" ? item as Record<string, unknown> : null;
         if (!drink || typeof drink.name !== "string") return null;
-        drinks.push({ id: text(drink.id), name: drink.name, price: text(drink.price), detail: text(drink.detail), soldOut: drink.soldOut === true || undefined });
+        const names = Array.isArray(drink.names) && drink.names.length > 1 && drink.names.every((entry) => typeof entry === "string") ? drink.names as string[] : undefined;
+        drinks.push({ id: text(drink.id), name: drink.name, price: text(drink.price), detail: text(drink.detail), names });
       }
       sections.push({ id: text(section.id), title: typeof section.title === "string" ? section.title : "", price: text(section.price), shared: section.shared === true || undefined, drinks });
     }
@@ -240,22 +251,11 @@ export function updateDrink(list: DrinkList, drinkId: string, change: Partial<Om
     : section));
 }
 
-/**
- * One drink marked sold out or back, the rest of the list as it is; null
- * when that drink is no longer in the list. The server applies a quick tap
- * this way to the list as saved now, so a mark made from another screen a
- * moment ago stays.
- */
-export function setSoldOut(list: DrinkList, drinkId: string, soldOut: boolean): DrinkList | null {
-  if (!list.columns.flat().some((section) => section.drinks.some((drink) => drink.id === drinkId))) return null;
-  return updateDrink(list, drinkId, { soldOut });
-}
-
 /** A new empty drink at the bottom of a section; the list as it was when the section is full or the list is. */
 export function addDrink(list: DrinkList, sectionId: string, id: string): DrinkList {
   if (drinkCount(list) >= MAX_DRINKS) return list;
   return mapSections(list, (section) => (section.id === sectionId && section.drinks.length < MAX_DRINKS_PER_SECTION
-    ? { ...section, drinks: [...section.drinks, { id, name: "", price: "", detail: "", soldOut: false, hidden: false }] }
+    ? { ...section, drinks: [...section.drinks, { id, name: "", price: "", detail: "", hidden: false }] }
     : section));
 }
 
@@ -308,7 +308,7 @@ export function sectionToColumn(list: DrinkList, sectionId: string, column: numb
   };
 }
 
-/** Whether two lists would save the same, once cleaned: what decides if there is anything to save. */
+/** Whether two lists would save the same, once cleaned: what decides if there is anything to save. Old sold-out marks don't count, since cleaning drops them. */
 export function sameList(a: DrinkList | null, b: DrinkList | null): boolean {
   return JSON.stringify(a && parseDrinkList(a)) === JSON.stringify(b && parseDrinkList(b));
 }

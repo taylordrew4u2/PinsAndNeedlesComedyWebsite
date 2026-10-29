@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { DEFAULT_MARQUEE, type MarqueeChange, type MenuStyle } from "@/lib/drink-menu";
-import CustomMenuCard, { type CustomMenuInput } from "./CustomMenuCard";
+import { DEFAULT_MARQUEE, NO_MENU_VIEW, customSettingsOf, readMenuView, type CustomMenuSettings, type MarqueeChange, type MenuStyle, type MenuView } from "@/lib/drink-menu";
+import { boardQr } from "@/lib/screen-qr";
+import CustomMenuCard from "./CustomMenuCard";
 import DrinkListCard from "./DrinkListCard";
 import MarqueeCard from "./MarqueeCard";
 import { parseDrinkList, type DrinkList } from "@/lib/drink-list";
@@ -19,12 +20,13 @@ import LiveMirror from "./LiveMirror";
 import MessageCard from "./MessageCard";
 import ScreenSettingsCard from "./ScreenSettingsCard";
 import TestSoundButton from "./TestSoundButton";
-import { parseScreenSettings, stingName, type ScreenSettings } from "@/lib/screen-settings";
+import { parseScreenSettings, previewQr, stingName, type ScreenSettings } from "@/lib/screen-settings";
 import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
 import { screenStatus } from "@/lib/screen-status";
 import QuestionEditor from "./QuestionEditor";
 import QuestionSearch from "./QuestionSearch";
 import { matchesSearch, onScreenQuestion, withEdit, type QuestionChange } from "@/lib/questions";
+import { openCard } from "./open-card";
 
 type State = {
   /** The performers' cards: names and questions, filled in ahead. */
@@ -37,23 +39,6 @@ type State = {
   shown: Submission[];
   archived: Submission[];
   selected: LiveSelection | null;
-  /** The drink menu is up on the live screen, over any question. */
-  menu: boolean;
-  /** Which drink menu: the standard one, or the custom one with its colour and line above the QR. */
-  menuStyle: MenuStyle;
-  /** The custom menu's saved text colour and line above the QR; "" for the defaults. */
-  menuColor: string;
-  menuHeadline: string;
-  /** The custom menu's note in the empty space ("" for none) and its colour ("" to follow the text colour). */
-  menuNote: string;
-  menuNoteColor: string;
-  /** The custom menu's font, and tonight's bartender in a script font and colour ("" for the defaults, or no bartender). */
-  menuFont: string;
-  menuBartender: string;
-  menuBartenderFont: string;
-  menuBartenderColor: string;
-  /** Text running around the edge while the drink menu is up; empty for none. */
-  marquee: string;
   truncated: boolean;
   questionsOpen: boolean;
   manualOpen: boolean;
@@ -66,20 +51,9 @@ type State = {
   staleScreen?: { at: string } | null;
   /** The host pressed "Close questions now" and it still holds. */
   manualClosed: boolean;
-  /** The marquee on or off, its speed ("" for Normal) and its own colour ("" to follow the menu's text colour). */
-  marqueeOn: boolean;
-  marqueeSpeed: string;
-  marqueeColor: string;
-  /** The custom menu's wording under the QR code and over the bartender; "" for the printed wording. */
-  menuQrCaption: string;
-  menuQrTitle: string;
-  menuQrLink: string;
-  menuBartenderLabel: string;
-  /** The custom menu shows no QR code. */
-  menuQrOff: boolean;
   /** The host's drink list, shown by both menus; null while it is the printed menu. */
   drinks: DrinkList | null;
-};
+} & MenuView;
 /** The one open editor: which question, and where it was opened (the waiting list, the shown list, or the "On screen" box). */
 type Editing = { at: "pile" | "shown" | "screen"; id: string };
 type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
@@ -114,19 +88,7 @@ const NO_OPEN_SLOT = "Every card has run or is full. Add a performer in Sets, or
  * cards read them as given, and one missing would take the page down mid-show.
  */
 function withDefaults(data: State): State {
-  const text = (value: unknown) => (typeof value === "string" ? value : "");
-  return {
-    ...data,
-    marqueeOn: data.marqueeOn !== false,
-    marqueeSpeed: text(data.marqueeSpeed),
-    marqueeColor: text(data.marqueeColor),
-    menuQrCaption: text(data.menuQrCaption),
-    menuQrTitle: text(data.menuQrTitle),
-    menuQrLink: text(data.menuQrLink),
-    menuBartenderLabel: text(data.menuBartenderLabel),
-    menuQrOff: data.menuQrOff === true,
-    drinks: parseDrinkList(data.drinks),
-  };
+  return { ...data, ...readMenuView(data, NO_MENU_VIEW), drinks: parseDrinkList(data.drinks) };
 }
 
 /**
@@ -325,40 +287,20 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
   /** Take the server's word on the whole drink menu record after any change to it. */
   const takeMenu = (data: Change & Record<string, unknown>) =>
-    setState((current) => current ? {
-      ...current,
-      menu: Boolean(data.menu),
-      menuStyle: data.menuStyle === "custom" ? "custom" : "standard",
-      marquee: typeof data.marquee === "string" ? data.marquee : current.marquee,
-      menuColor: typeof data.menuColor === "string" ? data.menuColor : current.menuColor,
-      menuHeadline: typeof data.menuHeadline === "string" ? data.menuHeadline : current.menuHeadline,
-      menuNote: typeof data.menuNote === "string" ? data.menuNote : current.menuNote,
-      menuNoteColor: typeof data.menuNoteColor === "string" ? data.menuNoteColor : current.menuNoteColor,
-      menuFont: typeof data.menuFont === "string" ? data.menuFont : current.menuFont,
-      menuBartender: typeof data.menuBartender === "string" ? data.menuBartender : current.menuBartender,
-      menuBartenderFont: typeof data.menuBartenderFont === "string" ? data.menuBartenderFont : current.menuBartenderFont,
-      menuBartenderColor: typeof data.menuBartenderColor === "string" ? data.menuBartenderColor : current.menuBartenderColor,
-      marqueeOn: typeof data.marqueeOn === "boolean" ? data.marqueeOn : current.marqueeOn,
-      marqueeSpeed: typeof data.marqueeSpeed === "string" ? data.marqueeSpeed : current.marqueeSpeed,
-      marqueeColor: typeof data.marqueeColor === "string" ? data.marqueeColor : current.marqueeColor,
-      menuQrCaption: typeof data.menuQrCaption === "string" ? data.menuQrCaption : current.menuQrCaption,
-      menuQrTitle: typeof data.menuQrTitle === "string" ? data.menuQrTitle : current.menuQrTitle,
-      menuQrLink: typeof data.menuQrLink === "string" ? data.menuQrLink : current.menuQrLink,
-      menuBartenderLabel: typeof data.menuBartenderLabel === "string" ? data.menuBartenderLabel : current.menuBartenderLabel,
-      menuQrOff: typeof data.menuQrOff === "boolean" ? data.menuQrOff : current.menuQrOff,
-    } : current);
+    setState((current) => current ? { ...current, ...readMenuView(data, current) } : current);
 
   /**
-   * The marquee's one Save: its text, then how it runs, each only if it changed. The server takes them as
-   * two changes, so the second waits for the first, and a refused text leaves the style unsent. True once
-   * all of it is saved; otherwise the card keeps the typing for another try.
+   * The marquee's one Save: its text, then how it runs, then the daytime menu's own text, each only if it
+   * changed. The server takes them as separate changes, so each waits for the one before, and a refused one
+   * leaves the rest unsent. True once all of it is saved; otherwise the card keeps the typing for another try.
    */
-  const saveMarquee = async ({ text, style }: MarqueeChange) => {
-    if (text === undefined && !style) return true;
+  const saveMarquee = async ({ text, style, custom }: MarqueeChange) => {
+    if (text === undefined && !style && custom === undefined) return true;
     let saved: Record<string, unknown> = {};
     const take = (data: Change & Record<string, unknown>) => { takeMenu(data); saved = data; };
     if (text !== undefined && !(await change(API, { marquee: text }, take, "Could not update the marquee."))) return false;
     if (style && !(await change(API, { marqueeStyle: style }, take, "Could not update the marquee."))) return false;
+    if (custom !== undefined && !(await change(API, { customMenu: { customMarquee: custom } }, take, "Could not update the marquee."))) return false;
     // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
     setNotice(saved.marqueeOn === false
       ? `Marquee off: the drink menu fills the screen.${text !== undefined ? " Its text is saved for when it comes back on." : ""}`
@@ -381,17 +323,19 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       if (style) setState((current) => current?.message?.on ? { ...current, message: { ...current.message, on: false } } : current);
     }, "Could not update the drink menu.");
 
-  const saveCustomMenu = (look: CustomMenuInput) =>
+  /** Only the custom menu's settings that changed; the server keeps the rest as saved. */
+  const saveCustomMenu = (look: Partial<CustomMenuSettings>) =>
     change(API, { customMenu: look }, (data) => {
       takeMenu(data);
       setNotice(data.menu && data.menuStyle === "custom" ? "Custom menu saved. The live screen has it now." : "Custom menu saved. It shows when you put the custom menu up.");
     }, "Could not save the custom menu.");
 
-  const saveCustomQrOff = (off: boolean) =>
-    change(API, { menuQrOff: off }, (data) => {
+  /** Drinks of one price on one line on both menus, or each on its own: saved straight away. */
+  const saveSamePriceLine = (on: boolean) =>
+    change(API, { samePriceLine: on }, (data) => {
       takeMenu(data);
-      setNotice(off ? "Saved: the custom menu has no QR code now." : "Saved: the custom menu shows the QR code again.");
-    }, "Could not save the custom menu.");
+      setNotice(on ? "Drinks with the same price now share a line." : "Every drink has its own line again.");
+    }, "Could not save the drink list.");
 
   /** The live screen's own cards (settings, message, test sound): one change, then the server's word on what is saved and, when a message went up, the drink menu. */
   const screenAction = (body: object, done: string, failed: string) =>
@@ -421,10 +365,6 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
    */
   const saveDrinks = (drinks: DrinkList | null, message: string, from?: DrinkList | null) =>
     change(API, from === undefined ? { drinks } : { drinks, from }, takeDrinks(message), "Could not save the drink list.");
-
-  /** One drink sold out or back; the server changes just that drink on the list as saved now. */
-  const markDrink = (id: string, on: boolean, message: string) =>
-    change(API, { soldOut: { id, on } }, takeDrinks(message), "Could not save the drink list.");
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -769,7 +709,17 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               ) : null}
             </div>
 
-            {state ? <DrinkListCard saved={state.drinks} live={state.menu} qr={state.pageLive} busy={busy} save={saveDrinks} mark={markDrink} /> : null}
+            {state ? (
+              <DrinkListCard
+                saved={state.drinks}
+                live={state.menu}
+                qr={state.pageLive ? boardQr(previewQr(screenSettings), "menu") : null}
+                busy={busy}
+                save={saveDrinks}
+                samePriceLine={state.menuSamePriceLine}
+                saveSamePriceLine={saveSamePriceLine}
+              />
+            ) : null}
           </section>
 
           <section aria-label="Question submissions" className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
@@ -922,6 +872,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             {state ? (
               <MarqueeCard
                 text={state.marquee}
+                custom={state.marqueeCustom}
                 on={state.marqueeOn}
                 speed={state.marqueeSpeed}
                 color={state.marqueeColor}
@@ -933,27 +884,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
             {state ? (
               <CustomMenuCard
-                color={state.menuColor}
-                headline={state.menuHeadline}
-                note={state.menuNote}
-                noteColor={state.menuNoteColor}
-                font={state.menuFont}
-                bartender={state.menuBartender}
-                bartenderFont={state.menuBartenderFont}
-                bartenderColor={state.menuBartenderColor}
-                marquee={state.marquee}
-                live={state.menu && state.menuStyle === "custom"}
-                qr={state.pageLive}
-                qrOff={state.menuQrOff}
-                setQrOff={saveCustomQrOff}
-                busy={busy}
-                save={saveCustomMenu}
-                qrCaption={state.menuQrCaption}
-                qrTitle={state.menuQrTitle}
-                qrLink={state.menuQrLink}
-                bartenderLabel={state.menuBartenderLabel}
+                saved={customSettingsOf(state)}
                 marqueeStyle={{ on: state.marqueeOn, speed: state.marqueeSpeed, color: state.marqueeColor }}
                 drinks={state.drinks}
+                samePriceLine={state.menuSamePriceLine}
+                live={state.menu && state.menuStyle === "custom"}
+                busy={busy}
+                save={saveCustomMenu}
+                editBartender={() => openCard("bartender-field", "input")}
               />
             ) : null}
 

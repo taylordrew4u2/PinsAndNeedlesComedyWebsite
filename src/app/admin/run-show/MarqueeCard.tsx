@@ -7,7 +7,8 @@ import {
 } from "@/lib/drink-menu";
 import { DEFAULT_MENU_FONT } from "@/lib/menu-fonts";
 
-const DEFAULTS: MarqueeSettings = { text: "", on: true, speed: "", color: "" };
+/** The marquee as it always ran, and none on the daytime (custom) menu. */
+const DEFAULTS: MarqueeSettings = { text: "", on: true, speed: "", color: "", custom: "" };
 
 /** The board's marquee type is 28px; the sample is set at half that, so it crawls at half the speed to look the same. */
 const SAMPLE_SCALE = 0.5;
@@ -16,7 +17,7 @@ type Props = MarqueeSettings & {
   /** A drink menu is on the live screen now, so a save shows at once. */
   live: boolean;
   busy: boolean;
-  /** Only what changed: the text, how it runs, or both. True once all of it is saved. */
+  /** Only what changed: the text, how it runs, the daytime menu's text, or any of them. True once all of it is saved. */
   save: (change: MarqueeChange) => Promise<boolean>;
 };
 
@@ -39,10 +40,9 @@ export default function MarqueeCard({ live, busy, save, ...saved }: Props) {
   const edit = (change: Partial<MarqueeSettings>) => setDraft((current) => ({ ...current, ...change }));
   const value = { ...saved, ...draft };
   const pending = marqueeChange(saved, value);
-  const changed = pending.text !== undefined || Boolean(pending.style);
+  const changed = Object.keys(pending).length > 0;
   // Already the defaults as saved: "Use defaults" only throws away the typing.
-  const toDefaults = marqueeChange(saved, DEFAULTS);
-  const atDefaults = toDefaults.text === undefined && !toDefaults.style;
+  const atDefaults = !Object.keys(marqueeChange(saved, DEFAULTS)).length;
 
   const submit = async (next: MarqueeSettings) => {
     // Only what was sent is cleared: anything typed while it saves stays, ready for the next Save.
