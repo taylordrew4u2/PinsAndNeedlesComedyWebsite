@@ -213,18 +213,18 @@ test("drinks: added at the bottom of their section within the limits, moved with
 });
 
 test("sections: added to a column within the limit, moved up and down, to another column, removed", () => {
-  // The printed menu: four sections on the left (s1-s4), three in the middle (s5-s7), four on the right.
+  // The printed menu: four sections on the left (s1-s4), three in the middle (s5-s7), and the right full with six (s8-s13).
   let list = defaultDrinkList();
   list = moveSection(list, "s2", -1);
   assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s2", "s1", "s3", "s4"]);
   assert.deepEqual(moveSection(list, "s2", -1), list);
+  // The right column is full: nothing more goes in.
+  assert.equal(list.columns[2].length, MAX_SECTIONS_PER_COLUMN);
+  assert.deepEqual(sectionToColumn(list, "s2", 2), list);
+  assert.deepEqual(addSection(list, 2, "n1"), list);
   list = sectionToColumn(list, "s2", 1);
   assert.deepEqual(findSection(list, "s2"), { column: 1, index: 3 });
   assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s1", "s3", "s4"]);
-  // The middle column is now full: nothing more goes in.
-  assert.equal(list.columns[1].length, MAX_SECTIONS_PER_COLUMN);
-  assert.deepEqual(sectionToColumn(list, "s1", 1), list);
-  assert.deepEqual(addSection(list, 1, "n1"), list);
   list = addSection(list, 0, "n1");
   assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s1", "s3", "s4", "n1"]);
   list = removeSection(list, "s1");
