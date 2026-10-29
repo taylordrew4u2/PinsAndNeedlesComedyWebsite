@@ -26,16 +26,22 @@ export default function AiKeyField() {
     return () => { active = false; };
   }, []);
 
-  const send = async (method: "POST" | "DELETE", done: string) => {
+  const send = async (method: "POST" | "DELETE", done: string, replace = false) => {
     setBusy(method === "POST" ? "saving" : "removing");
     setResult(null);
     try {
       const response = await fetch(API, {
         method,
         headers: { "content-type": "application/json" },
-        body: method === "POST" ? JSON.stringify({ key }) : undefined,
+        body: method === "POST" ? JSON.stringify({ key, replace }) : undefined,
       });
       const data = await response.json().catch(() => null);
+      // A key another server saved is in the way: replacing it is the host's call.
+      if (response.status === 409 && data?.confirm && !replace) {
+        setBusy("");
+        if (window.confirm(`${data.error} Replace it?`)) await send(method, done, true);
+        return;
+      }
       if (!response.ok || !data?.ok) {
         setResult({ tone: "bad", text: data?.error || "That didn’t work. Try again." });
         return;
@@ -51,13 +57,16 @@ export default function AiKeyField() {
   };
 
   const remove = () => {
-    if (!window.confirm("Remove the key saved here? The AI writer goes back to the server’s key, or stops if there isn’t one.")) return;
-    void send("DELETE", "✓ Removed.");
+    if (!window.confirm("Remove the key saved here? The AI writer goes back to the server’s key, or stops if there isn’t one. If the key might have leaked, also delete it at console.anthropic.com: removing it here doesn’t stop the key working.")) return;
+    void send("DELETE", "✓ Removed. Every part of the site stops using it within a few seconds.");
   };
 
+  const ollama = status?.provider === "ollama";
   const now = !status
     ? "Checking which key is in use…"
-    : status.source === "admin"
+    : ollama
+      ? "This server’s AI writer runs on an Ollama server (OLLAMA_URL), so it doesn’t use an Anthropic key. A key saved here is used wherever Anthropic answers instead."
+      : status.source === "admin"
       ? `✓ Using the key you saved here, ending in …${status.hint}${status.savedAt ? `, saved ${new Date(status.savedAt).toLocaleDateString()}` : ""}.`
       : status.source === "server"
         ? `Using the key set on the server${status.hint ? `, ending in …${status.hint}` : ""}. Paste one here to use yours instead.`
@@ -65,9 +74,9 @@ export default function AiKeyField() {
 
   return (
     <div className="grid gap-3">
-      <p className={`text-sm ${status?.source === "admin" ? "text-emerald-300" : "text-neutral-300"}`}>{now}</p>
+      <p className={`text-sm ${status?.source === "admin" && !ollama ? "text-emerald-300" : "text-neutral-300"}`}>{now}</p>
       {status?.unreadable ? (
-        <Note tone="warn">A key was saved here before, but this server can’t open it any more (its secret changed). Paste it again.</Note>
+        <Note tone="warn">A key is saved here that this server can’t open: it was saved by a server with a different ADMIN_SECRET, or before this one’s changed. Paste the key again, or remove it.</Note>
       ) : null}
       <label className="block min-w-0">
         <span className="mb-1 block text-sm text-neutral-300">Anthropic API key</span>
@@ -83,10 +92,10 @@ export default function AiKeyField() {
         <span className="mt-1 block text-xs text-neutral-500">From console.anthropic.com → API keys. It’s checked with Anthropic before it’s saved, and never shown again.</span>
       </label>
       <div className="flex flex-wrap items-center gap-3">
-        <Button tone="primary" onClick={() => void send("POST", "✓ Saved, and Anthropic says it works. The AI writer uses it from now on.")} disabled={!key.trim() || Boolean(busy)}>
+        <Button tone="primary" onClick={() => void send("POST", ollama ? "✓ Saved, and Anthropic says it works. It’s used wherever Anthropic answers the AI writer." : "✓ Saved, and Anthropic says it works. The AI writer uses it from now on.")} disabled={!key.trim() || Boolean(busy)}>
           {busy === "saving" ? "Checking with Anthropic…" : "Save key"}
         </Button>
-        {status?.source === "admin" ? (
+        {status?.source === "admin" || status?.unreadable ? (
           <Button tone="ghost" onClick={remove} disabled={Boolean(busy)}>{busy === "removing" ? "Removing…" : "Remove saved key"}</Button>
         ) : null}
       </div>

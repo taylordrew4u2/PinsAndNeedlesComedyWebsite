@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import {
-  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, SCREEN_TEXT, changedScreen, parseScreenSettings, stingName,
+  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_SCREEN, QR_SIZE_MAX, QR_SIZE_MIN, SCREEN_TEXT, changedScreen, parseScreenSettings, stingName,
   type ScreenSettings, type ScreenSwitch, type ScreenText,
 } from "@/lib/screen-settings";
 import QuestionSoundPicker from "./QuestionSoundPicker";
@@ -103,6 +103,24 @@ export default function ScreenSettingsCard({ saved, busy, save }: Props) {
           {toggle("intro", "Drum roll with the dice")}
           {value.intro ? words("introWord", "Word under the dice") : null}
           {toggle("names", "Show the sender’s name under it")}
+        </fieldset>
+
+        <fieldset className="space-y-2">
+          <legend className="mb-2 text-xs uppercase tracking-widest text-neutral-400">QR code</legend>
+          <label className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span>Size</span>
+            <input
+              type="range"
+              min={QR_SIZE_MIN}
+              max={QR_SIZE_MAX}
+              step={10}
+              value={value.qrSize}
+              onChange={(event) => edit({ qrSize: Number(event.target.value) })}
+              className="min-w-0 flex-1 accent-amber-300"
+            />
+            <span className="w-12 text-right tabular-nums text-neutral-300">{value.qrSize}%</span>
+          </label>
+          <p className="text-xs text-neutral-500">100% is its usual size. It changes everywhere the QR shows: the corner of the live screen, both drink menus and the Intro (which goes up to 140%). Questions and drinks make room for a bigger one.</p>
         </fieldset>
 
         <fieldset className="space-y-2">

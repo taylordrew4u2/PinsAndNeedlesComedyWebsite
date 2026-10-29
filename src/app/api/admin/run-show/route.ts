@@ -49,6 +49,7 @@ function menuView(menu: MenuState) {
     menuFont: menu.font, menuBartender: menu.bartender, menuBartenderFont: menu.bartenderFont, menuBartenderColor: menu.bartenderColor,
     marqueeOn: menu.marqueeOn, marqueeSpeed: menu.marqueeSpeed, marqueeColor: menu.marqueeColor,
     menuQrCaption: menu.qrCaption, menuQrTitle: menu.qrTitle, menuQrLink: menu.qrLink, menuBartenderLabel: menu.bartenderLabel,
+    menuQrOff: menu.qrOff,
   };
 }
 
@@ -193,6 +194,17 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("[run-show] marquee failed", error);
       return NextResponse.json({ error: "Could not update the marquee. Try again." }, { status: 503, headers });
+    }
+  }
+  if ("menuQrOff" in body) {
+    if (typeof body.menuQrOff !== "boolean") {
+      return NextResponse.json({ error: "Invalid custom menu QR setting" }, { status: 400, headers });
+    }
+    try {
+      return NextResponse.json(menuView(await writeMenu({ qrOff: body.menuQrOff }, space)), { headers });
+    } catch (error) {
+      console.error("[run-show] custom menu QR failed", error);
+      return NextResponse.json({ error: "Could not save the custom menu. Try again." }, { status: 503, headers });
     }
   }
   if ("customMenu" in body) {

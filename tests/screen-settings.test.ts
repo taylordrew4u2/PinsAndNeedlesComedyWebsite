@@ -10,7 +10,7 @@ import { DEFAULT_SOUND, QUESTION_SOUNDS } from "../src/lib/question-sounds.ts";
 test("defaults are the screen as it has always been", () => {
   assert.deepEqual(DEFAULT_LOOK, {
     countdown: true, countdownFrom: 3, intro: true, introWord: "Incoming", sound: true,
-    sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "Now on stage",
+    sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", qrSize: 100, timer: true, names: true, stageLabel: "Now on stage",
     howHeading: "How it works", howStep1: "Scan the QR", howStep2: "Tell us your bad decision", howStep3: "A comedian weighs in, live",
     listenLine: "When you hear this…", exampleQuestion: EXAMPLE_QUESTION,
     closingLine: "That sound means a bad decision just hit the screen.", closingCall: "Scan to send yours.",
@@ -165,4 +165,12 @@ test("the file the screen fetches: the recording, the host's own upload, or the 
   assert.equal(soundUrl({ sting: "desk-bell", stingUrl: "/uploads/a.mp3" }), "/sounds/question/desk-bell.mp3");
   assert.equal(soundUrl({ sting: "custom", stingUrl: "/uploads/a.mp3" }), "/uploads/a.mp3");
   assert.equal(soundUrl({ sting: "custom", stingUrl: "" }), `/sounds/question/${DEFAULT_SOUND}.mp3`);
+});
+
+test("the QR size is a whole step of 10 from 50% to 200%; anything else reads as its usual size", () => {
+  for (const size of [50, 100, 130, 200]) assert.equal(parseScreenSettings({ qrSize: size }).qrSize, size);
+  for (const size of [0, 40, 45, 105, 210, 99.9, "120", null]) assert.equal(parseScreenSettings({ qrSize: size }).qrSize, 100, String(size));
+  assert.deepEqual(parseScreenChange({ qrSize: 150 }), { qrSize: 150 });
+  assert.equal(parseScreenChange({ qrSize: 155 }), null);
+  assert.deepEqual(changedScreen({ ...DEFAULT_SCREEN, qrSize: 150 }), { qrSize: 150 });
 });

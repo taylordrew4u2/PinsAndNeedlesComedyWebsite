@@ -212,12 +212,15 @@ export type MenuState = {
   font: string; bartender: string; bartenderFont: string; bartenderColor: string;
   /** The marquee on (as it has always been) or off, its speed ("" for Normal) and its own colour ("" for the menu's text colour). */
   marqueeOn: boolean; marqueeSpeed: string; marqueeColor: string;
+  /** The custom menu without the QR code (and so its line above and wording under it), for a menu that is up when there is no show. */
+  qrOff: boolean;
 } & MenuWording;
 
 /** What the custom menu draws, defaults filled in. An empty note or bartender is left off. */
 export type CustomLook = {
   color: string; headline: string; note: string; noteColor: string;
   font: MenuFontId; bartender: string; bartenderFont: ScriptFontId; bartenderColor: string;
+  qrOff: boolean;
 } & MenuWording;
 
 /** One line of plain text, trimmed and capped. Anything that is not a string is no text. */
@@ -278,7 +281,7 @@ export function parseMenuState(raw: unknown): MenuState {
   if (!raw || typeof raw !== "object") {
     return {
       on: false, style: "standard", marquee: "", color: "", headline: "", note: "", noteColor: "", font: "", bartender: "", bartenderFont: "", bartenderColor: "",
-      marqueeOn: true, marqueeSpeed: "", marqueeColor: "", qrCaption: "", qrTitle: "", qrLink: "", bartenderLabel: "",
+      marqueeOn: true, marqueeSpeed: "", marqueeColor: "", qrOff: false, qrCaption: "", qrTitle: "", qrLink: "", bartenderLabel: "",
     };
   }
   const value = raw as Record<string, unknown>;
@@ -298,6 +301,7 @@ export function parseMenuState(raw: unknown): MenuState {
     marqueeOn: value.marqueeOn !== false,
     marqueeSpeed: isMarqueeSpeed(value.marqueeSpeed) ? value.marqueeSpeed : "",
     marqueeColor: cleanColor(value.marqueeColor),
+    qrOff: value.qrOff === true,
     qrCaption: cleanWording("qrCaption", value.qrCaption),
     qrTitle: cleanWording("qrTitle", value.qrTitle),
     qrLink: cleanWording("qrLink", value.qrLink),
@@ -315,6 +319,7 @@ export function customLook(state: MenuState): CustomLook | null {
     bartender: state.bartender,
     bartenderFont: isScriptFont(state.bartenderFont) ? state.bartenderFont : DEFAULT_SCRIPT_FONT,
     bartenderColor: state.bartenderColor || color,
+    qrOff: state.qrOff,
     ...customWording(state),
   };
 }
