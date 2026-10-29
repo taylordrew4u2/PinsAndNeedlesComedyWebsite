@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { askOllama, ollamaSettings, pickProvider, unfence, type OllamaConfig } from "./ollama.ts";
+import { savedAiKey } from "./ai-key-store";
 
 /**
  * One place for everything the admin's AI helpers share: which model
@@ -31,24 +32,37 @@ export function aiModel(vision = false): string {
     : env("ANTHROPIC_MODEL") || "claude-opus-5";
 }
 
-export function aiConfigured(): boolean {
+/**
+ * The Anthropic key to use: the one saved in the admin's Site settings
+ * first, else the server's ANTHROPIC_API_KEY. A saved key that can't be
+ * read right now falls back to the server's rather than failing the request.
+ */
+export async function anthropicKey(): Promise<string> {
+  const saved = await savedAiKey().catch((error) => {
+    console.error("[ai] could not read the saved key", error);
+    return null;
+  });
+  return saved || env("ANTHROPIC_API_KEY");
+}
+
+export async function aiConfigured(): Promise<boolean> {
   // An Ollama server needs no key, so having somewhere to send the request
   // is the whole of the configuration.
-  return aiProvider() === "ollama" ? true : Boolean(env("ANTHROPIC_API_KEY"));
+  return aiProvider() === "ollama" ? true : Boolean(await anthropicKey());
 }
 
 /** What to tell the admin when nothing is set up to answer. */
 export function aiUnconfigured(): string {
-  return "This needs ANTHROPIC_API_KEY set on the server, or OLLAMA_URL pointing at an Ollama server";
+  return "Add an Anthropic API key in Site settings → AI writer key (or set ANTHROPIC_API_KEY, or OLLAMA_URL for an Ollama server, on the server)";
 }
 
-export function aiClient(): Anthropic {
-  return new Anthropic();
+export async function aiClient(): Promise<Anthropic> {
+  return new Anthropic({ apiKey: await anthropicKey() });
 }
 
 /** A sentence for the admin. The full error goes to the server log. */
 export function aiErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Anthropic.AuthenticationError) return "ANTHROPIC_API_KEY was rejected";
+  if (error instanceof Anthropic.AuthenticationError) return "The Anthropic API key was turned down: check it in Site settings → AI writer key";
   if (error instanceof Anthropic.RateLimitError) return "Rate limited — try again in a minute";
   if (error instanceof Anthropic.APIError) return `${fallback} (${error.status})`;
   // Ollama's failures already arrive as a sentence worth showing.
@@ -140,7 +154,7 @@ export async function ask(input: AiAsk): Promise<AiAnswer> {
   if (input.picture) content.push(pictureBlock(input.picture));
   content.push({ type: "text", text: input.text });
 
-  const response = await aiClient().messages.create({
+  const response = await (await aiClient()).messages.create({
     model: aiModel(),
     max_tokens: input.maxTokens,
     system: input.system,

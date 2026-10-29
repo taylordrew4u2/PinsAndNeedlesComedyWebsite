@@ -21,3 +21,6 @@ next-env.d.ts
 
 # Output of npm run simulate
 /simulator-report/
+
+# A key saved from the admin (fs driver, local only): sealed, but never committed
+/data/settings/

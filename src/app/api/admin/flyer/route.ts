@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   if (!(await isAuthed())) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!aiConfigured()) {
+  if (!(await aiConfigured())) {
     return NextResponse.json({ ok: false, error: aiUnconfigured() }, { status: 503 });
   }
 
