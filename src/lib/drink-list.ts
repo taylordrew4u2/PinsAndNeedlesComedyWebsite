@@ -13,8 +13,8 @@ import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MARQUEE_SPEEDS, cleanColor, cleanLin
 export const DRINK_COLUMNS = 3;
 export const MAX_SECTIONS_PER_COLUMN = 4;
 export const MAX_DRINKS_PER_SECTION = 10;
-/** Well over the printed menu's 24: about as many as still fit once the board has set its type as small as it goes. */
-export const MAX_DRINKS = 40;
+/** A little over the printed menu's 41: about as many as still fit once the board has set its type as small as it goes. */
+export const MAX_DRINKS = 48;
 export const SECTION_TITLE_MAX = 32;
 export const DRINK_NAME_MAX = 48;
 export const DRINK_PRICE_MAX = 10;

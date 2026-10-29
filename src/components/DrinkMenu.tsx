@@ -135,13 +135,15 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
       }
     };
     // Measured again as the fonts come in, and when a hidden preview opens (until then it has no size to measure).
+    // And again whenever the board's scale changes: the live screen can first lay the board out at no size at all,
+    // where nothing seems to overflow, and the grid's own box doesn't change size when it is then scaled up.
     const observer = new ResizeObserver(fit);
     observer.observe(box);
     fit();
     void document.fonts.ready.then(fit);
     document.fonts.addEventListener("loadingdone", fit);
     return () => { active = false; observer.disconnect(); document.fonts.removeEventListener("loadingdone", fit); };
-  }, [layout]);
+  }, [layout, scale]);
 
   // Spook mode's drips hang only as far as the menu leaves room above its first line: a long
   // list, or a custom menu's bartender and note, starts higher, and the drips shorten to match.
@@ -444,8 +446,9 @@ function Marquee({ text, color, speed, family, fontSize }: { text: string; color
  */
 function overflows(grid: HTMLElement): boolean {
   const items = [...grid.children] as HTMLElement[];
-  if (!items.length || !grid.clientHeight) return false;
   const box = grid.getBoundingClientRect();
+  // Not laid out yet, or scaled down to nothing: there is nothing to measure, and the fit runs again once there is.
+  if (!items.length || !grid.clientHeight || !box.height) return false;
   // One board pixel on screen, as slack for rounding.
   const slack = box.height / grid.offsetHeight;
   return items.some((item) => {

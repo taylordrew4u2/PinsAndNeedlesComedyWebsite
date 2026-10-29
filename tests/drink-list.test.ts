@@ -33,9 +33,11 @@ test("the printed menu as a list: ids from where things sit, the same every time
   assert.equal(list.columns[0][0].drinks[1].id, "s1-2");
   assert.deepEqual(defaultDrinkList(), list);
   // Sections with one price are shared, their drinks keep none of their own.
-  const cocktails = list.columns[1][0];
+  const cocktails = list.columns[1][1];
+  assert.equal(cocktails.title, "Specialty Cocktails");
   assert.equal(cocktails.shared, true);
   assert.equal(cocktails.price, "$13");
+  assert.ok(cocktails.drinks.every((entry) => entry.price === ""));
   const ids = [...listIds(list)];
   assert.equal(new Set(ids).size, ids.length);
   assert.deepEqual(parseDrinkList(JSON.parse(JSON.stringify(list))), list);
@@ -141,11 +143,11 @@ test("the board shows what is not hidden; a sold-out drink stays, marked", () =>
   assert.equal(beers.drinks[1].soldOut, true);
   assert.equal(beers.drinks[0].soldOut, undefined);
   assert.ok(!beers.drinks.some((entry) => entry.name === "Chelada"));
-  assert.equal(shown[0].length, 1);
+  assert.equal(shown[0].length, DRINK_MENU[0].length - 1);
   // A section whose drinks are all hidden goes with them.
   let empty = defaultDrinkList();
   for (const entry of empty.columns[0][1].drinks) empty = updateDrink(empty, entry.id, { hidden: true });
-  assert.equal(visibleMenu(empty)[0].length, 1);
+  assert.equal(visibleMenu(empty)[0].length, DRINK_MENU[0].length - 1);
 });
 
 test("one price for a section: the drinks show none of their own, and turning it off brings theirs back", () => {
@@ -211,19 +213,20 @@ test("drinks: added at the bottom of their section within the limits, moved with
 });
 
 test("sections: added to a column within the limit, moved up and down, to another column, removed", () => {
+  // The printed menu: four sections on the left (s1-s4), three in the middle (s5-s7), four on the right.
   let list = defaultDrinkList();
   list = moveSection(list, "s2", -1);
-  assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s2", "s1"]);
+  assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s2", "s1", "s3", "s4"]);
   assert.deepEqual(moveSection(list, "s2", -1), list);
-  list = sectionToColumn(list, "s2", 2);
-  assert.deepEqual(findSection(list, "s2"), { column: 2, index: 3 });
-  assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s1"]);
-  // The right column is now full: nothing more goes in.
-  assert.equal(list.columns[2].length, MAX_SECTIONS_PER_COLUMN);
-  assert.deepEqual(sectionToColumn(list, "s1", 2), list);
-  assert.deepEqual(addSection(list, 2, "n1"), list);
+  list = sectionToColumn(list, "s2", 1);
+  assert.deepEqual(findSection(list, "s2"), { column: 1, index: 3 });
+  assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s1", "s3", "s4"]);
+  // The middle column is now full: nothing more goes in.
+  assert.equal(list.columns[1].length, MAX_SECTIONS_PER_COLUMN);
+  assert.deepEqual(sectionToColumn(list, "s1", 1), list);
+  assert.deepEqual(addSection(list, 1, "n1"), list);
   list = addSection(list, 0, "n1");
-  assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s1", "n1"]);
+  assert.deepEqual(list.columns[0].map((entry) => entry.id), ["s1", "s3", "s4", "n1"]);
   list = removeSection(list, "s1");
   assert.equal(findSection(list, "s1"), null);
 });
