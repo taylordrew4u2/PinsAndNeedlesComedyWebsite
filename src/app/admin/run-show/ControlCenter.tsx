@@ -16,6 +16,7 @@ import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
 import { isNewerBuild } from "@/lib/build";
 import LiveMirror from "./LiveMirror";
+import MenuQrSizeCard from "./MenuQrSizeCard";
 import MessageCard from "./MessageCard";
 import ScreenSettingsCard from "./ScreenSettingsCard";
 import TestSoundButton from "./TestSoundButton";
@@ -918,7 +919,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
           <section aria-labelledby="setup-heading" className="min-w-0 lg:col-start-1 lg:row-start-2">
             <h2 id="setup-heading" className="text-xs uppercase tracking-widest text-neutral-400">Setup</h2>
-            <p className="mt-1 text-sm text-neutral-500">Best done before the show. Each card stays folded until you open it.</p>
+            <p className="mt-1 text-sm text-neutral-500">Best done before the show. Adjust the QR size here, or open a card for more options.</p>
+            {state ? (
+              <MenuQrSizeCard
+                saved={screenSettings.qrSize}
+                busy={busy}
+                save={(qrSize) => screenAction({ screen: { qrSize } }, "QR size saved for both menus and the live screen.", "Could not save the QR size.")}
+              />
+            ) : null}
             {state ? (
               <MarqueeCard
                 text={state.marquee}
@@ -944,6 +952,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 marquee={state.marquee}
                 live={state.menu && state.menuStyle === "custom"}
                 qr={state.pageLive}
+                qrSize={screenSettings.qrSize}
                 qrOff={state.menuQrOff}
                 setQrOff={saveCustomQrOff}
                 busy={busy}
