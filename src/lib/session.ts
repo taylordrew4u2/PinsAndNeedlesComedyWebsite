@@ -40,6 +40,11 @@ export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (IS_PRODUCTION ? "" 
 const SECRET =
   process.env.ADMIN_SECRET || (IS_PRODUCTION ? "" : randomBytes(32).toString("hex"));
 
+/** The server's own secret, for locking away what the admin saves (see secret-box.ts). "" when there is none. */
+export function sealingSecret(): string {
+  return SECRET;
+}
+
 /** Whether the admin is usable at all. False in production with no secrets set. */
 export function adminConfigured(): boolean {
   return Boolean(ADMIN_PASSWORD) && Boolean(SECRET);

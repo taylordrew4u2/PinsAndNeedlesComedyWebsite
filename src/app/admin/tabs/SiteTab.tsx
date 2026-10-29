@@ -4,6 +4,7 @@ import type { Content } from "@/lib/types";
 import { Actions, Area, Button, Card, Color, More, Row, Section, Text, Toggle, confirmDelete } from "../ui";
 import MediaField from "../MediaField";
 import SeoEditor from "../SeoEditor";
+import AiKeyField from "../AiKeyField";
 import { suggestFor } from "../suggest";
 import type { Update } from "../types";
 
@@ -229,6 +230,10 @@ export default function SiteTab({ content, update }: { content: Content; update:
       </div>
 
       <div className="mb-6">
+        <More title="AI writer key" hint="The Anthropic API key the blog and post writer use">
+          <AiKeyField />
+        </More>
+
         <More title="Technical details" hint="Short name, web address, browser-tab icon, year founded">
           <Row>
             <Text
