@@ -1,23 +1,26 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { upload } from "../MediaField";
 import { QUESTION_SOUNDS, SOUND_GROUPS } from "@/lib/question-sounds";
-import { CUSTOM_STING_MAX_S } from "@/lib/custom-sting";
+import { CUSTOM_STING_MAX_S, loadCustomSting, playCustomSting } from "@/lib/custom-sting";
 import { AUDIO_ACCEPT, AUDIO_MAX_BYTES, audioTypeOf, uploadedFileName } from "@/lib/audio-upload";
 import { STING_VOLUME_MAX, STING_VOLUME_MIN, chosenSting, soundUrl, stingName, type QuestionSound, type ScreenSettings } from "@/lib/screen-settings";
-import { PreviewButton, type SoundPreview } from "./SoundPreview";
 
 type Props = {
   sting: QuestionSound;
   volume: number;
   url: string;
-  /** What is saved now: what 🔊 Test sound plays on the TV until the host saves (spook mode's own sound while that is on). */
-  saved: Pick<ScreenSettings, "sting" | "stingUrl" | "stingVolume"> & Partial<Pick<ScreenSettings, "spook" | "spookSting">>;
-  /** The card's ▶ previews, shared with the spooky list so two never play at once. */
-  preview: SoundPreview;
+  /** What is saved now: what 🔊 Test sound plays on the TV until the host saves. */
+  saved: Pick<ScreenSettings, "sting" | "stingUrl" | "stingVolume">;
   edit: (change: Partial<ScreenSettings>) => void;
 };
+
+type Playing = { id: QuestionSound; context: AudioContext; timer?: ReturnType<typeof setTimeout> };
+
+function audioContextClass(): typeof AudioContext | undefined {
+  return window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+}
 
 /**
  * The sound the projector plays with every new question, in the Intro and
@@ -27,22 +30,68 @@ type Props = {
  * Save. The list folds away under the current choice, so the switches and
  * Save stay in reach on a phone.
  */
-export default function QuestionSoundPicker({ sting, volume, url, saved, preview, edit }: Props) {
+export default function QuestionSoundPicker({ sting, volume, url, saved, edit }: Props) {
+  const [playing, setPlaying] = useState<QuestionSound | null>(null);
   const [uploading, setUploading] = useState(false);
   const [problem, setProblem] = useState("");
   // How long the host's own file runs, once this browser has decoded it, to say when it will be faded.
   const [duration, setDuration] = useState<{ url: string; seconds: number } | null>(null);
+  const current = useRef<Playing | null>(null);
+  // Each sound previewed, decoded once per address; a decoded sound plays on any context.
+  const decoded = useRef(new Map<string, AudioBuffer>());
   const input = useRef<HTMLInputElement | null>(null);
 
-  const play = async (id: QuestionSound) => {
-    // ■ on the one playing only stops it; any other press starts afresh.
-    if (preview.playing !== id) setProblem("");
-    const address = soundUrl({ sting: id, stingUrl: url });
-    // Every time, not only on a fresh load: after Replace and then Undo, the earlier file's length shows again.
-    const heard = id === "custom" ? (buffer: AudioBuffer) => setDuration({ url: address, seconds: buffer.duration }) : undefined;
-    const result = await preview.press(id, address, volume, heard);
-    if (result === "unsupported") setProblem("This browser can't play sound.");
-    if (result === "failed") setProblem(id === "custom" ? "Couldn't play your sound in this browser. Press 🔊 Test sound after saving to check the TV, or try an MP3." : "Couldn't play that here. Check this device's connection, then try again.");
+  /** Stops a preview at once: its context is closed, which silences whatever it was playing. */
+  const stop = () => {
+    const preview = current.current;
+    current.current = null;
+    if (preview) {
+      clearTimeout(preview.timer);
+      void preview.context.close().catch(() => {});
+    }
+    setPlaying(null);
+  };
+  useEffect(() => () => {
+    clearTimeout(current.current?.timer);
+    void current.current?.context.close().catch(() => {});
+  }, []);
+
+  const preview = async (id: QuestionSound) => {
+    const again = playing === id;
+    stop();
+    if (again) return;
+    setProblem("");
+    const Context = audioContextClass();
+    if (!Context) {
+      setProblem("This browser can't play sound.");
+      return;
+    }
+    let entry: Playing | null = null;
+    try {
+      // A fresh context for every press, made in the press itself, so the browser lets it play straight away.
+      const context = new Context();
+      entry = { id, context };
+      current.current = entry;
+      setPlaying(id);
+      await context.resume();
+      const address = soundUrl({ sting: id, stingUrl: url });
+      let buffer = decoded.current.get(address);
+      if (!buffer) {
+        buffer = await loadCustomSting(context, address);
+        decoded.current.set(address, buffer);
+      }
+      // Every time, not only on a fresh load: after Replace and then Undo, the earlier file's length shows again.
+      if (id === "custom") setDuration({ url: address, seconds: buffer.duration });
+      // Stopped, or another ▶ pressed, while it loaded.
+      if (current.current !== entry) return;
+      const seconds = playCustomSting(context, buffer, { volume: volume / 100 });
+      const started = entry;
+      started.timer = setTimeout(() => { if (current.current === started) stop(); }, seconds * 1_000 + 300);
+    } catch {
+      if (current.current !== entry) return;
+      stop();
+      setProblem(id === "custom" ? "Couldn't play your sound in this browser. Press 🔊 Test sound after saving to check the TV, or try an MP3." : "Couldn't play that here. Check this device's connection, then try again.");
+    }
   };
 
   const pick = async (file: File | undefined) => {
@@ -57,7 +106,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, preview
       setProblem(`That file is ${(file.size / 1e6).toFixed(1)} MB. A sound can be up to ${AUDIO_MAX_BYTES / 1024 / 1024} MB: trim it, or save it as an MP3.`);
       return;
     }
-    preview.stop();
+    stop();
     setUploading(true);
     try {
       const address = await upload(file, file.name);
@@ -67,7 +116,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, preview
         const Offline = window.OfflineAudioContext;
         if (Offline) {
           const buffer = await new Offline(1, 1, 44_100).decodeAudioData(await file.arrayBuffer());
-          preview.keep(address, buffer);
+          decoded.current.set(address, buffer);
           setDuration({ url: address, seconds: buffer.duration });
         }
       } catch {
@@ -83,17 +132,22 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, preview
   const chosen = QUESTION_SOUNDS.find((entry) => entry.id === sting);
   const own = url ? uploadedFileName(url) : "";
   const ownSeconds = duration?.url === url ? duration.seconds : null;
-  // The usual choice alone: spook mode's own sound is picked in its own list, so it never counts as a change here.
-  const savedUsual = { sting: saved.sting, stingUrl: saved.stingUrl };
   // What the TV would play now against what it will play once saved: the sound, its file, its volume.
-  const unsaved = chosenSting(savedUsual) !== chosenSting({ sting, stingUrl: url })
+  const unsaved = chosenSting(saved) !== chosenSting({ sting, stingUrl: url })
     || (sting === "custom" && saved.stingUrl !== url)
     || saved.stingVolume !== volume;
-  // Spook mode is on with a sound of its own: the TV plays that one instead, until spook mode goes off.
-  const spooked = chosenSting(saved) !== chosenSting(savedUsual);
 
   const playButton = (id: QuestionSound, label: string, disabled = false) => (
-    <PreviewButton playing={preview.playing === id} label={label} disabled={disabled} onPress={() => void play(id)} />
+    <button
+      type="button"
+      onClick={() => void preview(id)}
+      disabled={disabled}
+      aria-label={playing === id ? `Stop ${label}` : `Preview ${label}`}
+      title={playing === id ? "Stop" : "Play it here, on this device"}
+      className={`shrink-0 rounded-md border px-2.5 py-1 text-sm disabled:opacity-40 ${playing === id ? "border-amber-300 bg-amber-300 text-black" : "border-white/30 text-white"}`}
+    >
+      {playing === id ? "■" : "▶"}
+    </button>
   );
 
   const row = (id: QuestionSound, emoji: string, label: string, blurb: string) => (
@@ -143,8 +197,6 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, preview
         {SOUND_GROUPS.map((group) => (
           <div key={group} className="mt-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{group}</p>
-            {/* So picking one here isn't mistaken for switching spook mode on, or for choosing its sound. */}
-            {group === "Spooky" ? <p className="mt-0.5 text-xs text-neutral-500">Yours to pick any night of the year. Spook mode&rsquo;s own sound is chosen under Spook mode, above.</p> : null}
             <ul className="mt-1 grid gap-1.5 sm:grid-cols-2">
               {QUESTION_SOUNDS.filter((entry) => entry.group === group).map((entry) => row(entry.id, entry.emoji, entry.label, entry.blurb))}
             </ul>
@@ -176,12 +228,9 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, preview
       </details>
 
       {problem ? <p role="alert" className="text-xs text-red-300">{problem}</p> : null}
-      {spooked ? (
-        <p className="text-xs text-neutral-500">🦇 Spook mode is on, so 🔊 Test sound and new questions play {stingName(saved)} instead (chosen under Spook mode, above). This one comes back when spook mode goes off.</p>
-      ) : null}
       {unsaved ? (
-        <p className="text-xs text-amber-200">{spooked ? "Not saved yet: press Save to keep it." : `Not saved yet: 🔊 Test sound still plays ${stingName(saved)} at ${saved.stingVolume}% on the TV until you press Save.`}</p>
-      ) : spooked ? null : (
+        <p className="text-xs text-amber-200">Not saved yet: 🔊 Test sound still plays {stingName(saved)} at {saved.stingVolume}% on the TV until you press Save.</p>
+      ) : (
         <p className="text-xs text-neutral-500">🔊 Test sound, at the top, plays this one on the TV.</p>
       )}
     </div>
