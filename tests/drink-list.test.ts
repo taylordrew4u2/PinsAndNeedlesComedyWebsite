@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import {
   DRINK_COLUMNS, DRINK_DETAIL_MAX, DRINK_NAME_MAX, DRINK_PRICE_MAX, MAX_DRINKS, MAX_DRINKS_PER_SECTION, MAX_SECTIONS_PER_COLUMN, SECTION_TITLE_MAX,
   addDrink, addSection, cleanDrinkListInput, cleanPrice, defaultDrinkList, drinkCount, findSection, listIds, moveDrink, moveSection, newListId,
-  parseDrinkList, parseLiveBoard, parseVisibleMenu, removeDrink, removeSection, sameList, sectionToColumn, setSoldOut, updateDrink, updateSection, visibleMenu,
+  boardDrinks, parseDrinkList, parseLiveBoard, parseVisibleMenu, removeDrink, removeSection, sameList, sectionToColumn, updateDrink, updateSection, visibleMenu,
   type DrinkList, type ListDrink, type ListSection,
 } from "../src/lib/drink-list.ts";
-import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, type DrinkSection } from "../src/lib/drink-menu.ts";
+import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, compactMenu, type DrinkSection } from "../src/lib/drink-menu.ts";
 
 /** The board's drinks without their ids, to compare with the printed menu. */
 function withoutIds(menu: DrinkSection[][]): DrinkSection[][] {
@@ -16,7 +16,20 @@ function withoutIds(menu: DrinkSection[][]): DrinkSection[][] {
   }));
 }
 
-const drink = (name: string, extra: Partial<ListDrink> = {}): ListDrink => ({ id: "", name, price: "$5", detail: "", soldOut: false, hidden: false, ...extra });
+const drink = (name: string, extra: Partial<ListDrink> = {}): ListDrink => ({ id: "", name, price: "$5", detail: "", hidden: false, ...extra });
+
+/** A list as a Control Center from before sold out was removed saved it: some drinks still carry the mark. */
+function withOldMarks(list: DrinkList, ids: string[]): DrinkList {
+  return {
+    columns: list.columns.map((column) => column.map((entry) => ({
+      ...entry,
+      drinks: entry.drinks.map((item) => ({ ...item, soldOut: ids.includes(item.id) })),
+    }))),
+  } as DrinkList;
+}
+
+/** Whether anything in a list or board still carries a sold-out mark. */
+const anyMark = (value: unknown) => JSON.stringify(value).includes("soldOut");
 const section = (title: string, drinks: ListDrink[], extra: Partial<ListSection> = {}): ListSection => ({ id: "", title, shared: false, price: "", hidden: false, drinks, ...extra });
 
 test("never saved, both menus show the printed menu exactly", () => {
@@ -62,9 +75,9 @@ test("a stored list is cleaned: text trimmed and capped, nameless drinks and emp
   assert.equal(first.drinks[0].name.length, DRINK_NAME_MAX);
   assert.equal(first.drinks[0].price, "$7");
   assert.equal(first.drinks[0].detail.length, DRINK_DETAIL_MAX);
-  // Only true itself marks a drink.
-  assert.equal(first.drinks[0].soldOut, false);
+  // Only true itself hides a drink, and an old sold-out mark of any kind is dropped.
   assert.equal(first.drinks[0].hidden, false);
+  assert.ok(!("soldOut" in first.drinks[0]));
   assert.deepEqual(parsed.columns[1], []);
   assert.deepEqual(parsed.columns[2], []);
 });
@@ -103,12 +116,17 @@ test("prices: a bare number reads in dollars, anything else as written, capped",
 });
 
 test("a list sent from the Control Center: exactly three columns within the limits, every field the right kind", () => {
-  const good = { columns: [[section("Beer", [drink("Pils", { price: "6", soldOut: true })])], [], [section("Wine", [drink("Red")], { shared: true, price: "10" })]] };
+  const good = { columns: [[section("Beer", [drink("Pils", { price: "6" })])], [], [section("Wine", [drink("Red")], { shared: true, price: "10" })]] };
   const cleaned = cleanDrinkListInput(good);
   assert.ok(cleaned);
   assert.equal(cleaned.columns[0][0].drinks[0].price, "$6");
-  assert.equal(cleaned.columns[0][0].drinks[0].soldOut, true);
   assert.equal(cleaned.columns[2][0].price, "$10");
+  // A Control Center opened before sold out was removed still sends the mark, of whatever kind: the list is taken, the mark dropped.
+  for (const soldOut of [true, false, "yes", 1, null]) {
+    const old = cleanDrinkListInput({ columns: [[{ title: "S", drinks: [{ name: "D", soldOut }] }], [], []] });
+    assert.ok(old, JSON.stringify(soldOut));
+    assert.ok(!anyMark(old));
+  }
   // Fields the editor leaves out are fine; text gets cleaned like any stored list.
   assert.ok(cleanDrinkListInput({ columns: [[{ title: "Beer", drinks: [{ name: " Pils " }] }], [], []] }));
   const turnedAway: unknown[] = [
@@ -118,7 +136,6 @@ test("a list sent from the Control Center: exactly three columns within the limi
     { columns: [[{ drinks: [] }], [], []] },
     { columns: [[{ title: "S", drinks: "none" }], [], []] },
     { columns: [[{ title: "S", drinks: [{ price: "$5" }] }], [], []] },
-    { columns: [[{ title: "S", drinks: [{ name: "D", soldOut: "yes" }] }], [], []] },
     { columns: [[{ title: "S", hidden: 1, drinks: [] }], [], []] },
     { columns: [[{ title: "S", drinks: [{ name: "D", price: 5 }] }], [], []] },
     { columns: [[{ title: 7, drinks: [] }], [], []] },
@@ -132,16 +149,15 @@ test("a list sent from the Control Center: exactly three columns within the limi
   assert.equal(cleanDrinkListInput({ columns: [full(perColumn), full(perColumn), full(perColumn)] }), null);
 });
 
-test("the board shows what is not hidden; a sold-out drink stays, marked", () => {
-  let list = defaultDrinkList();
-  list = updateDrink(list, "s1-2", { soldOut: true });
+test("the board shows what is not hidden; a drink marked sold out before the mark was removed shows as any other", () => {
+  let list = withOldMarks(defaultDrinkList(), ["s1-2"]);
   list = updateDrink(list, "s1-3", { hidden: true });
   list = updateSection(list, "s2", { hidden: true });
   const shown = visibleMenu(list);
   const beers = shown[0][0];
   assert.equal(beers.drinks.length, DRINK_MENU[0][0].drinks.length - 1);
-  assert.equal(beers.drinks[1].soldOut, true);
-  assert.equal(beers.drinks[0].soldOut, undefined);
+  assert.deepEqual(beers.drinks[1], { id: "s1-2", name: "Modelo · Especial", price: "$5", detail: "Lager" });
+  assert.ok(!anyMark(shown));
   assert.ok(!beers.drinks.some((entry) => entry.name === "Chelada"));
   assert.equal(shown[0].length, DRINK_MENU[0].length - 1);
   // A section whose drinks are all hidden goes with them.
@@ -160,11 +176,18 @@ test("one price for a section: the drinks show none of their own, and turning it
 });
 
 test("the live screen reads the board back as sent; anything else draws the printed menu at the usual pace", () => {
-  let list = updateDrink(defaultDrinkList(), "s3-1", { soldOut: true });
-  list = updateSection(list, "s4", { hidden: true });
-  const sent = JSON.parse(JSON.stringify({ drinks: visibleMenu(list), marqueeLook: { speed: 140, color: "#3ce0ff" } }));
+  const list = updateSection(defaultDrinkList(), "s4", { hidden: true });
+  const sent = JSON.parse(JSON.stringify({ drinks: boardDrinks(list, true), marqueeLook: { speed: 140, color: "#3ce0ff" } }));
   const board = parseLiveBoard(sent);
-  assert.deepEqual(JSON.parse(JSON.stringify(board.drinks)), visibleMenu(list));
+  assert.deepEqual(JSON.parse(JSON.stringify(board.drinks)), boardDrinks(list, true));
+  // A line standing for several drinks keeps each one's name, so the board can keep them whole when it wraps.
+  const classic = board.drinks?.[1][2].drinks.find((entry) => entry.price === "$12" && !entry.detail);
+  assert.deepEqual(classic?.names, ["Gimlet", "Mojito"]);
+  // An older server's sold-out marks are dropped, and names that aren't all text are left off.
+  const old = parseVisibleMenu([[{ title: "T", drinks: [{ name: "A", price: "$5", soldOut: true }, { name: "B · C", names: ["B", 3] }] }], [], []]);
+  assert.ok(old);
+  assert.ok(!anyMark(old));
+  assert.equal(old[0][0].drinks[1].names, undefined);
   assert.equal(board.marqueeSpeed, 140);
   assert.equal(board.marqueeColor, "#3CE0FF");
   assert.deepEqual(parseLiveBoard(null), { drinks: null, marqueeSpeed: DEFAULT_MARQUEE_SPEED, marqueeColor: "" });
@@ -243,15 +266,14 @@ test("new ids are short, unused, and survive a save", () => {
   assert.equal(parseDrinkList(JSON.parse(JSON.stringify(named)))?.columns[0][0].drinks.at(-1)?.id, id);
 });
 
-test("a quick sold-out tap changes that one drink on the list as saved now, and nothing else", () => {
-  // Another screen marked the first drink a moment ago; this tap marks the second and keeps that mark.
-  const saved = updateDrink(defaultDrinkList(), "s1-1", { soldOut: true });
-  const next = setSoldOut(saved, "s1-2", true);
-  assert.ok(next);
-  assert.deepEqual(next.columns.flat().flatMap((entry) => entry.drinks).filter((entry) => entry.soldOut).map((entry) => entry.id), ["s1-1", "s1-2"]);
-  assert.equal(setSoldOut(next, "s1-1", false)?.columns[0][0].drinks[0].soldOut, false);
-  // A drink removed from another screen is not brought back.
-  assert.equal(setSoldOut(saved, "gone", true), null);
+test("sold out is gone: a list stored with marks reads without them, and the next save drops them for good", () => {
+  // Marked on two screens before the deploy: both marks vanish on read, and nothing else about the list changes.
+  const stored = JSON.parse(JSON.stringify(withOldMarks(defaultDrinkList(), ["s1-1", "s1-2"])));
+  const read = parseDrinkList(stored);
+  assert.deepEqual(read, defaultDrinkList());
+  assert.ok(!anyMark(read));
+  // What the editor saves next is that list, so the marks are gone from the record too.
+  assert.ok(!anyMark(cleanDrinkListInput(stored)));
 });
 
 test("sameList: only a change that would save differently counts", () => {
@@ -260,7 +282,27 @@ test("sameList: only a change that would save differently counts", () => {
   // A new empty drink would be left off, and "8" saves as "$8".
   assert.ok(sameList(addDrink(list, "s1", "n1"), list));
   assert.ok(sameList(updateDrink(list, "s1-6", { price: "8" }), list));
-  assert.ok(!sameList(updateDrink(list, "s1-1", { soldOut: true }), list));
+  // An old sold-out mark is dropped when cleaned, so it is no change (and no false "changed on another screen").
+  assert.ok(sameList(withOldMarks(list, ["s1-1"]), list));
+  assert.ok(!sameList(updateDrink(list, "s1-1", { hidden: true }), list));
   assert.ok(!sameList(list, null));
   assert.ok(sameList(null, null));
+});
+
+test("the board's drinks: one price's drinks on one line when that is on, each on its own when it is off", () => {
+  const list = defaultDrinkList();
+  assert.deepEqual(boardDrinks(list, false), visibleMenu(list));
+  assert.deepEqual(boardDrinks(list, true), compactMenu(visibleMenu(list)));
+  assert.deepEqual(boardDrinks(null, true), compactMenu(visibleMenu(null)));
+  // Classic Cocktails, the one printed section with drinks that share a price and no detail line.
+  const classic = boardDrinks(null, true)[1][2];
+  assert.deepEqual(classic.drinks.map((entry) => [entry.name, entry.price]), [
+    ["Margarita", "$12"],
+    ["Gimlet · Mojito", "$12"],
+    ["Paloma · Tom Collins · Negroni · Moscow Mule · Old Fashioned · Manhattan", "$13"],
+    ["Sidecar", "$15"],
+  ]);
+  // Every other printed section is drawn as it always was.
+  const others = (menu: DrinkSection[][]) => menu.flat().filter((entry) => entry.title !== "Classic Cocktails");
+  assert.deepEqual(others(boardDrinks(null, true)), others(visibleMenu(null)));
 });
