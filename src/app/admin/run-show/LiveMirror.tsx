@@ -29,18 +29,16 @@ export default function LiveMirror({ version }: { version: number }) {
   }, []);
 
   return (
-    <div className="rounded-lg border border-white/20 bg-neutral-900 p-4 sm:p-6">
-      <div ref={box} className="relative aspect-video w-full overflow-hidden rounded bg-black">
-        <iframe
-          key={version}
-          src="/bad-decisions/live"
-          title="Live screen mirror"
-          aria-hidden="true"
-          tabIndex={-1}
-          style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, transform: `scale(${scale})`, transformOrigin: "top left", opacity: scale ? 1 : 0 }}
-          className="pointer-events-none absolute left-0 top-0 border-0"
-        />
-      </div>
+    <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-lg border border-white/20 bg-black">
+      <iframe
+        key={version}
+        src="/bad-decisions/live"
+        title="Live screen mirror"
+        aria-hidden="true"
+        tabIndex={-1}
+        style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, transform: `scale(${scale})`, transformOrigin: "top left", opacity: scale ? 1 : 0 }}
+        className="pointer-events-none absolute left-0 top-0 border-0"
+      />
     </div>
   );
 }

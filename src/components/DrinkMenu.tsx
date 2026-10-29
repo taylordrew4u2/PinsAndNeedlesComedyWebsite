@@ -8,6 +8,8 @@ import { MENU_FONT_FAMILY, SCRIPT_FONT_FAMILY } from "./menu-font-faces";
 /** Designed at TV size and scaled as one piece, so every screen matches. */
 const WIDTH = 1920;
 const HEIGHT = 1080;
+/** Keep the whole menu, including its marquee, clear of the screen edges. */
+const SCREEN_PADDING = 48;
 const MUTED = "#BDBDBD";
 const RULE = "#6E6E6E";
 const FONT = "var(--font-poster), 'Barlow Condensed', 'Arial Narrow', sans-serif";
@@ -25,7 +27,7 @@ const SEPARATOR = "\u2003\u2726\u2003";
  * but never below this share of its size: past that it is too small to read
  * across a bar, and the Control Center says it is too long.
  */
-const FIT_FLOOR = 0.6;
+const FIT_FLOOR = 0.45;
 const FIT_STEP = 0.02;
 /** A line the host wrote under the QR code: kept to the panel, broken anywhere rather than run past it, and set close when it wraps. */
 const HOST_LINE = { overflowWrap: "anywhere", maxWidth: 300, lineHeight: 1.15 } as const;
@@ -63,6 +65,7 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const note = custom?.note.trim() || "";
   const bartender = custom?.bartender.trim() || "";
@@ -76,6 +79,8 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
   const fitted = (px: number) => `calc(${px}px * var(--fit, 1))`;
   // The drinks' type: the font's size, then shrunk to fit.
   const d = (size: number) => fitted(z(size));
+  // The QR keeps its chosen size; the logo, wording and gaps make room around it.
+  const p = (size: number) => `calc(${size}px * var(--panel-fit, 1))`;
   // The QR at the host's size, and a left panel wide enough for it (its usual 380, or the QR, its white edge and the panel's padding).
   const qrSide = Math.round(220 * qrScale);
   const panelWidth = qrSrc ? Math.max(380, qrSide + 28 + 80) : 380;
@@ -87,12 +92,12 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
   const report = useRef(onFit);
   useEffect(() => { report.current = onFit; }, [onFit]);
   // Everything that changes how much room the drinks take; the fit is worked out again when it does.
-  const layout = JSON.stringify([drinks, family, k, note, bartender, custom?.bartenderFont, bartenderLabel, panelWidth]);
+  const layout = JSON.stringify([drinks, family, k, note, bartender, custom?.bartenderFont, bartenderLabel, panelWidth, qrSrc, qrSide, custom?.headline, caption, title, link]);
 
   useLayoutEffect(() => {
     const box = frame.current;
     if (!box) return;
-    const fit = () => setScale(Math.min(box.clientWidth / WIDTH, box.clientHeight / HEIGHT));
+    const fit = () => setScale(Math.min(box.clientWidth / (WIDTH + 2 * SCREEN_PADDING), box.clientHeight / (HEIGHT + 2 * SCREEN_PADDING)));
     const observer = new ResizeObserver(fit);
     observer.observe(box);
     fit();
@@ -102,17 +107,18 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
   // Shrink to fit: from full size down in small steps until nothing would be cut off, then tell whoever asked.
   useLayoutEffect(() => {
     const box = grid.current;
-    if (!box) return;
+    const qrPanel = panel.current;
+    if (!box || !qrPanel) return;
     let active = true;
     let last = "";
     // Under reduced motion the site gives every change a 0.01ms transition, so a new size
     // would only land a frame later: each step finishes them, to measure what it set.
     // A browser too old to list them skips this rather than fail (there, a long list may stay full size).
     const settle = typeof box.getAnimations === "function" && typeof CSSTransition === "function";
-    const apply = (size: number) => {
-      box.style.setProperty("--fit", String(size));
+    const apply = (size: number, target = box, property = "--fit") => {
+      target.style.setProperty(property, String(size));
       if (!settle) return;
-      for (const animation of box.getAnimations({ subtree: true })) {
+      for (const animation of target.getAnimations({ subtree: true })) {
         if (animation instanceof CSSTransition) animation.finish();
       }
     };
@@ -124,7 +130,13 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
         size = Math.max(FIT_FLOOR, Math.round((size - FIT_STEP) * 100) / 100);
         apply(size);
       }
-      const result = { size, fits: !overflows(box) };
+      let panelSize = 1;
+      apply(panelSize, qrPanel, "--panel-fit");
+      while (panelSize > FIT_FLOOR && overflows(qrPanel)) {
+        panelSize = Math.max(FIT_FLOOR, Math.round((panelSize - FIT_STEP) * 100) / 100);
+        apply(panelSize, qrPanel, "--panel-fit");
+      }
+      const result = { size, fits: !overflows(box) && !overflows(qrPanel) };
       if (JSON.stringify(result) !== last) {
         last = JSON.stringify(result);
         report.current?.(result);
@@ -155,34 +167,34 @@ export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contain
           width: "100%", height: "100%", boxSizing: "border-box", border: "1px solid #fff", outline: `1px solid ${RULE}`, outlineOffset: -9, display: "flex",
           transform: marquee ? `scale(${FRAME_SCALE})` : undefined, transformOrigin: "center",
         }}>
-          <div style={{ width: panelWidth, flexShrink: 0, boxSizing: "border-box", borderRight: "1px solid #fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "64px 40px" }}>
+          <div ref={panel} style={{ width: panelWidth, flexShrink: 0, boxSizing: "border-box", borderRight: "1px solid #fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: p(24), padding: "80px 40px" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/pixelated-records-logo.png" alt="Pixelated Records" width={310} height={158} style={{ width: 310, height: "auto", display: "block" }} />
-            <div style={{ fontSize: z(34), fontWeight: 500, letterSpacing: "0.5em", marginRight: "-0.5em" }}>MENU</div>
-            {qrSrc ? <div style={{ width: 64, height: 1, background: RULE, margin: "20px 0 16px" }} /> : null}
+            <img src="/brand/pixelated-records-logo.png" alt="Pixelated Records" width={310} height={158} style={{ width: p(310), maxWidth: "100%", height: "auto", display: "block", flexShrink: 0 }} />
+            <div style={{ fontSize: p(z(34)), fontWeight: 500, letterSpacing: "0.5em", marginRight: "-0.5em" }}>MENU</div>
+            {qrSrc ? <div style={{ width: 64, height: 1, background: RULE, margin: `${p(20)} 0 ${p(16)}`, flexShrink: 0 }} /> : null}
             {/* The custom line belongs to the QR ("scan here"): no QR, no line. */}
             {custom && qrSrc ? (
-              <div style={{ fontSize: z(34), fontWeight: 700, lineHeight: 1.12, letterSpacing: "0.03em", textTransform: "uppercase", textAlign: "center", overflowWrap: "anywhere", maxWidth: 300 }}>
+              <div style={{ fontSize: p(z(34)), fontWeight: 700, lineHeight: 1.12, letterSpacing: "0.03em", textTransform: "uppercase", textAlign: "center", overflowWrap: "anywhere", maxWidth: 300 }}>
                 {custom.headline}
               </div>
             ) : null}
             {qrSrc ? (
               <>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: p(18), flexShrink: 0 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrSrc} alt="Scan to submit your bad decision" width={220} height={220} style={{ width: qrSide, height: qrSide, display: "block", background: "#fff", padding: 14, borderRadius: 10, boxSizing: "content-box" }} />
+                  <img src={qrSrc} alt="Scan to submit your bad decision" width={220} height={220} style={{ width: qrSide, height: qrSide, flexShrink: 0, display: "block", background: "#fff", padding: 14, borderRadius: 10, boxSizing: "content-box" }} />
                   {/* The printed wording is set exactly as it always was; the host's own is kept to the panel, the two lines above in capitals. */}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, textAlign: "center" }}>
-                    <div style={{ fontSize: z(20), fontWeight: 600, letterSpacing: "0.24em", marginRight: "-0.24em", color: MUTED, ...(caption === MENU_WORDING.qrCaption.fallback ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{caption}</div>
-                    <div style={{ fontSize: z(30), fontWeight: 700, letterSpacing: "0.06em", ...(title === MENU_WORDING.qrTitle.fallback ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{title}</div>
-                    <div style={{ fontSize: z(19), fontWeight: 500, color: MUTED, marginTop: 6, ...(link === MENU_WORDING.qrLink.fallback ? { whiteSpace: "nowrap" } : HOST_LINE) }}>{link}</div>
+                    <div style={{ fontSize: p(z(20)), fontWeight: 600, letterSpacing: "0.24em", marginRight: "-0.24em", color: MUTED, ...(caption === MENU_WORDING.qrCaption.fallback ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{caption}</div>
+                    <div style={{ fontSize: p(z(30)), fontWeight: 700, letterSpacing: "0.06em", ...(title === MENU_WORDING.qrTitle.fallback ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{title}</div>
+                    <div style={{ fontSize: p(z(19)), fontWeight: 500, color: MUTED, marginTop: p(6), ...(link === MENU_WORDING.qrLink.fallback ? { whiteSpace: "nowrap" } : HOST_LINE) }}>{link}</div>
                   </div>
                 </div>
               </>
             ) : null}
           </div>
 
-          <div ref={grid} style={{ flexGrow: 1, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", columnGap: 56, padding: 64, alignContent: "center", alignItems: "start", overflow: "hidden" }}>
+          <div ref={grid} style={{ flexGrow: 1, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", columnGap: 56, padding: 80, alignContent: "center", alignItems: "start", overflow: "hidden" }}>
             {drinks.map((column, index) => (
               // With a bartender or note, the last (longest) column runs down both rows and they sit under the others.
               <div key={index} style={{ display: "flex", flexDirection: "column", gap: d(34), minWidth: 0, ...(below ? { gridColumn: index + 1, gridRow: index === drinks.length - 1 ? "1 / span 2" : 1 } : {}) }}>
@@ -380,11 +392,8 @@ function Marquee({ text, color, speed, family, fontSize }: { text: string; color
 }
 
 /**
- * Whether the board would cut anything off on the drinks side: the columns
- * (and the bartender and note under them) reaching past the drinks area's
- * edge, padding included, or anything running past its column's side.
- * Content that only reaches into the padding fits, as some custom menus
- * always have, so a menu that fits today keeps today's size. Measured on
+ * Whether a menu area's children reach into its padding or run past their
+ * own width. Used for the drinks and the QR panel. Measured on
  * screen, so it holds however the browser centres what is too tall; the
  * board's own scaling is taken out by comparing within it.
  */
@@ -395,8 +404,13 @@ function overflows(grid: HTMLElement): boolean {
   if (!items.length || !grid.clientHeight || !box.height) return false;
   // One board pixel on screen, as slack for rounding.
   const slack = box.height / grid.offsetHeight;
+  const style = getComputedStyle(grid);
+  const top = box.top + parseFloat(style.paddingTop) * slack;
+  const bottom = box.bottom - parseFloat(style.paddingBottom) * slack;
+  const left = box.left + parseFloat(style.paddingLeft) * slack;
+  const right = box.right - parseFloat(style.paddingRight) * slack;
   return items.some((item) => {
     const edge = item.getBoundingClientRect();
-    return edge.top < box.top - slack || edge.bottom > box.bottom + slack || item.scrollWidth > item.clientWidth + 1;
+    return edge.top < top - slack || edge.bottom > bottom + slack || edge.left < left - slack || edge.right > right + slack || item.scrollWidth > item.clientWidth + 1;
   });
 }

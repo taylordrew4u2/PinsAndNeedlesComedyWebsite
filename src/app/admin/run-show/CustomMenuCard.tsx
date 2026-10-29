@@ -29,6 +29,7 @@ type Props = CustomMenuInput & {
   live: boolean;
   /** The live screen shows the QR (the Bad Decisions page is on), and so the line above it. */
   qr: boolean;
+  qrSize: number;
   /** The QR is switched off on this menu, and the switch that saves it straight away. */
   qrOff: boolean;
   setQrOff: (off: boolean) => Promise<boolean>;
@@ -52,7 +53,7 @@ const AS_TYPED: (keyof CustomMenuInput)[] = ["bartender", "qrLink"];
  * before anything is saved. Folded until opened: it is setup, and its typing
  * stays put while it is folded.
  */
-export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr, qrOff, setQrOff, busy, save, ...saved }: Props) {
+export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr, qrSize, qrOff, setQrOff, busy, save, ...saved }: Props) {
   // Only what the host has touched; everything else shows the saved value.
   const [draft, setDraft] = useState<Partial<CustomMenuInput>>({});
   // How the drinks fit this board: a longer list, a bartender and a note all take room.
@@ -251,6 +252,7 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
           <DrinkMenu
             contained
             qrSrc={qr && !qrOff ? "/api/decisions/live/qr" : undefined}
+            qrScale={qrSize / 100}
             marquee={marqueeStyle?.on === false ? null : marquee || DEFAULT_MARQUEE}
             marqueeSpeed={marqueeSpeedOf(marqueeStyle?.speed)}
             marqueeColor={marqueeStyle?.color}
