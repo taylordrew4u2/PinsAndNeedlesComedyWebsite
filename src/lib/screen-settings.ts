@@ -30,6 +30,11 @@ export type ScreenSettings = {
   sting: QuestionSound;
   stingVolume: number;
   stingUrl: string;
+  /**
+   * How big the QR code is, as a percentage of its usual size: in the
+   * corner of the live screen, on both drink menus and in the Intro.
+   */
+  qrSize: number;
   /** The set clock along the bottom while a timed set runs. */
   timer: boolean;
   /** The sender's name under their question. */
@@ -81,12 +86,16 @@ export const COUNTDOWN_MAX = 10;
  */
 export const STING_VOLUME_MIN = 10;
 export const STING_VOLUME_MAX = 150;
+/** The QR code runs from half its usual size to twice it, in steps of 10%. */
+export const QR_SIZE_MIN = 50;
+export const QR_SIZE_MAX = 200;
+
 /** Long enough for any upload address the stores hand out, short enough that the poll stays small. */
 export const STING_URL_MAX = 500;
 
 export const DEFAULT_SCREEN: ScreenSettings = {
   countdown: true, countdownFrom: 3, intro: true, introWord: "", sound: true,
-  sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", timer: true, names: true, stageLabel: "",
+  sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", qrSize: 100, timer: true, names: true, stageLabel: "",
   howHeading: "", howStep1: "", howStep2: "", howStep3: "", listenLine: "", exampleQuestion: "", closingLine: "", closingCall: "",
 };
 
@@ -104,6 +113,10 @@ function isCountdownFrom(raw: unknown): raw is number {
 
 function isQuestionSound(raw: unknown): raw is QuestionSound {
   return raw === "custom" || isSoundId(raw);
+}
+
+function isQrSize(raw: unknown): raw is number {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= QR_SIZE_MIN && raw <= QR_SIZE_MAX && raw % 10 === 0;
 }
 
 function isStingVolume(raw: unknown): raw is number {
@@ -160,6 +173,7 @@ export function parseScreenSettings(raw: unknown): ScreenSettings {
   if (isCountdownFrom(value.countdownFrom)) settings.countdownFrom = value.countdownFrom;
   if (isQuestionSound(value.sting)) settings.sting = value.sting;
   if (isStingVolume(value.stingVolume)) settings.stingVolume = value.stingVolume;
+  if (isQrSize(value.qrSize)) settings.qrSize = value.qrSize;
   settings.stingUrl = cleanStingUrl(value.stingUrl);
   for (const key of TEXT_KEYS) settings[key] = cleanScreenText(key, value[key]);
   return settings;
@@ -189,6 +203,9 @@ export function parseScreenChange(raw: unknown): Partial<ScreenSettings> | null 
       if (typeof value !== "string") return null;
       // A sound this version no longer has ("doom", from a Control Center opened before an update): the saved sound stays, the rest still saves.
       if (isQuestionSound(value)) change.sting = value;
+    } else if (key === "qrSize") {
+      if (!isQrSize(value)) return null;
+      change.qrSize = value;
     } else if (key === "stingVolume") {
       if (!isStingVolume(value)) return null;
       change.stingVolume = value;

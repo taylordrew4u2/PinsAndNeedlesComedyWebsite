@@ -32,7 +32,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "This server has no ADMIN_SECRET to lock a key with." }, { status: 503, headers });
   }
   const body = await request.json().catch(() => null);
-  const key = cleanApiKey(body && typeof body === "object" ? (body as { key?: unknown }).key : undefined);
+  const fields = body && typeof body === "object" ? (body as { key?: unknown; replace?: unknown }) : {};
+  const key = cleanApiKey(fields.key);
   if (!key) {
     return NextResponse.json({ ok: false, error: "That doesn’t look like an Anthropic API key. They start with sk-ant-." }, { status: 400, headers });
   }
@@ -44,6 +45,19 @@ export async function POST(request: Request) {
     }
     console.error("[ai-key] could not check the key", error instanceof Error ? error.message : error);
     return NextResponse.json({ ok: false, error: "Couldn’t reach Anthropic to check the key, so it wasn’t saved. Try again in a minute." }, { status: 502, headers });
+  }
+  // A key this server can't open was saved by another one (with another ADMIN_SECRET): replacing it breaks that one, so only on purpose.
+  try {
+    const now = await aiKeyStatus();
+    if (now.unreadable && fields.replace !== true) {
+      return NextResponse.json({
+        ok: false, confirm: true,
+        error: "A key saved by a server with a different ADMIN_SECRET is stored here. Saving yours replaces it, and that server will need its key pasted again.",
+      }, { status: 409, headers });
+    }
+  } catch (error) {
+    console.error("[ai-key] could not read the saved key before saving", error);
+    return NextResponse.json({ ok: false, error: "Could not read the key settings. Try again." }, { status: 503, headers });
   }
   try {
     await saveAiKey(key);

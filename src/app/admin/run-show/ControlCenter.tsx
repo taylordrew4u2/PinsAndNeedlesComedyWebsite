@@ -75,6 +75,8 @@ type State = {
   menuQrTitle: string;
   menuQrLink: string;
   menuBartenderLabel: string;
+  /** The custom menu shows no QR code. */
+  menuQrOff: boolean;
   /** The host's drink list, shown by both menus; null while it is the printed menu. */
   drinks: DrinkList | null;
 };
@@ -122,6 +124,7 @@ function withDefaults(data: State): State {
     menuQrTitle: text(data.menuQrTitle),
     menuQrLink: text(data.menuQrLink),
     menuBartenderLabel: text(data.menuBartenderLabel),
+    menuQrOff: data.menuQrOff === true,
     drinks: parseDrinkList(data.drinks),
   };
 }
@@ -342,6 +345,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       menuQrTitle: typeof data.menuQrTitle === "string" ? data.menuQrTitle : current.menuQrTitle,
       menuQrLink: typeof data.menuQrLink === "string" ? data.menuQrLink : current.menuQrLink,
       menuBartenderLabel: typeof data.menuBartenderLabel === "string" ? data.menuBartenderLabel : current.menuBartenderLabel,
+      menuQrOff: typeof data.menuQrOff === "boolean" ? data.menuQrOff : current.menuQrOff,
     } : current);
 
   /**
@@ -381,6 +385,12 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     change(API, { customMenu: look }, (data) => {
       takeMenu(data);
       setNotice(data.menu && data.menuStyle === "custom" ? "Custom menu saved. The live screen has it now." : "Custom menu saved. It shows when you put the custom menu up.");
+    }, "Could not save the custom menu.");
+
+  const saveCustomQrOff = (off: boolean) =>
+    change(API, { menuQrOff: off }, (data) => {
+      takeMenu(data);
+      setNotice(off ? "Saved: the custom menu has no QR code now." : "Saved: the custom menu shows the QR code again.");
     }, "Could not save the custom menu.");
 
   /** The live screen's own cards (settings, message, test sound): one change, then the server's word on what is saved and, when a message went up, the drink menu. */
@@ -934,6 +944,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 marquee={state.marquee}
                 live={state.menu && state.menuStyle === "custom"}
                 qr={state.pageLive}
+                qrOff={state.menuQrOff}
+                setQrOff={saveCustomQrOff}
                 busy={busy}
                 save={saveCustomMenu}
                 qrCaption={state.menuQrCaption}

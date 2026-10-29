@@ -9,9 +9,9 @@ import {
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, MENU_FONTS, SCRIPT_FONTS, isMenuFont, isScriptFont } from "../src/lib/menu-fonts.ts";
 
 /** The marquee's own settings and the custom wording, as a record that never set them reads. */
-const MENU_EXTRAS = { marqueeOn: true, marqueeSpeed: "", marqueeColor: "", qrCaption: "", qrTitle: "", qrLink: "", bartenderLabel: "" };
+const MENU_EXTRAS = { marqueeOn: true, marqueeSpeed: "", marqueeColor: "", qrOff: false, qrCaption: "", qrTitle: "", qrLink: "", bartenderLabel: "" };
 const PRINTED_WORDING = { qrCaption: "SCAN TO SUBMIT", qrTitle: "YOUR BAD DECISIONS", qrLink: "pinsandneedlescomedy.com/bad-decisions", bartenderLabel: "Your bartender tonight" };
-const LOOK_DEFAULTS = { font: DEFAULT_MENU_FONT, bartender: "", bartenderFont: DEFAULT_SCRIPT_FONT, ...PRINTED_WORDING };
+const LOOK_DEFAULTS = { font: DEFAULT_MENU_FONT, bartender: "", bartenderFont: DEFAULT_SCRIPT_FONT, qrOff: false, ...PRINTED_WORDING };
 
 test("the menu is on only when stored exactly as on", () => {
   assert.deepEqual(parseMenuState({ on: true }), { on: true, style: "standard", marquee: "", color: "", headline: "", note: "", noteColor: "", font: "", bartender: "", bartenderFont: "", bartenderColor: "", ...MENU_EXTRAS });
@@ -200,4 +200,11 @@ test("the marquee's one Save sends only the half that changed: the text, how it 
   });
   // Too long is capped, as the server caps it.
   assert.equal(marqueeChange(saved, { ...saved, text: "x".repeat(MARQUEE_MAX + 20) }).text?.length, MARQUEE_MAX);
+});
+
+test("the custom menu's QR is on unless switched off exactly; the look carries the switch", () => {
+  assert.equal(parseMenuState({ style: "custom" }).qrOff, false);
+  assert.equal(parseMenuState({ style: "custom", qrOff: true }).qrOff, true);
+  for (const junk of ["true", 1, null]) assert.equal(parseMenuState({ style: "custom", qrOff: junk }).qrOff, false, String(junk));
+  assert.equal(customLook(parseMenuState({ on: true, style: "custom", qrOff: true }))?.qrOff, true);
 });

@@ -29,6 +29,9 @@ type Props = CustomMenuInput & {
   live: boolean;
   /** The live screen shows the QR (the Bad Decisions page is on), and so the line above it. */
   qr: boolean;
+  /** The QR is switched off on this menu, and the switch that saves it straight away. */
+  qrOff: boolean;
+  setQrOff: (off: boolean) => Promise<boolean>;
   busy: boolean;
   save: (look: CustomMenuInput) => Promise<boolean>;
 };
@@ -49,7 +52,7 @@ const AS_TYPED: (keyof CustomMenuInput)[] = ["bartender", "qrLink"];
  * before anything is saved. Folded until opened: it is setup, and its typing
  * stays put while it is folded.
  */
-export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr, busy, save, ...saved }: Props) {
+export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr, qrOff, setQrOff, busy, save, ...saved }: Props) {
   // Only what the host has touched; everything else shows the saved value.
   const [draft, setDraft] = useState<Partial<CustomMenuInput>>({});
   // How the drinks fit this board: a longer list, a bartender and a note all take room.
@@ -68,6 +71,7 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
     bartender: value.bartender,
     bartenderFont: isScriptFont(value.bartenderFont) ? value.bartenderFont : DEFAULT_SCRIPT_FONT,
     bartenderColor: value.bartenderColor || color,
+    qrOff,
     ...customWording(value),
   };
   const shownDrinks = useMemo(() => visibleMenu(drinks ?? null), [drinks]);
@@ -143,6 +147,22 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
             </button>
           ))}
         </div>
+
+        <label className="mt-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-amber-300"
+            checked={!qrOff}
+            disabled={busy}
+            onChange={(event) => void setQrOff(!event.target.checked)}
+          />
+          Show the QR code on this menu
+        </label>
+        <p className="mt-1 text-xs text-neutral-500">
+          {qrOff
+            ? "Off: no QR code, no line above it and no wording under it, for a menu that is up when there is no show. Saved straight away."
+            : "Untick it for a menu with no QR code. Saved straight away."}
+        </p>
 
         <label htmlFor="menu-headline" className="mt-4 block text-xs text-neutral-400">Above the QR code</label>
         <input
@@ -230,7 +250,7 @@ export default function CustomMenuCard({ marquee, marqueeStyle, drinks, live, qr
         <div className="relative mt-3 aspect-video w-full overflow-hidden rounded-md border border-white/15" aria-label="Preview of the custom menu">
           <DrinkMenu
             contained
-            qrSrc={qr ? "/api/decisions/live/qr" : undefined}
+            qrSrc={qr && !qrOff ? "/api/decisions/live/qr" : undefined}
             marquee={marqueeStyle?.on === false ? null : marquee || DEFAULT_MARQUEE}
             marqueeSpeed={marqueeSpeedOf(marqueeStyle?.speed)}
             marqueeColor={marqueeStyle?.color}

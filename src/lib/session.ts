@@ -40,9 +40,14 @@ export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (IS_PRODUCTION ? "" 
 const SECRET =
   process.env.ADMIN_SECRET || (IS_PRODUCTION ? "" : randomBytes(32).toString("hex"));
 
-/** The server's own secret, for locking away what the admin saves (see secret-box.ts). "" when there is none. */
+/**
+ * The server's own secret, for locking away what the admin saves (see
+ * secret-box.ts). Only one set on purpose: off production the signing
+ * secret falls back to a random one per process, and a key locked with that
+ * could be opened by nothing once the process restarts. "" when none is set.
+ */
 export function sealingSecret(): string {
-  return SECRET;
+  return (process.env.ADMIN_SECRET || "").trim();
 }
 
 /** Whether the admin is usable at all. False in production with no secrets set. */

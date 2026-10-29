@@ -23,6 +23,11 @@ export function keyHint(key: string): string {
 /**
  * Which key the AI writer is using: one saved in the admin, the server's
  * own (ANTHROPIC_API_KEY), or none. `unreadable` is a key saved here that
- * this server can no longer open (its signing secret changed).
+ * this server can't open: saved by a server with another ADMIN_SECRET, or
+ * before this one's changed. `provider` is who answers the AI writer here:
+ * on a server set up for Ollama, an Anthropic key goes unused.
  */
-export type AiKeyStatus = { source: "admin" | "server" | "none"; hint: string; savedAt: string | null; unreadable: boolean };
+export type AiKeyStatus = {
+  source: "admin" | "server" | "none"; hint: string; savedAt: string | null; unreadable: boolean;
+  provider: "anthropic" | "ollama";
+};

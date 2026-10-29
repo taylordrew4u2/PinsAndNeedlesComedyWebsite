@@ -49,8 +49,10 @@ const HOST_LINE = { overflowWrap: "anywhere", maxWidth: 300, lineHeight: 1.15 } 
  * `marqueeSpeed` (board pixels per second) in `marqueeColor`, the text colour
  * when empty.
  */
-export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = DRINK_MENU, marqueeSpeed = DEFAULT_MARQUEE_SPEED, marqueeColor, onFit }: {
+export default function DrinkMenu({ qrSrc, qrScale = 1, marquee, custom, contained, drinks = DRINK_MENU, marqueeSpeed = DEFAULT_MARQUEE_SPEED, marqueeColor, onFit }: {
   qrSrc?: string;
+  /** The QR code's size, 1 being its usual 220 board pixels; the left panel widens to hold a bigger one. */
+  qrScale?: number;
   marquee?: string | null;
   custom?: CustomLook | null;
   contained?: boolean;
@@ -74,6 +76,9 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
   const fitted = (px: number) => `calc(${px}px * var(--fit, 1))`;
   // The drinks' type: the font's size, then shrunk to fit.
   const d = (size: number) => fitted(z(size));
+  // The QR at the host's size, and a left panel wide enough for it (its usual 380, or the QR, its white edge and the panel's padding).
+  const qrSide = Math.round(220 * qrScale);
+  const panelWidth = qrSrc ? Math.max(380, qrSide + 28 + 80) : 380;
   // The custom menu's wording; the standard menu always has the printed wording.
   const caption = custom?.qrCaption ?? MENU_WORDING.qrCaption.fallback;
   const title = custom?.qrTitle ?? MENU_WORDING.qrTitle.fallback;
@@ -82,7 +87,7 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
   const report = useRef(onFit);
   useEffect(() => { report.current = onFit; }, [onFit]);
   // Everything that changes how much room the drinks take; the fit is worked out again when it does.
-  const layout = JSON.stringify([drinks, family, k, note, bartender, custom?.bartenderFont, bartenderLabel]);
+  const layout = JSON.stringify([drinks, family, k, note, bartender, custom?.bartenderFont, bartenderLabel, panelWidth]);
 
   useLayoutEffect(() => {
     const box = frame.current;
@@ -150,7 +155,7 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
           width: "100%", height: "100%", boxSizing: "border-box", border: "1px solid #fff", outline: `1px solid ${RULE}`, outlineOffset: -9, display: "flex",
           transform: marquee ? `scale(${FRAME_SCALE})` : undefined, transformOrigin: "center",
         }}>
-          <div style={{ width: 380, flexShrink: 0, boxSizing: "border-box", borderRight: "1px solid #fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "64px 40px" }}>
+          <div style={{ width: panelWidth, flexShrink: 0, boxSizing: "border-box", borderRight: "1px solid #fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "64px 40px" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/pixelated-records-logo.png" alt="Pixelated Records" width={310} height={158} style={{ width: 310, height: "auto", display: "block" }} />
             <div style={{ fontSize: z(34), fontWeight: 500, letterSpacing: "0.5em", marginRight: "-0.5em" }}>MENU</div>
@@ -165,7 +170,7 @@ export default function DrinkMenu({ qrSrc, marquee, custom, contained, drinks = 
               <>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrSrc} alt="Scan to submit your bad decision" width={220} height={220} style={{ width: 220, height: 220, display: "block", background: "#fff", padding: 14, borderRadius: 10, boxSizing: "content-box" }} />
+                  <img src={qrSrc} alt="Scan to submit your bad decision" width={220} height={220} style={{ width: qrSide, height: qrSide, display: "block", background: "#fff", padding: 14, borderRadius: 10, boxSizing: "content-box" }} />
                   {/* The printed wording is set exactly as it always was; the host's own is kept to the panel, the two lines above in capitals. */}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, textAlign: "center" }}>
                     <div style={{ fontSize: z(20), fontWeight: 600, letterSpacing: "0.24em", marginRight: "-0.24em", color: MUTED, ...(caption === MENU_WORDING.qrCaption.fallback ? {} : { ...HOST_LINE, textTransform: "uppercase" }) }}>{caption}</div>

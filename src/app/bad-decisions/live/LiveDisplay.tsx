@@ -330,6 +330,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
             bartender: typeof look.bartender === "string" ? look.bartender : "",
             bartenderFont: isScriptFont(look.bartenderFont) ? look.bartenderFont : DEFAULT_SCRIPT_FONT,
             bartenderColor: typeof look.bartenderColor === "string" ? look.bartenderColor : look.color,
+            qrOff: look.qrOff === true,
             ...customWording(look),
           }
           : null;
@@ -534,11 +535,13 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
     <>
     {menu ? (
       <main className={`pnc-screen-in select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
-        <DrinkMenu qrSrc={showQr ? qrSrc : undefined} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} />
+        <DrinkMenu qrSrc={showQr && !menuCustom?.qrOff ? qrSrc : undefined} qrScale={settings.qrSize / 100} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} />
       </main>
     ) : (
     <main
-      className={`pnc-screen-in flex h-svh select-none items-center justify-center bg-black px-6 pb-40 pt-10 text-white sm:px-12 sm:pb-56 ${pointerIdle ? "cursor-none" : ""}`}
+      // A bigger QR code takes more of the bottom band, so questions end above it whatever its size.
+      style={{ "--qr-k": settings.qrSize / 100 } as React.CSSProperties}
+      className={`pnc-screen-in flex h-svh select-none items-center justify-center bg-black px-6 pb-[max(10rem,calc(6rem*var(--qr-k)+3rem))] pt-10 text-white sm:px-12 sm:pb-[max(14rem,calc(10rem*var(--qr-k)+4rem))] ${pointerIdle ? "cursor-none" : ""}`}
       aria-label="Live show"
       aria-live="polite"
       aria-atomic="true"
@@ -571,7 +574,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       {showQr ? (
         <div className="fixed bottom-3 right-3 bg-white p-3 sm:bottom-4 sm:right-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrSrc} alt="Scan to submit your question" width={160} height={160} className="h-24 w-24 sm:h-40 sm:w-40" />
+          <img src={qrSrc} alt="Scan to submit your question" width={160} height={160} className="h-[calc(6rem*var(--qr-k))] w-[calc(6rem*var(--qr-k))] sm:h-[calc(10rem*var(--qr-k))] sm:w-[calc(10rem*var(--qr-k))]" />
         </div>
       ) : null}
     </main>
@@ -582,7 +585,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       </div>
     ) : null}
     {intro && !menu && !message && !explainer ? <BadDecisionIntro word={settings.introWord} /> : null}
-    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} look={settings} /> : null}
+    {explainer ? <Explainer step={explainer} qrSrc={showQr ? qrSrc : undefined} qrScale={settings.qrSize / 100} look={settings} /> : null}
     {segmentEnd !== null && settings.timer ? (
       <p className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1 font-[family-name:var(--pnc-heading)] text-lg tabular-nums text-white/80 sm:bottom-4 sm:text-2xl" aria-hidden="true">
         {segmentClock(segmentLeft)}

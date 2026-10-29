@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync } from "node:crypto";
 
 /**
  * Keeps a secret the admin saves (an API key) unreadable wherever the
@@ -22,6 +22,17 @@ function keyFor(secret: string): Buffer {
     keys.set(secret, key);
   }
   return key;
+}
+
+/**
+ * A short name for the server secret a box was sealed with, stored beside
+ * it: a box another server sealed can then be told apart from one that was
+ * tampered with, and a save from that other server is not taken for an
+ * update. It gives nothing away about the secret.
+ */
+export function secretId(secret: string): string {
+  if (!secret) return "";
+  return createHmac("sha256", keyFor(secret)).update("pnc-secret-box-id").digest("base64url").slice(0, 12);
 }
 
 export function sealSecret(plain: string, secret: string): SealedSecret {

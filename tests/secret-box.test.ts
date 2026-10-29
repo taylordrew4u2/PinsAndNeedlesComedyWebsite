@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { openSecret, sealSecret } from "../src/lib/secret-box.ts";
+import { openSecret, sealSecret, secretId } from "../src/lib/secret-box.ts";
 import { cleanApiKey, keyHint } from "../src/lib/ai-key.ts";
 
 const SECRET = "a-long-random-server-secret-for-tests-0123456789";
@@ -36,4 +36,12 @@ test("a pasted key is tidied and checked; only its last four characters are ever
   for (const junk of ["", "sk-ant-short", "sk-proj-abcdefghijklmnopqrstuvwxyz", `${KEY}!`, 42, null]) assert.equal(cleanApiKey(junk), "", String(junk));
   assert.equal(keyHint(KEY), "ABCD");
   assert.equal(keyHint("short"), "");
+});
+
+test("the secret's id tells two servers apart, and gives nothing of the secret away", () => {
+  assert.equal(secretId(SECRET), secretId(SECRET));
+  assert.notEqual(secretId(SECRET), secretId(`${SECRET}x`));
+  assert.equal(secretId(SECRET).length, 12);
+  assert.ok(!SECRET.includes(secretId(SECRET)));
+  assert.equal(secretId(""), "");
 });
