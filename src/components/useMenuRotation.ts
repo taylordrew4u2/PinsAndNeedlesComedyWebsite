@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RotationTiming } from "@/lib/drink-menu";
-import { FULL_PAGE, holdMs, keepPage, nextPage, rearmMs, type MenuPage } from "@/lib/menu-rotation";
+import { FULL_PAGE, holdMs, keepPage, nextPage, rearmMs, turnsPages, type MenuPage } from "@/lib/menu-rotation";
 
 /**
  * Turns the custom menu's pages on this screen's own clock: one timer at a
@@ -16,16 +16,17 @@ import { FULL_PAGE, holdMs, keepPage, nextPage, rearmMs, type MenuPage } from "@
  * gone. A new timing counts from when the page went up, so a shorter one
  * takes effect at once. Stopped, it shows the page pinned with `pin` (the
  * preview's page chips), or the full board, and the next run starts from the
- * full board.
+ * full board. `turning` says whether it is turning now.
  */
 export function useMenuRotation(pages: readonly MenuPage[], timing: RotationTiming | null, run: boolean): {
   page: MenuPage;
   index: number;
   pin: (key: string | null) => void;
+  turning: boolean;
 } {
   const fullMs = timing?.fullMs ?? 0;
   const sectionMs = timing?.sectionMs ?? 0;
-  const running = run && timing !== null && pages.length > 1;
+  const running = run && turnsPages(pages, timing);
   // The page the turning is on, by key, and the page pinned while stopped.
   const [turnedTo, setTurnedTo] = useState(FULL_PAGE.key);
   const [pinned, setPinned] = useState<string | null>(null);
@@ -59,5 +60,5 @@ export function useMenuRotation(pages: readonly MenuPage[], timing: RotationTimi
     setTurnedTo(key ?? FULL_PAGE.key);
   }, []);
 
-  return { page, index, pin };
+  return { page, index, pin, turning: running };
 }

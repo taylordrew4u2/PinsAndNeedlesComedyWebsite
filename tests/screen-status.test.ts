@@ -24,3 +24,17 @@ test("a drink menu covers everything, then the host's message", () => {
   assert.equal(screenStatus({ ...busy, menu: "standard" }), "Drink menu on screen");
   assert.equal(screenStatus({ ...busy, menu: "custom" }), "Custom drink menu on screen");
 });
+
+test("the custom menu says when it is turning its pages; the standard menu never turns", () => {
+  const turning: ScreenView = { ...idle, menu: "custom", rotating: true };
+  assert.equal(screenStatus(turning), "Custom drink menu on screen · turning pages");
+  assert.equal(screenStatus({ ...turning, rotating: false }), "Custom drink menu on screen");
+  // A page that doesn't say whether it turns: just which menu is up.
+  assert.equal(screenStatus({ ...idle, menu: "custom" }), "Custom drink menu on screen");
+  // The standard menu is the whole board, whatever is said about turning.
+  assert.equal(screenStatus({ ...turning, menu: "standard" }), "Drink menu on screen");
+  // Turning or not, the menu still covers the message and any set.
+  assert.equal(screenStatus({ ...turning, message: true, set: { name: "Jess", index: 0 }, question: true }), "Custom drink menu on screen · turning pages");
+  // No menu up: turning means nothing.
+  assert.equal(screenStatus({ ...idle, rotating: true, question: true }), "Question on screen");
+});

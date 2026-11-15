@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
 import { isNewerBuild, maySelfReload, quietScreen, screenSignature, soundNeededTap } from "@/lib/build";
 import { modeQuery, type Space } from "@/lib/space";
-import DrinkMenu from "@/components/DrinkMenu";
-import { readCustomLook, type CustomLook } from "@/lib/drink-menu";
+import DrinkMenu, { useBrokenImage } from "@/components/DrinkMenu";
+import { useMenuRotation } from "@/components/useMenuRotation";
+import { DRINK_MENU, readCustomLook, type CustomLook } from "@/lib/drink-menu";
 import { parseLiveBoard, type LiveBoard } from "@/lib/drink-list";
+import { menuPages } from "@/lib/menu-rotation";
 import { FORM_QR, boardQr, qrPercent, readShownQr, type ShownQr } from "@/lib/screen-qr";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { customStingCache, loadCustomSting, pickQuestionSound, playCustomSting } from "@/lib/custom-sting";
@@ -521,14 +523,38 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   }, []);
 
   const qrSrc = `/api/decisions/live/qr${modeQuery(space)}`;
+  // The host's own link or picture that won't load is swapped for the question form's code, at the same size, until it loads again:
+  // the room always has a code to scan, never a broken image.
+  const ownQrBroken = useBrokenImage(screenQr.kind === "form" ? null : screenQr.src);
+  const usableQr: ShownQr = ownQrBroken ? { ...FORM_QR, size: screenQr.size } : screenQr;
   // The question form's code comes from this screen's own address (it knows its space); the host's link or picture from the poll.
-  const showQrCode: ShownQr = screenQr.kind === "form" ? { ...screenQr, src: qrSrc } : screenQr;
+  const showQrCode: ShownQr = usableQr.kind === "form" ? { ...usableQr, src: qrSrc } : usableQr;
+  // The standard menu's words go with the code that is really up: the question form's own when it stands in for the host's.
+  const menuWords = standardMenuWords(usableQr.kind === "form" ? { ...settings, qrKind: "" } : settings);
+  // The question form's own code failing (a server hiccup) is left off the corner and the Intro until it loads, never drawn broken.
+  const formQrBroken = useBrokenImage(showQr && showQrCode.kind === "form" ? showQrCode.src : null);
+  const cornerQr = showQr && !formQrBroken ? boardQr(showQrCode, "corner") : null;
+  const explainerQr = showQr && !formQrBroken ? boardQr(showQrCode, "explainer") : null;
+  // The custom (daytime) menu turns its pages on this screen's own clock: the full board, then its sections a page at a time, then the full board again.
+  // The standard menu never turns. The drinks keep the same object between polls while unchanged, so the pages do too.
+  const pages = useMemo(() => menuPages(board.drinks ?? DRINK_MENU), [board.drinks]);
+  const daytime = menu && menuCustom !== null;
+  const { page } = useMenuRotation(pages, menuCustom?.rotate ?? null, daytime);
 
   return (
     <>
     {menu ? (
       <main className={`pnc-screen-in select-none ${pointerIdle ? "cursor-none" : ""}`} aria-label="Live show" onDoubleClick={toggleFullscreen}>
-        <DrinkMenu qr={showQr ? boardQr(showQrCode, "menu") : null} words={standardMenuWords(settings)} marquee={marquee} custom={menuCustom} drinks={board.drinks ?? undefined} marqueeSpeed={board.marqueeSpeed} marqueeColor={board.marqueeColor} />
+        <DrinkMenu
+          qr={showQr ? boardQr(showQrCode, "menu") : null}
+          words={menuWords}
+          marquee={marquee}
+          custom={menuCustom}
+          drinks={board.drinks ?? undefined}
+          marqueeSpeed={board.marqueeSpeed}
+          marqueeColor={board.marqueeColor}
+          page={daytime ? page : null}
+        />
       </main>
     ) : (
     <main
@@ -550,7 +576,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           // Sized together, so a long question and its name both fit above the QR.
           <div key={question} ref={text} className="pnc-screen-in w-full text-center">
             <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
-            {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">— {name}</p> : null}
+            {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">{settings.namePrefix ? `${settings.namePrefix} ` : ""}{name}</p> : null}
           </div>
         ) : !question && performer && !intro && countdown === null ? (
           <div key={performer} className="pnc-screen-in w-full text-center">
@@ -564,10 +590,11 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           Rehearsal
         </p>
       ) : null}
-      {showQr ? (
-        <div className={`fixed bottom-3 right-3 p-3 sm:bottom-4 sm:right-4 ${showQrCode.kind === "picture" ? "" : "bg-white"}`}>
+      {cornerQr ? (
+        // The host's picture sits on the black without the code's white frame.
+        <div className={`fixed bottom-3 right-3 p-3 sm:bottom-4 sm:right-4 ${cornerQr.picture ? "" : "bg-white"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={showQrCode.src} alt={showQrCode.kind === "picture" ? "" : showQrCode.kind === "link" ? "Scan me" : "Scan to submit your question"} width={160} height={160} className="h-[calc(6rem*var(--qr-k))] w-[calc(6rem*var(--qr-k))] object-contain sm:h-[calc(10rem*var(--qr-k))] sm:w-[calc(10rem*var(--qr-k))]" />
+          <img src={cornerQr.src} alt={cornerQr.alt} width={160} height={160} decoding="async" className="h-[calc(6rem*var(--qr-k))] w-[calc(6rem*var(--qr-k))] object-contain sm:h-[calc(10rem*var(--qr-k))] sm:w-[calc(10rem*var(--qr-k))]" />
         </div>
       ) : null}
     </main>
@@ -578,21 +605,22 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       </div>
     ) : null}
     {intro && !menu && !message && !explainer ? <BadDecisionIntro word={settings.introWord} /> : null}
-    {explainer ? <Explainer step={explainer} qr={showQr ? boardQr(showQrCode, "explainer") : null} look={settings} /> : null}
-    {segmentEnd !== null && settings.timer ? (
+    {explainer ? <Explainer step={explainer} qr={explainerQr} look={settings} /> : null}
+    {/* The show's clocks and prompts stay off the daytime menu: nothing about the show is on it. */}
+    {segmentEnd !== null && settings.timer && !daytime ? (
       <p className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1 font-[family-name:var(--pnc-heading)] text-lg tabular-nums text-white/80 sm:bottom-4 sm:text-2xl" aria-hidden="true">
         {segmentClock(segmentLeft)}
       </p>
     ) : null}
     {wipe ? <div key={wipe} className="pnc-wipe" aria-hidden="true" /> : null}
-    {/* Outside <main>, so it is not read out with the question. Not while the host has muted the sound on purpose. */}
-    {!mirrored && !soundOn && settings.sound ? (
+    {/* Outside <main>, so it is not read out with the question. Not while the host has muted the sound on purpose, nor over the daytime menu, which plays none. */}
+    {!mirrored && !soundOn && settings.sound && !daytime ? (
       <button
         type="button"
         onDoubleClick={(event) => event.stopPropagation()}
         className={`fixed bottom-16 left-3 z-30 rounded-md border border-[#ff2e4d] bg-black/80 px-4 py-2 text-sm font-semibold text-white sm:bottom-[4.5rem] sm:left-4`}
       >
-        Sound is off. Tap to turn it on
+        {settings.soundOffPrompt}
       </button>
     ) : null}
     {canGoFullscreen && !(fullscreen && pointerIdle) ? (
@@ -602,7 +630,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         onDoubleClick={(event) => event.stopPropagation()}
         className={`fixed bottom-3 left-3 rounded-md border border-white/30 bg-black/70 px-4 py-2 text-sm text-white transition-opacity sm:bottom-4 sm:left-4 ${pointerIdle ? "pointer-events-none opacity-0" : "opacity-100"}`}
       >
-        {fullscreen ? "Exit full screen" : "Full screen (F)"}
+        {fullscreen ? settings.fullscreenExit : settings.fullscreenEnter}
       </button>
     ) : null}
     </>
