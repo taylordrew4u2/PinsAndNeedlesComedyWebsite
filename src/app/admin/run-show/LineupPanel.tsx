@@ -11,6 +11,7 @@ import SetTimingCard from "./SetTimingCard";
 import CardTiming from "./CardTiming";
 import QuestionEditor from "./QuestionEditor";
 import type { QuestionChange } from "@/lib/questions";
+import type { SavePhase } from "@/lib/save-state";
 
 /** What is being dragged: a waiting question, or a question already in a card. */
 export type Drag = { from: "pile"; id: string } | { from: "slot"; performer: string; slot: number };
@@ -103,6 +104,8 @@ type Props = {
   edit: (body: object, done: string, failed: string) => Promise<boolean>;
   /** Fix a question's words or name while it waits in a card (the same edit as in the lists). */
   editQuestion: (id: string, change: QuestionChange) => Promise<boolean>;
+  /** Hears where the timing cards' saving stands, by card id, for the sign at the top of the page. */
+  onPhase?: (card: string, phase: SavePhase) => void;
 };
 
 /**
@@ -110,7 +113,7 @@ type Props = {
  * and their questions, filled in ahead of time or during the show. Every set
  * runs the lineup's timing unless its card has its own.
  */
-export default function LineupPanel({ lineup, clock: time, waiting, busy, dragging, setDragging, save, start, stop, edit, editQuestion }: Props) {
+export default function LineupPanel({ lineup, clock: time, waiting, busy, dragging, setDragging, save, start, stop, edit, editQuestion, onPhase }: Props) {
   const [dropOn, setDropOn] = useState<string | null>(null);
   // The question whose editor is open, by id, so it follows the question if the slots move under it.
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
@@ -236,7 +239,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
         </div>
         {time.running ? <button type="button" onClick={() => void stop()} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Stop</button> : null}
       </div>
-      <SetTimingCard lineup={lineup} running={time.running} busy={busy} save={saveLineupTiming} />
+      <SetTimingCard lineup={lineup} running={time.running} busy={busy} save={saveLineupTiming} onPhase={(phase) => onPhase?.("set-timing-card", phase)} />
 
       <div className="mt-3 space-y-4">
         {lineup.performers.map((performer, number) => {
@@ -325,7 +328,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 <button type="button" onClick={() => fill(performer.id)} disabled={busy || !waiting.length || !performer.slots.some((slot, i) => i >= open && !slot)} className="rounded-md border border-white/30 px-2.5 py-1 disabled:opacity-40">🎲 Fill empty</button>
                 <button type="button" onClick={() => editSlots(performer.id, (slots, from) => slots.map((slot, i) => (i < from ? slot : null)))} disabled={busy || !performer.slots.some((slot, i) => i >= open && slot)} className="rounded-md px-2.5 py-1 text-neutral-400 underline disabled:opacity-40">Empty all</button>
-                <CardTiming lineup={lineup} performer={performer} live={live} liveTiming={time.timing} busy={busy} save={(next) => saveCardTiming(performer.id, next)} />
+                <CardTiming lineup={lineup} performer={performer} live={live} liveTiming={time.timing} busy={busy} save={(next) => saveCardTiming(performer.id, next)} onPhase={(phase) => onPhase?.(`card-timing-${performer.id}`, phase)} />
               </div>
             </div>
           );
