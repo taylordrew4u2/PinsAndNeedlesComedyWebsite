@@ -196,6 +196,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Could not save the custom menu. Try again." }, { status: 503, headers });
     }
   }
+  if ("menuQrOff" in body) {
+    // A Control Center opened before the custom menu got its own QR choice still has the old on/off switch.
+    // Off still means what it said: no QR on the custom menu. On would bring back the show's question-form code,
+    // which the daytime menu no longer carries, so it changes nothing and says where the new choice is.
+    if (body.menuQrOff !== true) {
+      return NextResponse.json({ error: "The custom menu now picks its own QR (none, your link or your picture) in its card. Reload the Control Center." }, { status: 410, headers });
+    }
+    try {
+      return NextResponse.json(menuView(await writeMenu({ qrKind: "" }, space)), { headers });
+    } catch (error) {
+      console.error("[run-show] custom menu QR off failed", error);
+      return NextResponse.json({ error: "Could not save the custom menu. Try again." }, { status: 503, headers });
+    }
+  }
   if ("manualOpen" in body) {
     if (typeof body.manualOpen !== "boolean") {
       return NextResponse.json({ error: "Invalid question setting" }, { status: 400, headers });
