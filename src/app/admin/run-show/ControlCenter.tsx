@@ -82,6 +82,12 @@ const POLL_TIMEOUT_MS = 15_000;
  */
 const CHANGE_TIMEOUT_MS = 65_000;
 /** Given up on a press: the server may still have done it, so the host checks before pressing again. */
+/**
+ * A change whose request failed outright: the phone's connection dropped. Said
+ * plainly, since the browser's own words ("Failed to fetch" on a laptop, "Load
+ * failed" on an iPhone) mean nothing to a host mid-show.
+ */
+const OFFLINE = "Couldn't reach the server. Check this phone's connection, then try again.";
 const NO_ANSWER = "No answer from the server yet. It may still have gone through: check the screen and the lists before trying again.";
 /** A saved notice is news for a moment: it goes after this, or longer for a long one, so it can be read. */
 const NOTICE_MS = 6_000;
@@ -247,9 +253,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     const send = async () => {
       try {
         // A change that never answers must not hold every button: give up, and the next poll shows what landed.
-        const { response, text } = await fetchWithin(endpoint, {
+        const sent = await fetchWithin(endpoint, {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-        }, CHANGE_TIMEOUT_MS);
+        }, CHANGE_TIMEOUT_MS).catch((failure: unknown) => {
+          setError(gaveUp(failure) ? NO_ANSWER : OFFLINE);
+          return null;
+        });
+        if (!sent) return false;
+        const { response, text } = sent;
         if (response.status === 401) { setAuthLost(true); return false; }
         // The server always answers in JSON. Anything else is the platform's own page (a gateway timeout, a crash):
         // the press may still have gone through, so the host checks before pressing again.
@@ -629,7 +640,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <h1 className="text-2xl font-semibold">Control Center</h1>
             <p className="mt-1 text-sm text-neutral-400">Bad Decisions, show night. Questions land here as they come in; the live screen follows what you pick.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 [&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center sm:[&>a]:min-h-0">
             {state ? <SavePill cards={Object.entries(phases)} /> : null}
             <a href="/admin" className="rounded-md border border-white/30 px-4 py-2 text-sm">Admin</a>
             <a href="/bad-decisions/live" target="_blank" rel="noopener noreferrer" className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black">
@@ -671,7 +682,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
                 <p className="text-sm">{status}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
                 {screenMessage.on ? (
                   // Always in reach, even with the message card folded away (say, after a reload mid-show).
                   <button type="button" onClick={() => void sendMessage({ on: false })} disabled={busy || !state} className="rounded-md bg-sky-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">
@@ -712,7 +723,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <LiveMirror version={mirrorVersion} />
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
               <span>A copy of what the projector shows. It checks for changes every few seconds, so it can trail the projector by a moment.</span>
-              <button type="button" onClick={() => setMirrorVersion((value) => value + 1)} className="underline">Reload mirror</button>
+              <button type="button" onClick={() => setMirrorVersion((value) => value + 1)} className="min-h-11 underline sm:min-h-0">Reload mirror</button>
             </div>
             {state ? (
               <BartenderField
@@ -770,7 +781,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   ? "The Bad Decisions page is switched off, so the QR goes nowhere. Open questions now switches it on."
                   : "Open questions whenever you want. The live screen stays as it is."}
               </p>
-              <div className="mt-3 flex flex-wrap gap-3">
+              <div className="mt-3 flex flex-wrap gap-3 [&>button]:min-h-11 sm:[&>button]:min-h-0">
                 {/* Only greyed out when pressing it would change nothing: open by hand but closed by "Close questions now" still opens. */}
                 <button type="button" onClick={() => void setManualOpen(true)} disabled={busy || !state || (state.manualOpen && state.questionsOpen)} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Open questions now</button>
                 {state?.questionsOpen ? <button type="button" onClick={() => void closeQuestionsNow()} disabled={busy} title="Stops new questions, for example when the pile is full. The form says it is closed." className="rounded-md border border-red-500/60 px-4 py-2 text-sm text-red-200 disabled:opacity-50">Close questions now</button> : null}
@@ -819,11 +830,11 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base">Questions{state ? ` (${waiting.length})` : ""}</h2>
               <div className="flex flex-wrap items-center gap-3">
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-400">
+                <label className="flex min-h-11 cursor-pointer items-center gap-1.5 text-xs text-neutral-400 sm:min-h-0">
                   <input type="checkbox" className="h-4 w-4 accent-white" checked={ping} onChange={(event) => writePing(event.target.checked)} />
                   Ping when one arrives
                 </label>
-                <button type="button" onClick={() => void refresh()} disabled={busy} className="px-3 py-2 text-sm underline disabled:opacity-40">Refresh</button>
+                <button type="button" onClick={() => void refresh()} disabled={busy} className="min-h-11 px-3 py-2 text-sm underline disabled:opacity-40 sm:min-h-0">Refresh</button>
               </div>
             </div>
             <QuestionSearch value={search} onChange={setSearch} total={waiting.length} matching={listed.length} />
@@ -879,7 +890,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   disabled={!state}
                   className="w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
                 />
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 [&>*]:min-h-11 sm:[&>*]:min-h-0">
                   <label htmlFor="preload-name" className="sr-only">Name on screen (optional)</label>
                   <input
                     id="preload-name"
@@ -925,7 +936,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <details className="mt-4 rounded-lg border border-white/20 p-4">
               <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">End of the night</summary>
               <p className="mt-3 text-sm text-neutral-400">Archive everything so next week starts at zero. Archived questions stay here until you delete them.</p>
-              <button type="button" onClick={() => void archive()} disabled={busy || !state || (!waiting.length && !state.shown.length)} className="mt-3 rounded-md border border-red-500/60 bg-red-950/40 px-4 py-2 text-sm text-red-200 disabled:opacity-40">🧹 Archive everything from tonight</button>
+              <button type="button" onClick={() => void archive()} disabled={busy || !state || (!waiting.length && !state.shown.length)} className="mt-3 min-h-11 rounded-md border border-red-500/60 bg-red-950/40 px-4 py-2 text-sm text-red-200 disabled:opacity-40 sm:min-h-0">🧹 Archive everything from tonight</button>
               {state?.archived.length ? (
                 <div role="list" className="mt-4 space-y-1">
                   <p className="text-xs uppercase tracking-widest text-neutral-500">Archived ({state.archived.length})</p>
@@ -1057,7 +1068,7 @@ function QrCode() {
       <img src={QR_SRC} alt="QR code linking to /bad-decisions" width={128} height={128} className="h-32 w-32 shrink-0 rounded-lg bg-white p-2" />
       <div className="min-w-[200px] flex-1 text-sm leading-relaxed text-neutral-300">
         <p>People scan this to send a question in. It shows a countdown until the form opens, then the question. Print this exact code; older codes pointing to the plain page no longer work.</p>
-        <a href={QR_SRC} target="_blank" rel="noreferrer" className="mt-2 inline-block underline">⬇️ Open full size to save</a>
+        <a href={QR_SRC} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center underline sm:min-h-0">⬇️ Open full size to save</a>
       </div>
     </div>
   );
@@ -1086,12 +1097,12 @@ async function collectTexts(setTexting: (value: { on: boolean; error: string }) 
   }
 }
 
-/** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */
 /** The request was given up on (or the page is leaving), not refused. */
 function gaveUp(failure: unknown): boolean {
   return failure instanceof Error && (failure.name === "AbortError" || failure.name === "TimeoutError");
 }
 
+/** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */
 function plainError(failure: unknown, fallback: string): string {
   if (!(failure instanceof Error) || failure.name === "AbortError" || failure.name === "TimeoutError" || failure instanceof SyntaxError) return fallback;
   return failure.message;

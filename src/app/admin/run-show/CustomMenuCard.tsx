@@ -284,7 +284,7 @@ export default function CustomMenuCard({ saved, marqueeStyle, drinks, samePriceL
             label="Note in the empty space, under the bartender"
             value={value.note}
             max={NOTE_MAX}
-            placeholder="e.g. Happy hour till 9 · $2 off cocktails"
+            placeholder="e.g. Happy hour till 9"
             hint="Empty means no note."
             onChange={(text) => edit({ note: text })}
           />
@@ -334,7 +334,7 @@ export default function CustomMenuCard({ saved, marqueeStyle, drinks, samePriceL
             value={value.customMarquee}
             max={MARQUEE_MAX}
             caps
-            placeholder="Empty = no marquee on the daytime menu"
+            placeholder="Leave empty for no marquee"
             hint={marqueeStyle.on
               ? "Empty means no marquee on the daytime menu. It runs at the speed and in the colour set in 🎞️ Marquee."
               : "The marquee is switched off in 🎞️ Marquee, so this won’t run until it is back on there."}

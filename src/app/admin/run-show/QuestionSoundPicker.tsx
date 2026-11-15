@@ -126,7 +126,9 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
         setProblem("Uploaded, but this browser can't play that file. Save, then press 🔊 Test sound to check the TV can; if not, try an MP3.");
       }
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : "Upload failed.");
+      // The server's own words when it answered; a dropped connection or a garbled answer gets a plain line, not the browser's ("Failed to fetch").
+      const plain = error instanceof Error && error.message && !(error instanceof TypeError) && !(error instanceof SyntaxError);
+      setProblem(plain ? error.message : "The sound didn't upload. Check this phone's connection, then try again.");
     } finally {
       setUploading(false);
     }
@@ -155,7 +157,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
 
   const row = (id: QuestionSound, emoji: string, label: string, blurb: string) => (
     <li key={id} className={`flex items-center gap-2 rounded-md border px-2 py-1.5 ${sting === id ? "border-amber-300/80 bg-amber-300/10" : "border-white/15"}`}>
-      <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+      <label className={`${TAP} flex min-w-0 flex-1 cursor-pointer items-start gap-2`}>
         <input type="radio" name="question-sound" className="mt-1 h-5 w-5 shrink-0 accent-amber-300 sm:h-4 sm:w-4" checked={sting === id} onChange={() => edit({ sting: id })} />
         <span aria-hidden="true" className="mt-0.5 shrink-0">{emoji}</span>
         <span className="min-w-0">
@@ -207,7 +209,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
         ))}
         <ul className="mt-2 grid gap-1.5">
           <li className={`flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 ${sting === "custom" ? "border-amber-300/80 bg-amber-300/10" : "border-white/15"}`}>
-            <label className={`flex min-w-0 flex-1 basis-48 items-start gap-2 ${url ? "cursor-pointer" : ""}`}>
+            <label className={`${TAP} flex min-w-0 flex-1 basis-48 items-start gap-2 ${url ? "cursor-pointer" : ""}`}>
               <input type="radio" name="question-sound" className="mt-1 h-4 w-4 shrink-0 accent-amber-300" checked={sting === "custom"} disabled={!url} onChange={() => edit({ sting: "custom" })} />
               <span aria-hidden="true" className="mt-0.5 shrink-0">📁</span>
               <span className="min-w-0">

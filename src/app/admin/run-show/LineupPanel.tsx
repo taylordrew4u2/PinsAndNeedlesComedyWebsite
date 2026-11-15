@@ -335,7 +335,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
         })}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
         <button type="button" onClick={addPerformer} disabled={busy} className="rounded-md border border-dashed border-white/40 px-4 py-2 text-sm disabled:opacity-50">+ Add performer</button>
         {finished.length ? <button type="button" onClick={clearFinished} disabled={busy} className="rounded-md border border-white/20 px-4 py-2 text-sm text-neutral-300 disabled:opacity-50">🧹 Clear finished cards ({finished.length})</button> : null}
       </div>

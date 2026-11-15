@@ -144,7 +144,9 @@ export default function QrChooser({ value, onChange, kinds, places, busy, idPref
       onChange({ kind: "picture", image: address });
       setPasting(false);
     } catch (error) {
-      setUploadProblem(error instanceof Error && error.message ? error.message : "The picture didn't upload. Try again.");
+      // The server's own words when it answered; a dropped connection or a garbled answer gets a plain line, not the browser's ("Failed to fetch").
+      const plain = error instanceof Error && error.message && !(error instanceof TypeError) && !(error instanceof SyntaxError);
+      setUploadProblem(plain ? error.message : "The picture didn't upload. Check this phone's connection, then try again.");
     } finally {
       setUploading(false);
       onUploading?.(false);
