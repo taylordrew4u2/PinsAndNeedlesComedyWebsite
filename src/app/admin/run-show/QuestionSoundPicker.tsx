@@ -16,6 +16,9 @@ type Props = {
   edit: (change: Partial<ScreenSettings>) => void;
 };
 
+/** 44px square on a phone, so ▶ and Upload are easy taps; their own size from a tablet up. */
+const TAP = "min-h-11 min-w-11 sm:min-h-0 sm:min-w-0";
+
 type Playing = { id: QuestionSound; context: AudioContext; timer?: ReturnType<typeof setTimeout> };
 
 function audioContextClass(): typeof AudioContext | undefined {
@@ -123,7 +126,9 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
         setProblem("Uploaded, but this browser can't play that file. Save, then press 🔊 Test sound to check the TV can; if not, try an MP3.");
       }
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : "Upload failed.");
+      // The server's own words when it answered; a dropped connection or a garbled answer gets a plain line, not the browser's ("Failed to fetch").
+      const plain = error instanceof Error && error.message && !(error instanceof TypeError) && !(error instanceof SyntaxError);
+      setProblem(plain ? error.message : "The sound didn't upload. Check this phone's connection, then try again.");
     } finally {
       setUploading(false);
     }
@@ -144,7 +149,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
       disabled={disabled}
       aria-label={playing === id ? `Stop ${label}` : `Preview ${label}`}
       title={playing === id ? "Stop" : "Play it here, on this device"}
-      className={`shrink-0 rounded-md border px-2.5 py-1 text-sm disabled:opacity-40 ${playing === id ? "border-amber-300 bg-amber-300 text-black" : "border-white/30 text-white"}`}
+      className={`${TAP} shrink-0 rounded-md border px-2.5 py-1 text-sm disabled:opacity-40 ${playing === id ? "border-amber-300 bg-amber-300 text-black" : "border-white/30 text-white"}`}
     >
       {playing === id ? "■" : "▶"}
     </button>
@@ -152,8 +157,8 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
 
   const row = (id: QuestionSound, emoji: string, label: string, blurb: string) => (
     <li key={id} className={`flex items-center gap-2 rounded-md border px-2 py-1.5 ${sting === id ? "border-amber-300/80 bg-amber-300/10" : "border-white/15"}`}>
-      <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
-        <input type="radio" name="question-sound" className="mt-1 h-4 w-4 shrink-0 accent-amber-300" checked={sting === id} onChange={() => edit({ sting: id })} />
+      <label className={`${TAP} flex min-w-0 flex-1 cursor-pointer items-start gap-2`}>
+        <input type="radio" name="question-sound" className="mt-1 h-5 w-5 shrink-0 accent-amber-300 sm:h-4 sm:w-4" checked={sting === id} onChange={() => edit({ sting: id })} />
         <span aria-hidden="true" className="mt-0.5 shrink-0">{emoji}</span>
         <span className="min-w-0">
           <span className="block text-sm leading-snug">{label}</span>
@@ -185,14 +190,14 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
           step={5}
           value={volume}
           onChange={(event) => edit({ stingVolume: Number(event.target.value) })}
-          className="min-w-0 flex-1 accent-amber-300"
+          className="h-11 min-w-0 flex-1 accent-amber-300 sm:h-auto"
         />
         <span className="w-12 text-right tabular-nums text-neutral-300">{volume}%</span>
       </label>
       <p className="text-xs text-neutral-500">100% is the sound as recorded: every built-in one is about as loud as the others. ▶ uses this volume too.</p>
 
       <details className="rounded-md border border-white/15 p-2">
-        <summary className="cursor-pointer text-sm">Choose another sound ({QUESTION_SOUNDS.length} to pick from, or your own)</summary>
+        <summary className="cursor-pointer py-3 text-sm sm:py-0">Choose another sound ({QUESTION_SOUNDS.length} to pick from, or your own)</summary>
         <p className="mt-2 text-xs text-neutral-500">All real recordings, all gentle: nothing here jumps out at the room.</p>
         {SOUND_GROUPS.map((group) => (
           <div key={group} className="mt-2">
@@ -204,7 +209,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
         ))}
         <ul className="mt-2 grid gap-1.5">
           <li className={`flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 ${sting === "custom" ? "border-amber-300/80 bg-amber-300/10" : "border-white/15"}`}>
-            <label className={`flex min-w-0 flex-1 basis-48 items-start gap-2 ${url ? "cursor-pointer" : ""}`}>
+            <label className={`${TAP} flex min-w-0 flex-1 basis-48 items-start gap-2 ${url ? "cursor-pointer" : ""}`}>
               <input type="radio" name="question-sound" className="mt-1 h-4 w-4 shrink-0 accent-amber-300" checked={sting === "custom"} disabled={!url} onChange={() => edit({ sting: "custom" })} />
               <span aria-hidden="true" className="mt-0.5 shrink-0">📁</span>
               <span className="min-w-0">
@@ -217,7 +222,7 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
               </span>
             </label>
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              <button type="button" onClick={() => input.current?.click()} disabled={uploading} className="rounded-md border border-white/30 px-2.5 py-1 text-sm disabled:opacity-40">
+              <button type="button" onClick={() => input.current?.click()} disabled={uploading} className={`${TAP} rounded-md border border-white/30 px-2.5 py-1 text-sm disabled:opacity-40`}>
                 {uploading ? "Uploading…" : own ? "Replace" : "Upload"}
               </button>
               {playButton("custom", "your own sound", !url)}
@@ -228,11 +233,12 @@ export default function QuestionSoundPicker({ sting, volume, url, saved, edit }:
       </details>
 
       {problem ? <p role="alert" className="text-xs text-red-300">{problem}</p> : null}
-      {unsaved ? (
-        <p className="text-xs text-amber-200">Not saved yet: 🔊 Test sound still plays {stingName(saved)} at {saved.stingVolume}% on the TV until you press Save.</p>
-      ) : (
-        <p className="text-xs text-neutral-500">🔊 Test sound, at the top, plays this one on the TV.</p>
-      )}
+      {/* The sound's own save sign, read out as it changes: the card's Save, below, is what sends it to the TV. */}
+      <p role="status" aria-live="polite" className={`text-xs ${unsaved ? "text-amber-200" : "text-neutral-500"}`}>
+        {unsaved
+          ? `● Not saved yet: 🔊 Test sound still plays ${stingName(saved)} at ${saved.stingVolume}% on the TV until you press Save.`
+          : "✓ Saved: 🔊 Test sound, at the top, plays this one on the TV."}
+      </p>
     </div>
   );
 }

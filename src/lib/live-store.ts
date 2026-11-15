@@ -128,9 +128,12 @@ export async function readMenu(space: Space = "live"): Promise<MenuState> {
 /** Change one part of the menu record and keep the rest, so the marquee and the custom look outlive the menu going down. */
 export async function writeMenu(change: Partial<MenuState>, space: Space = "live"): Promise<MenuState> {
   const next = parseMenuState({ ...(await readMenu(space)), ...change });
-  const message = "marquee" in change || "marqueeOn" in change ? "Update the drink menu marquee"
-    : "color" in change || "headline" in change || "note" in change || "font" in change || "bartender" in change || "qrOff" in change ? "Update the custom drink menu"
-    : next.on ? `Put the ${next.style} drink menu on screen` : "Take the drink menu off screen";
+  // Named by what changed: the marquee (the daytime menu's own text included), how drinks share lines, any other custom menu setting, or which menu is up.
+  const keys = Object.keys(change);
+  const message = "marquee" in change || "marqueeOn" in change || "customMarquee" in change ? "Update the drink menu marquee"
+    : "samePriceLine" in change ? "Update how the drink menus list prices"
+      : keys.some((key) => key !== "on" && key !== "style") ? "Update the custom drink menu"
+        : next.on ? `Put the ${next.style} drink menu on screen` : "Take the drink menu off screen";
   await writeRecord(menuKeyOf(space), next, message);
   return next;
 }

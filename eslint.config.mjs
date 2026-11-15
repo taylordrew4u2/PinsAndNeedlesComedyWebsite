@@ -6,7 +6,8 @@ import nextTypeScript from "eslint-config-next/typescript";
 // without the eslintrc compatibility shim.
 const config = [
   {
-    ignores: [".next/**", "node_modules/**", "out/**", "public/**", "next-env.d.ts"],
+    // .claude/ holds Claude Code's own working copies of this repo (worktrees): each is linted where it lives, not from here.
+    ignores: [".next/**", "node_modules/**", "out/**", "public/**", "next-env.d.ts", ".claude/**"],
   },
   ...nextCoreWebVitals,
   ...nextTypeScript,

@@ -1,21 +1,44 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_LOOK, DEFAULT_SCREEN, SCREEN_TEXT, SOUND_TEST_FRESH_MS, STING_URL_MAX, STING_VOLUME_MAX, STING_VOLUME_MIN,
-  changedScreen, chosenSting, cleanScreenText, cleanStingUrl, freshSoundTest, markBadDecisions, parseScreenChange, parseScreenSettings, screenLook, soundUrl, stingName,
+  BEHAVIOUR_KEYS, COUNTDOWN_MAX, COUNTDOWN_MIN, DEFAULT_LOOK, DEFAULT_SCREEN, PRINTED_WORDS, QR_KEYS, SCREEN_TEXT, SCREEN_TEXT_GROUPS, SOUND_TEST_FRESH_MS, STING_URL_MAX,
+  STING_VOLUME_MAX, STING_VOLUME_MIN, TEXT_KEYS, changedScreen, chosenSting, cleanScreenText, cleanStingUrl, freshSoundTest, markBadDecisions, parseScreenChange,
+  parseScreenSettings, previewQr, screenChanges, screenLook, shownQr, soundUrl, standardMenuWords, stingName, type ScreenSettings,
 } from "../src/lib/screen-settings.ts";
+import { DECISIONS_QR_SRC, FORM_QR, adminQrPreviewSrc } from "../src/lib/screen-qr.ts";
 import { EXAMPLE_QUESTION } from "../src/lib/explainer.ts";
 import { DEFAULT_SOUND, QUESTION_SOUNDS } from "../src/lib/question-sounds.ts";
 
 test("defaults are the screen as it has always been", () => {
   assert.deepEqual(DEFAULT_LOOK, {
     countdown: true, countdownFrom: 3, intro: true, introWord: "Incoming", sound: true,
-    sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", qrSize: 100, timer: true, names: true, stageLabel: "Now on stage",
+    sting: DEFAULT_SOUND, stingVolume: 100, stingUrl: "", qrKind: "", qrTo: "", qrImage: "", qrSize: 100, timer: true, names: true,
+    stageLabel: "Now on stage", namePrefix: "—",
     howHeading: "How it works", howStep1: "Scan the QR", howStep2: "Tell us your bad decision", howStep3: "A comedian weighs in, live",
-    listenLine: "When you hear this…", exampleQuestion: EXAMPLE_QUESTION,
-    closingLine: "That sound means a bad decision just hit the screen.", closingCall: "Scan to send yours.",
+    listenLine: "When you hear this…", exampleLabel: "Example", exampleQuestion: EXAMPLE_QUESTION,
+    closingLine: "That sound means a bad decision just hit the screen.", closingCall: "Scan to send yours.", scanLabel: "Scan me",
+    standardHeading: "MENU", standardQrCaption: "SCAN TO SUBMIT", standardQrTitle: "YOUR BAD DECISIONS", standardQrLink: "pinsandneedlescomedy.com/bad-decisions",
+    soundOffPrompt: "Sound is off. Tap to turn it on", fullscreenEnter: "Full screen (F)", fullscreenExit: "Exit full screen",
   });
-  for (const { fallback, max } of Object.values(SCREEN_TEXT)) assert.ok(fallback.length <= max, fallback);
+  for (const { fallback, max, label } of Object.values(SCREEN_TEXT)) {
+    assert.ok(fallback.length <= max, fallback);
+    assert.ok(label.trim(), fallback);
+  }
+});
+
+test("every word on the screen has exactly one box in the Control Center", () => {
+  const grouped = SCREEN_TEXT_GROUPS.flatMap((group) => group.keys);
+  assert.deepEqual([...grouped].sort(), [...TEXT_KEYS].sort());
+  assert.equal(new Set(grouped).size, grouped.length);
+  assert.equal(new Set(SCREEN_TEXT_GROUPS.map((group) => group.id)).size, SCREEN_TEXT_GROUPS.length);
+  for (const group of SCREEN_TEXT_GROUPS) assert.ok(group.title && group.when && group.keys.length, group.id);
+});
+
+test("words, the QR and the rest: every setting is in exactly one of the three", () => {
+  const all = [...TEXT_KEYS, ...QR_KEYS, ...BEHAVIOUR_KEYS];
+  assert.deepEqual([...all].sort(), Object.keys(DEFAULT_SCREEN).sort());
+  assert.equal(new Set(all).size, all.length);
+  assert.ok(BEHAVIOUR_KEYS.includes("sound") && !BEHAVIOUR_KEYS.includes("qrSize") && !BEHAVIOUR_KEYS.includes("introWord"));
 });
 
 test("nothing stored, or junk, reads as the defaults", () => {
@@ -46,6 +69,26 @@ test("words are one trimmed, capped line, and the default itself is kept as empt
   assert.equal(cleanScreenText("introWord", "Incoming"), "");
   assert.equal(cleanScreenText("exampleQuestion", ` ${EXAMPLE_QUESTION} `), "");
   for (const raw of [null, 42, ["hi"], { text: "hi" }]) assert.equal(cleanScreenText("howHeading", raw), "");
+  // Words drawn in capitals: the default in any capitals is the default.
+  assert.equal(cleanScreenText("standardQrCaption", "scan to submit"), "");
+  assert.equal(cleanScreenText("scanLabel", "SCAN ME"), "");
+  // Words drawn as typed keep their capitals.
+  assert.equal(cleanScreenText("namePrefix", "—"), "");
+  assert.equal(cleanScreenText("standardQrLink", "PinsAndNeedlesComedy.com/bad-decisions"), "PinsAndNeedlesComedy.com/bad-decisions");
+});
+
+test("the new words are read, changed and stored like the old ones", () => {
+  const saved = parseScreenSettings({ namePrefix: " ~ ", exampleLabel: "For instance", soundOffPrompt: "Tap for sound", standardHeading: "drinks", fullscreenExit: 4 });
+  assert.equal(saved.namePrefix, "~");
+  assert.equal(saved.exampleLabel, "For instance");
+  assert.equal(saved.soundOffPrompt, "Tap for sound");
+  assert.equal(saved.standardHeading, "drinks");
+  assert.equal(saved.fullscreenExit, "");
+  assert.deepEqual(parseScreenSettings(changedScreen(saved)), saved);
+  assert.deepEqual(parseScreenChange({ scanLabel: "Point here", fullscreenEnter: "" }), { scanLabel: "Point here", fullscreenEnter: "" });
+  assert.deepEqual(parseScreenChange({ standardQrTitle: "your bad decisions" }), { standardQrTitle: "" });
+  assert.equal(screenLook({ namePrefix: "~" }).namePrefix, "~");
+  assert.equal(screenLook({}).soundOffPrompt, "Sound is off. Tap to turn it on");
 });
 
 test("a change: known settings of the right type only, or nothing at all", () => {
@@ -57,6 +100,8 @@ test("a change: known settings of the right type only, or nothing at all", () =>
     null, "sound", [], {}, { sound: "off" }, { countdownFrom: 0 }, { countdownFrom: "3" }, { introWord: 5 }, { volume: 11 }, { sound: false, extra: 1 },
     { sting: "kazoo" }, { sting: null }, { stingVolume: 9 }, { stingVolume: 151 }, { stingVolume: 72.5 }, { stingVolume: "100" },
     { stingUrl: 7 }, { stingUrl: "javascript:alert(1)" }, { sting: "custom", stingUrl: "//elsewhere.example/horn.mp3" },
+    { qrKind: "form" }, { qrKind: 1 }, { qrTo: "http://example.com" }, { qrTo: "javascript:alert(1)" }, { qrTo: 7 }, { qrImage: "//evil.example/a.png" },
+    { qrImage: "data:image/png;base64,AAAA" }, { namePrefix: 3 },
   ]) {
     assert.equal(parseScreenChange(raw), null, JSON.stringify(raw));
   }
@@ -173,4 +218,72 @@ test("the QR size is a whole step of 10 from 50% to 200%; anything else reads as
   assert.deepEqual(parseScreenChange({ qrSize: 150 }), { qrSize: 150 });
   assert.equal(parseScreenChange({ qrSize: 155 }), null);
   assert.deepEqual(changedScreen({ ...DEFAULT_SCREEN, qrSize: 150 }), { qrSize: 150 });
+});
+
+test("the show screens' QR: the question form until the host picks their own link or picture, each kept while another is picked", () => {
+  assert.equal(DEFAULT_SCREEN.qrKind, "");
+  const link = parseScreenSettings({ qrKind: "link", qrTo: " https://www.instagram.com/pixelatedrecords/ ", qrImage: "/uploads/a.webp" });
+  assert.equal(link.qrKind, "link");
+  assert.equal(link.qrTo, "https://www.instagram.com/pixelatedrecords/");
+  assert.equal(link.qrImage, "/uploads/a.webp");
+  // Junk reads as the defaults.
+  const junk = parseScreenSettings({ qrKind: "form", qrTo: "http://example.com", qrImage: "javascript:alert(1)" });
+  assert.equal(junk.qrKind, "");
+  assert.equal(junk.qrTo, "");
+  assert.equal(junk.qrImage, "");
+  // A change: a known choice, a clean https link (kept as the code will hold it), a picture address that can be used, or "" to clear.
+  assert.deepEqual(parseScreenChange({ qrKind: "link", qrTo: "https://Example.com" }), { qrKind: "link", qrTo: "https://example.com/" });
+  assert.deepEqual(parseScreenChange({ qrTo: "", qrImage: "" }), { qrTo: "", qrImage: "" });
+  assert.deepEqual(parseScreenChange({ qrKind: "picture", qrImage: "/api/media/a.webp" }), { qrKind: "picture", qrImage: "/api/media/a.webp" });
+  assert.deepEqual(changedScreen(parseScreenSettings({ qrKind: "picture", qrImage: "/uploads/a.webp" })), { qrKind: "picture", qrImage: "/uploads/a.webp" });
+});
+
+test("shownQr: what the show screens draw for each choice, falling back to the question form at the size picked", () => {
+  const sign = (link: string) => `${DECISIONS_QR_SRC}?to=${encodeURIComponent(link)}&sig=${"b".repeat(32)}`;
+  const base: Pick<ScreenSettings, "qrKind" | "qrTo" | "qrImage" | "qrSize"> = { qrKind: "", qrTo: "", qrImage: "", qrSize: 100 };
+  assert.deepEqual(shownQr(base, sign), FORM_QR);
+  assert.deepEqual(shownQr({ ...base, qrSize: 150 }, sign), { ...FORM_QR, size: 150 });
+  const to = "https://example.com/menu";
+  assert.deepEqual(shownQr({ ...base, qrKind: "link", qrTo: to }, sign), { kind: "link", src: sign(to), size: 100 });
+  assert.deepEqual(shownQr({ ...base, qrKind: "picture", qrImage: "/uploads/a.webp", qrSize: 80 }, sign), { kind: "picture", src: "/uploads/a.webp", size: 80 });
+  // A link nobody can sign (no secret), a link or picture that can't be used, an odd size: the question form, so the room can always send a question.
+  assert.deepEqual(shownQr({ ...base, qrKind: "link", qrTo: to, qrSize: 130 }, () => null), { ...FORM_QR, size: 130 });
+  assert.deepEqual(shownQr({ ...base, qrKind: "link", qrTo: "http://example.com" }, sign), FORM_QR);
+  assert.deepEqual(shownQr({ ...base, qrKind: "link", qrTo: "" }, sign), FORM_QR);
+  assert.deepEqual(shownQr({ ...base, qrKind: "picture", qrImage: "//evil.example/a.png" }, sign), FORM_QR);
+  assert.deepEqual(shownQr({ ...base, qrSize: 105 }, sign), FORM_QR);
+  // The Control Center's previews draw a link from the signed-in preview route.
+  assert.equal(previewQr({ ...base, qrKind: "link", qrTo: to }).src, adminQrPreviewSrc(to));
+});
+
+test("the show-night menu's words: the printed ones with the question form, only the host's own under their link or picture", () => {
+  assert.deepEqual(PRINTED_WORDS, { heading: "MENU", caption: "SCAN TO SUBMIT", title: "YOUR BAD DECISIONS", link: "pinsandneedlescomedy.com/bad-decisions" });
+  assert.deepEqual(standardMenuWords(DEFAULT_SCREEN), PRINTED_WORDS);
+  // screenLook's filled-in defaults count as the defaults.
+  assert.deepEqual(standardMenuWords(DEFAULT_LOOK), PRINTED_WORDS);
+  assert.deepEqual(standardMenuWords({ ...DEFAULT_SCREEN, standardQrTitle: "Tell us everything" }), { ...PRINTED_WORDS, title: "Tell us everything" });
+  const link = { ...DEFAULT_SCREEN, qrKind: "link" as const, qrTo: "https://www.instagram.com/pixelatedrecords/" };
+  assert.deepEqual(standardMenuWords(link), { heading: "MENU", caption: "", title: "", link: "instagram.com/pixelatedrecords" });
+  assert.deepEqual(standardMenuWords(screenLook(link)), { heading: "MENU", caption: "", title: "", link: "instagram.com/pixelatedrecords" });
+  assert.deepEqual(standardMenuWords({ ...link, standardQrCaption: "Follow us", standardQrLink: "@pixelated" }), { heading: "MENU", caption: "Follow us", title: "", link: "@pixelated" });
+  // A link that can't be used draws the question form, so its printed words come back.
+  assert.deepEqual(standardMenuWords({ ...link, qrTo: "" }), PRINTED_WORDS);
+  assert.deepEqual(standardMenuWords({ ...DEFAULT_SCREEN, qrKind: "picture", qrImage: "/uploads/a.webp" }), { heading: "MENU", caption: "", title: "", link: "" });
+  assert.equal(standardMenuWords({ ...DEFAULT_SCREEN, qrKind: "picture", qrImage: "/uploads/a.webp", standardHeading: "Drinks" }).heading, "Drinks");
+});
+
+test("each card sends only the settings it looks after that would change what is saved, never a default word", () => {
+  const saved = parseScreenSettings({ sound: false, stageLabel: "Up next" });
+  assert.deepEqual(screenChanges(saved, saved, [...TEXT_KEYS, ...QR_KEYS, ...BEHAVIOUR_KEYS]), {});
+  // A word typed back to its default goes as "", in any capitals for words drawn in capitals.
+  assert.deepEqual(screenChanges(saved, { ...saved, stageLabel: "now on stage" }, TEXT_KEYS), { stageLabel: "" });
+  assert.deepEqual(screenChanges(saved, { ...saved, stageLabel: "UP NEXT" }, TEXT_KEYS), {});
+  // Only the keys asked about: the words card never sends the sound switch, and the switches card never sends a word.
+  const next = { ...saved, sound: true, introWord: "Uh oh", qrKind: "link" as const, qrTo: "https://example.com" };
+  assert.deepEqual(screenChanges(saved, next, TEXT_KEYS), { introWord: "Uh oh" });
+  assert.deepEqual(screenChanges(saved, next, BEHAVIOUR_KEYS), { sound: true });
+  assert.deepEqual(screenChanges(saved, next, QR_KEYS), { qrKind: "link", qrTo: "https://example.com/" });
+  // A link that can't be used goes as typed, so the server turns it away rather than it quietly going.
+  assert.deepEqual(screenChanges(saved, { ...saved, qrTo: "http://example.com" }, QR_KEYS), { qrTo: "http://example.com" });
+  assert.equal(parseScreenChange(screenChanges(saved, { ...saved, qrTo: "http://example.com" }, QR_KEYS)), null);
 });

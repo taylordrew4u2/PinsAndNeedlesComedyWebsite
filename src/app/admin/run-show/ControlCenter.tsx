@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { DEFAULT_MARQUEE, type MarqueeChange, type MenuStyle } from "@/lib/drink-menu";
-import CustomMenuCard, { type CustomMenuInput } from "./CustomMenuCard";
+import { DEFAULT_MARQUEE, NO_MENU_VIEW, customSettingsOf, readMenuView, type CustomMenuSettings, type MarqueeChange, type MenuStyle, type MenuView } from "@/lib/drink-menu";
+import { boardQr } from "@/lib/screen-qr";
+import BartenderField, { type BartenderChange } from "./BartenderField";
+import CustomMenuCard from "./CustomMenuCard";
 import DrinkListCard from "./DrinkListCard";
 import MarqueeCard from "./MarqueeCard";
-import { parseDrinkList, type DrinkList } from "@/lib/drink-list";
+import { boardDrinks, parseDrinkList, type DrinkList } from "@/lib/drink-list";
+import { menuPages } from "@/lib/menu-rotation";
+import type { SavePhase } from "@/lib/save-state";
 import { EXPLAINER_MS } from "@/lib/explainer";
 import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
 import { clockText, durationWords, parseLineup, slottedIds, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
@@ -19,13 +23,17 @@ import LiveMirror from "./LiveMirror";
 import MenuQrSizeCard from "./MenuQrSizeCard";
 import MessageCard from "./MessageCard";
 import ScreenSettingsCard from "./ScreenSettingsCard";
+import ScreenWordsCard from "./ScreenWordsCard";
+import ShowQrCard from "./ShowQrCard";
 import TestSoundButton from "./TestSoundButton";
-import { parseScreenSettings, stingName, type ScreenSettings } from "@/lib/screen-settings";
+import { SavePill } from "./SaveBadge";
+import { parseScreenSettings, previewQr, standardMenuWords, stingName, type ScreenSettings } from "@/lib/screen-settings";
 import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
 import { screenStatus } from "@/lib/screen-status";
 import QuestionEditor from "./QuestionEditor";
 import QuestionSearch from "./QuestionSearch";
 import { matchesSearch, onScreenQuestion, withEdit, type QuestionChange } from "@/lib/questions";
+import { openCard } from "./open-card";
 
 type State = {
   /** The performers' cards: names and questions, filled in ahead. */
@@ -38,23 +46,6 @@ type State = {
   shown: Submission[];
   archived: Submission[];
   selected: LiveSelection | null;
-  /** The drink menu is up on the live screen, over any question. */
-  menu: boolean;
-  /** Which drink menu: the standard one, or the custom one with its colour and line above the QR. */
-  menuStyle: MenuStyle;
-  /** The custom menu's saved text colour and line above the QR; "" for the defaults. */
-  menuColor: string;
-  menuHeadline: string;
-  /** The custom menu's note in the empty space ("" for none) and its colour ("" to follow the text colour). */
-  menuNote: string;
-  menuNoteColor: string;
-  /** The custom menu's font, and tonight's bartender in a script font and colour ("" for the defaults, or no bartender). */
-  menuFont: string;
-  menuBartender: string;
-  menuBartenderFont: string;
-  menuBartenderColor: string;
-  /** Text running around the edge while the drink menu is up; empty for none. */
-  marquee: string;
   truncated: boolean;
   questionsOpen: boolean;
   manualOpen: boolean;
@@ -67,23 +58,13 @@ type State = {
   staleScreen?: { at: string } | null;
   /** The host pressed "Close questions now" and it still holds. */
   manualClosed: boolean;
-  /** The marquee on or off, its speed ("" for Normal) and its own colour ("" to follow the menu's text colour). */
-  marqueeOn: boolean;
-  marqueeSpeed: string;
-  marqueeColor: string;
-  /** The custom menu's wording under the QR code and over the bartender; "" for the printed wording. */
-  menuQrCaption: string;
-  menuQrTitle: string;
-  menuQrLink: string;
-  menuBartenderLabel: string;
-  /** The custom menu shows no QR code. */
-  menuQrOff: boolean;
   /** The host's drink list, shown by both menus; null while it is the printed menu. */
   drinks: DrinkList | null;
-};
+} & MenuView;
 /** The one open editor: which question, and where it was opened (the waiting list, the shown list, or the "On screen" box). */
 type Editing = { at: "pile" | "shown" | "screen"; id: string };
-type Change = Partial<Pick<State, "selected" | "menu" | "menuStyle" | "menuColor" | "menuHeadline" | "menuNote" | "menuNoteColor" | "menuFont" | "menuBartender" | "menuBartenderFont" | "menuBartenderColor" | "marquee" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & { drawn?: Submission; submission?: Submission };
+/** What the server answers a change with: any of these, read as each change needs. Every menu answer is a whole MenuView. */
+type Change = Partial<Pick<State, "selected" | "questionsOpen" | "manualOpen" | "pageLive" | "segment" | "lineup">> & Partial<MenuView> & { drawn?: Submission; submission?: Submission };
 
 const API = "/api/admin/run-show";
 const PILE_API = "/api/admin/decisions";
@@ -101,6 +82,12 @@ const POLL_TIMEOUT_MS = 15_000;
  */
 const CHANGE_TIMEOUT_MS = 65_000;
 /** Given up on a press: the server may still have done it, so the host checks before pressing again. */
+/**
+ * A change whose request failed outright: the phone's connection dropped. Said
+ * plainly, since the browser's own words ("Failed to fetch" on a laptop, "Load
+ * failed" on an iPhone) mean nothing to a host mid-show.
+ */
+const OFFLINE = "Couldn't reach the server. Check this phone's connection, then try again.";
 const NO_ANSWER = "No answer from the server yet. It may still have gone through: check the screen and the lists before trying again.";
 /** A saved notice is news for a moment: it goes after this, or longer for a long one, so it can be read. */
 const NOTICE_MS = 6_000;
@@ -108,6 +95,19 @@ const NOTICE_MS = 6_000;
 const SET_OWNS_SCREEN = "A set is running and owns the screen. Press Stop in Sets first.";
 /** Why "+ Set" is greyed out: it only fills the set on stage and cards that haven't run, and none has a slot free. */
 const NO_OPEN_SLOT = "Every card has run or is full. Add a performer in Sets, or empty a slot on a card that hasn't run.";
+/**
+ * The chips under the live screen: one tap opens a card and brings it into
+ * view, so a host on a phone never scrolls past every question to reach it.
+ * `focus` is what to put the cursor in once it is open.
+ */
+const JUMPS: readonly { id: string; label: string; focus?: string }[] = [
+  { id: "bartender-field", label: "🍹 Bartender", focus: "#bartender-name" },
+  { id: "screen-words-card", label: "✏️ Screen words" },
+  { id: "show-qr-card", label: "🔳 Show QR" },
+  { id: "custom-menu-card", label: "🌞 Daytime menu" },
+  { id: "drink-list-card", label: "🍸 Drink list" },
+  { id: "marquee-card", label: "🎞️ Marquee" },
+];
 
 /**
  * A poll answer with the menu fields this version added filled in when they
@@ -115,19 +115,7 @@ const NO_OPEN_SLOT = "Every card has run or is full. Add a performer in Sets, or
  * cards read them as given, and one missing would take the page down mid-show.
  */
 function withDefaults(data: State): State {
-  const text = (value: unknown) => (typeof value === "string" ? value : "");
-  return {
-    ...data,
-    marqueeOn: data.marqueeOn !== false,
-    marqueeSpeed: text(data.marqueeSpeed),
-    marqueeColor: text(data.marqueeColor),
-    menuQrCaption: text(data.menuQrCaption),
-    menuQrTitle: text(data.menuQrTitle),
-    menuQrLink: text(data.menuQrLink),
-    menuBartenderLabel: text(data.menuBartenderLabel),
-    menuQrOff: data.menuQrOff === true,
-    drinks: parseDrinkList(data.drinks),
-  };
+  return { ...data, ...readMenuView(data, NO_MENU_VIEW), drinks: parseDrinkList(data.drinks) };
 }
 
 /**
@@ -174,6 +162,12 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
   const lastIngest = useRef(0);
   const pingOn = useRef(ping);
   useEffect(() => { pingOn.current = ping; }, [ping]);
+  // Where every card's saving stands, by the card's id, for the sign at the top of the page. Cards say so only when it changes.
+  const [phases, setPhases] = useState<Record<string, SavePhase>>({});
+  const notePhase = useCallback((card: string, phase: SavePhase) => {
+    setPhases((current) => (current[card] === phase ? current : { ...current, [card]: phase }));
+  }, []);
+  const phaseOf = (card: string) => (phase: SavePhase) => notePhase(card, phase);
 
   const refresh = useCallback(async () => {
     if (loading.current || pending.current > 0) return;
@@ -259,9 +253,14 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     const send = async () => {
       try {
         // A change that never answers must not hold every button: give up, and the next poll shows what landed.
-        const { response, text } = await fetchWithin(endpoint, {
+        const sent = await fetchWithin(endpoint, {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-        }, CHANGE_TIMEOUT_MS);
+        }, CHANGE_TIMEOUT_MS).catch((failure: unknown) => {
+          setError(gaveUp(failure) ? NO_ANSWER : OFFLINE);
+          return null;
+        });
+        if (!sent) return false;
+        const { response, text } = sent;
         if (response.status === 401) { setAuthLost(true); return false; }
         // The server always answers in JSON. Anything else is the platform's own page (a gateway timeout, a crash):
         // the press may still have gone through, so the host checks before pressing again.
@@ -326,40 +325,20 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
   /** Take the server's word on the whole drink menu record after any change to it. */
   const takeMenu = (data: Change & Record<string, unknown>) =>
-    setState((current) => current ? {
-      ...current,
-      menu: Boolean(data.menu),
-      menuStyle: data.menuStyle === "custom" ? "custom" : "standard",
-      marquee: typeof data.marquee === "string" ? data.marquee : current.marquee,
-      menuColor: typeof data.menuColor === "string" ? data.menuColor : current.menuColor,
-      menuHeadline: typeof data.menuHeadline === "string" ? data.menuHeadline : current.menuHeadline,
-      menuNote: typeof data.menuNote === "string" ? data.menuNote : current.menuNote,
-      menuNoteColor: typeof data.menuNoteColor === "string" ? data.menuNoteColor : current.menuNoteColor,
-      menuFont: typeof data.menuFont === "string" ? data.menuFont : current.menuFont,
-      menuBartender: typeof data.menuBartender === "string" ? data.menuBartender : current.menuBartender,
-      menuBartenderFont: typeof data.menuBartenderFont === "string" ? data.menuBartenderFont : current.menuBartenderFont,
-      menuBartenderColor: typeof data.menuBartenderColor === "string" ? data.menuBartenderColor : current.menuBartenderColor,
-      marqueeOn: typeof data.marqueeOn === "boolean" ? data.marqueeOn : current.marqueeOn,
-      marqueeSpeed: typeof data.marqueeSpeed === "string" ? data.marqueeSpeed : current.marqueeSpeed,
-      marqueeColor: typeof data.marqueeColor === "string" ? data.marqueeColor : current.marqueeColor,
-      menuQrCaption: typeof data.menuQrCaption === "string" ? data.menuQrCaption : current.menuQrCaption,
-      menuQrTitle: typeof data.menuQrTitle === "string" ? data.menuQrTitle : current.menuQrTitle,
-      menuQrLink: typeof data.menuQrLink === "string" ? data.menuQrLink : current.menuQrLink,
-      menuBartenderLabel: typeof data.menuBartenderLabel === "string" ? data.menuBartenderLabel : current.menuBartenderLabel,
-      menuQrOff: typeof data.menuQrOff === "boolean" ? data.menuQrOff : current.menuQrOff,
-    } : current);
+    setState((current) => current ? { ...current, ...readMenuView(data, current) } : current);
 
   /**
-   * The marquee's one Save: its text, then how it runs, each only if it changed. The server takes them as
-   * two changes, so the second waits for the first, and a refused text leaves the style unsent. True once
-   * all of it is saved; otherwise the card keeps the typing for another try.
+   * The marquee's one Save: its text, then how it runs, then the daytime menu's own text, each only if it
+   * changed. The server takes them as separate changes, so each waits for the one before, and a refused one
+   * leaves the rest unsent. True once all of it is saved; otherwise the card keeps the typing for another try.
    */
-  const saveMarquee = async ({ text, style }: MarqueeChange) => {
-    if (text === undefined && !style) return true;
+  const saveMarquee = async ({ text, style, custom }: MarqueeChange) => {
+    if (text === undefined && !style && custom === undefined) return true;
     let saved: Record<string, unknown> = {};
     const take = (data: Change & Record<string, unknown>) => { takeMenu(data); saved = data; };
     if (text !== undefined && !(await change(API, { marquee: text }, take, "Could not update the marquee."))) return false;
     if (style && !(await change(API, { marqueeStyle: style }, take, "Could not update the marquee."))) return false;
+    if (custom !== undefined && !(await change(API, { customMenu: { customMarquee: custom } }, take, "Could not update the marquee."))) return false;
     // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
     setNotice(saved.marqueeOn === false
       ? `Marquee off: the drink menu fills the screen.${text !== undefined ? " Its text is saved for when it comes back on." : ""}`
@@ -382,17 +361,32 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
       if (style) setState((current) => current?.message?.on ? { ...current, message: { ...current.message, on: false } } : current);
     }, "Could not update the drink menu.");
 
-  const saveCustomMenu = (look: CustomMenuInput) =>
+  /** Only the custom menu's settings that changed; the server keeps the rest as saved. */
+  const saveCustomMenu = (look: Partial<CustomMenuSettings>) =>
     change(API, { customMenu: look }, (data) => {
       takeMenu(data);
       setNotice(data.menu && data.menuStyle === "custom" ? "Custom menu saved. The live screen has it now." : "Custom menu saved. It shows when you put the custom menu up.");
     }, "Could not save the custom menu.");
 
-  const saveCustomQrOff = (off: boolean) =>
-    change(API, { menuQrOff: off }, (data) => {
+  /** Tonight's bartender (and the words over the name): the custom menu's settings, with their own notice. */
+  const saveBartender = (bartender: BartenderChange) =>
+    change(API, { customMenu: bartender }, (data) => {
       takeMenu(data);
-      setNotice(off ? "Saved: the custom menu has no QR code now." : "Saved: the custom menu shows the QR code again.");
-    }, "Could not save the custom menu.");
+      const name = typeof data.menuBartender === "string" ? data.menuBartender : "";
+      const onScreen = data.menu && data.menuStyle === "custom";
+      setNotice(!("bartender" in bartender)
+        ? `Saved.${onScreen ? " The live screen has it now." : ""}`
+        : name
+          ? `${name} is tonight's bartender. ${onScreen ? "The live screen has it now." : "It shows when you put the custom menu up."}`
+          : "No bartender on the custom menu now.");
+    }, "Could not save the bartender.");
+
+  /** Drinks of one price on one line on both menus, or each on its own: saved straight away. */
+  const saveSamePriceLine = (on: boolean) =>
+    change(API, { samePriceLine: on }, (data) => {
+      takeMenu(data);
+      setNotice(on ? "Drinks with the same price now share a line." : "Every drink has its own line again.");
+    }, "Could not save the drink list.");
 
   /** The live screen's own cards (settings, message, test sound): one change, then the server's word on what is saved and, when a message went up, the drink menu. */
   const screenAction = (body: object, done: string, failed: string) =>
@@ -422,10 +416,6 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
    */
   const saveDrinks = (drinks: DrinkList | null, message: string, from?: DrinkList | null) =>
     change(API, from === undefined ? { drinks } : { drinks, from }, takeDrinks(message), "Could not save the drink list.");
-
-  /** One drink sold out or back; the server changes just that drink on the list as saved now. */
-  const markDrink = (id: string, on: boolean, message: string) =>
-    change(API, { soldOut: { id, on } }, takeDrinks(message), "Could not save the drink list.");
 
   const putBack = (id: string) =>
     change(API, { putBack: id }, (data) => {
@@ -636,6 +626,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     message: screenMessage.on,
     set: running ? { name: onStage?.name ?? "", index: setClock.index } : null,
     question: Boolean(state.selected),
+    // The daytime menu turns its pages on the TV when it is switched on and there is more than the full board to show.
+    rotating: state.menu && state.menuStyle === "custom" && state.menuRotateOn && menuPages(boardDrinks(state.drinks, state.menuSamePriceLine)).length > 1,
   });
   // Where "+ Set" would put a question; null when no card has an open slot, and the button says why it waits.
   const openSlot = state ? firstEmptySlot(state.lineup, setClock) : null;
@@ -648,7 +640,8 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <h1 className="text-2xl font-semibold">Control Center</h1>
             <p className="mt-1 text-sm text-neutral-400">Bad Decisions, show night. Questions land here as they come in; the live screen follows what you pick.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 [&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center sm:[&>a]:min-h-0">
+            {state ? <SavePill cards={Object.entries(phases)} /> : null}
             <a href="/admin" className="rounded-md border border-white/30 px-4 py-2 text-sm">Admin</a>
             <a href="/bad-decisions/live" target="_blank" rel="noopener noreferrer" className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black">
               Open live screen
@@ -667,7 +660,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             The live screen (the TV) is running an older version of the site, so new features may not show. It couldn&rsquo;t update itself without interrupting the room (full screen, sound that needed a tap, or a reload that didn&rsquo;t take). Between sets, on the TV laptop press <kbd className="rounded border border-amber-200/40 px-1">F5</kbd> (<kbd className="rounded border border-amber-200/40 px-1">⌘R</kbd> on a Mac), then <kbd className="rounded border border-amber-200/40 px-1">F</kbd> for full screen and click once for sound.
           </div>
         ) : null}
-        {/* Pinned to the window rather than the page, so a press far down (a sold-out tap, a settings save) still shows what happened. */}
+        {/* Pinned to the window rather than the page, so a press far down (a drink list or settings save) still shows what happened. */}
         <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4">
           {error ? (
             <div role="alert" className="pointer-events-auto flex max-w-xl items-start gap-2 rounded-lg border border-red-400/60 bg-neutral-900/95 py-2 pl-4 pr-2 text-sm text-red-200 shadow-lg">
@@ -689,7 +682,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
                 <p className="text-sm">{status}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
                 {screenMessage.on ? (
                   // Always in reach, even with the message card folded away (say, after a reload mid-show).
                   <button type="button" onClick={() => void sendMessage({ on: false })} disabled={busy || !state} className="rounded-md bg-sky-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">
@@ -716,7 +709,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                       onClick={() => void setMenu(up ? null : style)}
                       disabled={busy || !state}
                       aria-pressed={up}
-                      title={style === "custom" ? "The drink menu in your colour, with your line above the QR code" : "The standard drink menu"}
+                      title={style === "custom" ? "The venue's daytime menu: your own heading, colours and QR, none of the show's" : "The show-night drink menu, with the Bad Decisions QR"}
                       className={`rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50 ${up ? "bg-amber-300 text-black" : "border border-amber-300/70 text-amber-200"}`}
                     >
                       {up ? `Hide ${label}` : `Show ${label}`}
@@ -730,13 +723,44 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <LiveMirror version={mirrorVersion} />
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
               <span>A copy of what the projector shows. It checks for changes every few seconds, so it can trail the projector by a moment.</span>
-              <button type="button" onClick={() => setMirrorVersion((value) => value + 1)} className="underline">Reload mirror</button>
+              <button type="button" onClick={() => setMirrorVersion((value) => value + 1)} className="min-h-11 underline sm:min-h-0">Reload mirror</button>
             </div>
+            {state ? (
+              <BartenderField
+                name={state.menuBartender}
+                label={state.menuBartenderLabel}
+                font={state.menuBartenderFont}
+                color={state.menuBartenderColor || state.menuColor}
+                live={state.menu && state.menuStyle === "custom"}
+                busy={busy}
+                save={saveBartender}
+                onPhase={phaseOf("bartender-field")}
+              />
+            ) : null}
+            <nav aria-label="Jump to a card" className="mt-4 flex flex-wrap gap-2">
+              {JUMPS.map(({ id, label, focus }) => {
+                const phase = phases[id];
+                const waiting = phase === "unsaved" || phase === "failed";
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => openCard(id, focus)}
+                    className={`min-h-11 rounded-full border px-3 py-1 text-xs sm:min-h-0 ${phase === "failed" ? "border-red-500 text-red-200" : waiting ? "border-amber-300/70 text-amber-200" : "border-white/25 text-neutral-200"}`}
+                  >
+                    {label}
+                    {waiting ? <span aria-hidden="true"> {phase === "failed" ? "✕" : "●"}</span> : null}
+                    {waiting ? <span className="sr-only">{phase === "failed" ? " (didn't save)" : " (not saved yet)"}</span> : null}
+                  </button>
+                );
+              })}
+            </nav>
             <MessageCard
               message={screenMessage}
               menu={Boolean(state?.menu)}
               busy={busy || !state}
               send={sendMessage}
+              onPhase={phaseOf("message-card")}
             />
             {state?.selected ? (
               <div className="mt-4 rounded-lg border border-white/20 p-4">
@@ -757,7 +781,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   ? "The Bad Decisions page is switched off, so the QR goes nowhere. Open questions now switches it on."
                   : "Open questions whenever you want. The live screen stays as it is."}
               </p>
-              <div className="mt-3 flex flex-wrap gap-3">
+              <div className="mt-3 flex flex-wrap gap-3 [&>button]:min-h-11 sm:[&>button]:min-h-0">
                 {/* Only greyed out when pressing it would change nothing: open by hand but closed by "Close questions now" still opens. */}
                 <button type="button" onClick={() => void setManualOpen(true)} disabled={busy || !state || (state.manualOpen && state.questionsOpen)} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Open questions now</button>
                 {state?.questionsOpen ? <button type="button" onClick={() => void closeQuestionsNow()} disabled={busy} title="Stops new questions, for example when the pile is full. The form says it is closed." className="rounded-md border border-red-500/60 px-4 py-2 text-sm text-red-200 disabled:opacity-50">Close questions now</button> : null}
@@ -770,7 +794,19 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
               ) : null}
             </div>
 
-            {state ? <DrinkListCard saved={state.drinks} live={state.menu} qr={state.pageLive} busy={busy} save={saveDrinks} mark={markDrink} /> : null}
+            {state ? (
+              <DrinkListCard
+                saved={state.drinks}
+                live={state.menu}
+                qr={state.pageLive ? boardQr(previewQr(screenSettings), "menu") : null}
+                words={standardMenuWords(screenSettings)}
+                busy={busy}
+                save={saveDrinks}
+                samePriceLine={state.menuSamePriceLine}
+                saveSamePriceLine={saveSamePriceLine}
+                onPhase={phaseOf("drink-list-card")}
+              />
+            ) : null}
           </section>
 
           <section aria-label="Question submissions" className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
@@ -787,17 +823,18 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 stop={stopSet}
                 edit={editLineup}
                 editQuestion={editQuestion}
+                onPhase={notePhase}
               />
             ) : null}
 
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base">Questions{state ? ` (${waiting.length})` : ""}</h2>
               <div className="flex flex-wrap items-center gap-3">
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-400">
+                <label className="flex min-h-11 cursor-pointer items-center gap-1.5 text-xs text-neutral-400 sm:min-h-0">
                   <input type="checkbox" className="h-4 w-4 accent-white" checked={ping} onChange={(event) => writePing(event.target.checked)} />
                   Ping when one arrives
                 </label>
-                <button type="button" onClick={() => void refresh()} disabled={busy} className="px-3 py-2 text-sm underline disabled:opacity-40">Refresh</button>
+                <button type="button" onClick={() => void refresh()} disabled={busy} className="min-h-11 px-3 py-2 text-sm underline disabled:opacity-40 sm:min-h-0">Refresh</button>
               </div>
             </div>
             <QuestionSearch value={search} onChange={setSearch} total={waiting.length} matching={listed.length} />
@@ -840,7 +877,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             )}
 
             <details className="mt-6 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">➕ Preload questions</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">➕ Preload questions</summary>
               <form className="mt-3 space-y-3" onSubmit={(event) => { event.preventDefault(); void preload(); }}>
                 <p className="text-sm text-neutral-400">Add your own questions to the pile, alongside the ones that come in from the QR code. One per line. They work the same: show them, draw them, delete them.</p>
                 <label htmlFor="preload-text" className="sr-only">Questions, one per line</label>
@@ -853,7 +890,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   disabled={!state}
                   className="w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
                 />
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 [&>*]:min-h-11 sm:[&>*]:min-h-0">
                   <label htmlFor="preload-name" className="sr-only">Name on screen (optional)</label>
                   <input
                     id="preload-name"
@@ -872,7 +909,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             </details>
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">Already shown tonight{state ? ` (${state.shown.length})` : ""}</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">Already shown tonight{state ? ` (${state.shown.length})` : ""}</summary>
               {state?.shown.length ? (
                 <div role="list" className="mt-3 space-y-2">
                   {state.shown.map((item) => isEditing("shown", item.id) ? (
@@ -897,9 +934,9 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             </details>
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">End of the night</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">End of the night</summary>
               <p className="mt-3 text-sm text-neutral-400">Archive everything so next week starts at zero. Archived questions stay here until you delete them.</p>
-              <button type="button" onClick={() => void archive()} disabled={busy || !state || (!waiting.length && !state.shown.length)} className="mt-3 rounded-md border border-red-500/60 bg-red-950/40 px-4 py-2 text-sm text-red-200 disabled:opacity-40">🧹 Archive everything from tonight</button>
+              <button type="button" onClick={() => void archive()} disabled={busy || !state || (!waiting.length && !state.shown.length)} className="mt-3 min-h-11 rounded-md border border-red-500/60 bg-red-950/40 px-4 py-2 text-sm text-red-200 disabled:opacity-40 sm:min-h-0">🧹 Archive everything from tonight</button>
               {state?.archived.length ? (
                 <div role="list" className="mt-4 space-y-1">
                   <p className="text-xs uppercase tracking-widest text-neutral-500">Archived ({state.archived.length})</p>
@@ -919,50 +956,58 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
 
           <section aria-labelledby="setup-heading" className="min-w-0 lg:col-start-1 lg:row-start-2">
             <h2 id="setup-heading" className="text-xs uppercase tracking-widest text-neutral-400">Setup</h2>
-            <p className="mt-1 text-sm text-neutral-500">Best done before the show. Adjust the QR size here, or open a card for more options.</p>
+            <p className="mt-1 text-sm text-neutral-500">Best done before the show. The show QR&rsquo;s size is right here. Every word the screens show, where the QR leads, the daytime menu and the marquee each have a card below, or a chip under the live screen.</p>
             {state ? (
               <MenuQrSizeCard
                 saved={screenSettings.qrSize}
                 busy={busy}
-                save={(qrSize) => screenAction({ screen: { qrSize } }, "QR size saved for both menus and the live screen.", "Could not save the QR size.")}
+                save={(qrSize) => screenAction({ screen: { qrSize } }, "QR size saved for the live screen, the show-night menu and the Intro.", "Could not save the QR size.")}
+                onPhase={phaseOf("menu-qr-size-card")}
+              />
+            ) : null}
+            {state ? (
+              <ShowQrCard
+                saved={screenSettings}
+                busy={busy}
+                pageLive={state.pageLive}
+                save={(screen) => screenAction({ screen }, "QR saved for the show screens. They pick it up within a couple of seconds.", "Could not save the QR.")}
+                onPhase={phaseOf("show-qr-card")}
+              />
+            ) : null}
+            {state ? (
+              <ScreenWordsCard
+                saved={screenSettings}
+                busy={busy}
+                pageLive={state.pageLive}
+                save={(screen) => screenAction({ screen }, "Words saved. The screens pick them up within a couple of seconds.", "Could not save the words.")}
+                onPhase={phaseOf("screen-words-card")}
               />
             ) : null}
             {state ? (
               <MarqueeCard
                 text={state.marquee}
+                custom={state.marqueeCustom}
                 on={state.marqueeOn}
                 speed={state.marqueeSpeed}
                 color={state.marqueeColor}
                 live={state.menu}
                 busy={busy}
                 save={saveMarquee}
+                onPhase={phaseOf("marquee-card")}
               />
             ) : null}
 
             {state ? (
               <CustomMenuCard
-                color={state.menuColor}
-                headline={state.menuHeadline}
-                note={state.menuNote}
-                noteColor={state.menuNoteColor}
-                font={state.menuFont}
-                bartender={state.menuBartender}
-                bartenderFont={state.menuBartenderFont}
-                bartenderColor={state.menuBartenderColor}
-                marquee={state.marquee}
-                live={state.menu && state.menuStyle === "custom"}
-                qr={state.pageLive}
-                qrSize={screenSettings.qrSize}
-                qrOff={state.menuQrOff}
-                setQrOff={saveCustomQrOff}
-                busy={busy}
-                save={saveCustomMenu}
-                qrCaption={state.menuQrCaption}
-                qrTitle={state.menuQrTitle}
-                qrLink={state.menuQrLink}
-                bartenderLabel={state.menuBartenderLabel}
+                saved={customSettingsOf(state)}
                 marqueeStyle={{ on: state.marqueeOn, speed: state.marqueeSpeed, color: state.marqueeColor }}
                 drinks={state.drinks}
+                samePriceLine={state.menuSamePriceLine}
+                live={state.menu && state.menuStyle === "custom"}
+                busy={busy}
+                save={saveCustomMenu}
+                editBartender={() => openCard("bartender-field", "#bartender-name")}
+                onPhase={phaseOf("custom-menu-card")}
               />
             ) : null}
 
@@ -971,11 +1016,12 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 saved={screenSettings}
                 busy={busy}
                 save={(screen) => screenAction({ screen }, "Live screen settings saved. The projector picks them up within a couple of seconds.", "Could not save the live screen settings.")}
+                onPhase={phaseOf("screen-settings-card")}
               />
             ) : null}
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">🔊 Sound on the live screen</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">🔊 Sound on the live screen</summary>
               <div className="mt-3 space-y-3 text-sm text-neutral-300">
                 <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“Sound is off. Tap to turn it on”</strong> button in the corner. No button means sound is on.</p>
                 <p className="font-semibold text-white">Every show (works on any browser)</p>
@@ -997,7 +1043,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             </details>
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">📱 QR code for the tables</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">📱 QR code for the tables</summary>
               <QrCode />
             </details>
           </section>
@@ -1022,7 +1068,7 @@ function QrCode() {
       <img src={QR_SRC} alt="QR code linking to /bad-decisions" width={128} height={128} className="h-32 w-32 shrink-0 rounded-lg bg-white p-2" />
       <div className="min-w-[200px] flex-1 text-sm leading-relaxed text-neutral-300">
         <p>People scan this to send a question in. It shows a countdown until the form opens, then the question. Print this exact code; older codes pointing to the plain page no longer work.</p>
-        <a href={QR_SRC} target="_blank" rel="noreferrer" className="mt-2 inline-block underline">⬇️ Open full size to save</a>
+        <a href={QR_SRC} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center underline sm:min-h-0">⬇️ Open full size to save</a>
       </div>
     </div>
   );
@@ -1051,12 +1097,12 @@ async function collectTexts(setTexting: (value: { on: boolean; error: string }) 
   }
 }
 
-/** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */
 /** The request was given up on (or the page is leaving), not refused. */
 function gaveUp(failure: unknown): boolean {
   return failure instanceof Error && (failure.name === "AbortError" || failure.name === "TimeoutError");
 }
 
+/** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */
 function plainError(failure: unknown, fallback: string): string {
   if (!(failure instanceof Error) || failure.name === "AbortError" || failure.name === "TimeoutError" || failure instanceof SyntaxError) return fallback;
   return failure.message;

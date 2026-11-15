@@ -25,7 +25,8 @@ export default function TimingFields({ id, value, onChange, disabled = false }: 
   const valid = parseTiming(value) !== null;
   // A saved name time that is not one of the choices still shows as itself.
   const names = NAME_CHOICES.includes(value.nameMs) ? NAME_CHOICES : [...NAME_CHOICES, value.nameMs].sort((a, b) => a - b);
-  const select = "mt-1 block rounded-md border border-white/30 bg-black px-2 py-1.5 text-sm text-white disabled:opacity-50";
+  // 44px tall on a phone, its own size from a tablet up.
+  const select = "mt-1 block min-h-11 rounded-md border border-white/30 bg-black px-2 py-1.5 text-sm text-white disabled:opacity-50 sm:min-h-0";
   return (
     <div className="mt-2">
       <div className="flex flex-wrap gap-3">

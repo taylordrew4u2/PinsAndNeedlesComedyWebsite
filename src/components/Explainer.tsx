@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import BadDecisionIntro from "@/components/BadDecisionIntro";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
+import type { BoardQr } from "@/lib/screen-qr";
 import { DEFAULT_LOOK, markBadDecisions, type ScreenSettings } from "@/lib/screen-settings";
 
 /** The brand's cream (the flash art's ink) and red. */
@@ -14,27 +15,35 @@ const POSTER = "font-[family-name:var(--font-poster)] uppercase";
  * step shares one stage: the same margins, cream type on black, red accents,
  * and a thin progress line along the bottom. The intro step is the real
  * intro, so the room sees and hears exactly what a new question looks like.
- * The words are the host's from the Control Center, the defaults until they
- * change them; the timings never change.
+ * Every word on it is the host's from the Control Center (`look`, as
+ * screenLook fills it in), the defaults until they change them; the timings
+ * never change. `qr` is the show screens' QR (the question form, the host's
+ * link or their picture), its side in vmin and stopped at 140% here; none
+ * while the Bad Decisions page is off.
  */
-export default function Explainer({ step, qrSrc, qrScale = 1, look = DEFAULT_LOOK }: { step: ExplainerStep; qrSrc?: string; qrScale?: number; look?: ScreenSettings }) {
+export default function Explainer({ step, qr, look = DEFAULT_LOOK }: { step: ExplainerStep; qr?: BoardQr | null; look?: ScreenSettings }) {
   if (step === "intro") return <BadDecisionIntro word={look.introWord} />;
   return (
     <div className="fixed inset-0 z-40 overflow-hidden bg-black" style={{ color: CREAM }} aria-live="polite">
       <div key={step} className="pnc-screen-in absolute inset-[6vmin] flex items-center justify-center">
-        {step === "how" ? <How qrSrc={qrSrc} qrScale={qrScale} look={look} /> : step === "listen" ? <Listen line={look.listenLine} /> : step === "example" ? <Example question={look.exampleQuestion} /> : <Send qrSrc={qrSrc} qrScale={qrScale} line={look.closingLine} call={look.closingCall} />}
+        {step === "how" ? <How qr={qr} look={look} />
+          : step === "listen" ? <Listen line={look.listenLine} />
+            : step === "example" ? <Example label={look.exampleLabel} question={look.exampleQuestion} />
+              : <Send qr={qr} line={look.closingLine} call={look.closingCall} scan={look.scanLabel} />}
       </div>
       <Progress step={step} />
     </div>
   );
 }
 
-function How({ qrSrc, qrScale, look }: { qrSrc?: string; qrScale: number; look: ScreenSettings }) {
+function How({ qr, look }: { qr?: BoardQr | null; look: ScreenSettings }) {
   const steps = [look.howStep1, look.howStep2, look.howStep3];
+  // The dice give up height to a big QR, so the logo, the code and the words under it all stay on the stage (88vmin tall).
+  const dice = qr ? Math.max(12, Math.min(DICE_VMIN, STAGE_VMIN - 5 - qrBlockVmin(qr))) : DICE_VMIN;
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-[5vmin]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/bad-decisions-dice-on-dark.svg" alt="Pins & Needles Comedy: Bad Decisions" width={1620} height={1080} className="h-[24vmin] w-auto" />
+      <img src="/brand/bad-decisions-dice-on-dark.svg" alt="Pins & Needles Comedy: Bad Decisions" width={1620} height={1080} className="w-auto shrink-0" style={{ height: `${dice}vmin` }} />
       <div className="flex w-full max-w-[150vmin] items-center justify-center gap-[7vmin]">
         <div className="flex min-w-0 flex-col gap-[3.2vmin]">
           <h1 className={`${HEADING} text-[8vmin]`}>{look.howHeading}</h1>
@@ -49,7 +58,7 @@ function How({ qrSrc, qrScale, look }: { qrSrc?: string; qrScale: number; look: 
             ))}
           </ol>
         </div>
-        {qrSrc ? <Qr src={qrSrc} scale={qrScale} /> : null}
+        {qr ? <Qr qr={qr} scan={look.scanLabel} /> : null}
       </div>
     </div>
   );
@@ -63,11 +72,11 @@ function Listen({ line }: { line: string }) {
   );
 }
 
-function Example({ question }: { question: string }) {
+function Example({ label, question }: { label: string; question: string }) {
   return (
     <div className="flex max-w-[150vmin] flex-col items-center gap-[5vmin] text-center">
-      <p className={`${POSTER} rounded-full px-[3vmin] py-[0.8vmin] text-[3.4vmin] font-bold tracking-[0.35em] text-black`} style={{ background: RED }}>
-        Example
+      <p className={`${POSTER} max-w-full break-words rounded-full px-[3vmin] py-[0.8vmin] text-[3.4vmin] font-bold tracking-[0.35em] text-black`} style={{ background: RED }}>
+        {label}
       </p>
       <h1 className="break-words font-[family-name:var(--pnc-heading)] text-[9vmin] leading-[1.08]">{question}</h1>
     </div>
@@ -75,7 +84,7 @@ function Example({ question }: { question: string }) {
 }
 
 /** The closing lines. "Bad decision" stays red wherever it falls in the host's words. */
-function Send({ qrSrc, qrScale, line, call }: { qrSrc?: string; qrScale: number; line: string; call: string }) {
+function Send({ qr, line, call, scan }: { qr?: BoardQr | null; line: string; call: string; scan: string }) {
   return (
     <div className="flex w-full max-w-[150vmin] items-center justify-center gap-[7vmin]">
       <div className="flex min-w-0 max-w-[95vmin] flex-col gap-[4vmin]">
@@ -86,23 +95,41 @@ function Send({ qrSrc, qrScale, line, call }: { qrSrc?: string; qrScale: number;
           {call}
         </p>
       </div>
-      {qrSrc ? <Qr src={qrSrc} scale={qrScale} /> : null}
+      {qr ? <Qr qr={qr} scan={scan} /> : null}
     </div>
   );
 }
 
-/** The QR at the host's size, up to 1.4 times the usual: past that the steps beside it would have no room. */
-function Qr({ src, scale }: { src: string; scale: number }) {
-  const side = `${Math.round(40 * Math.min(scale, 1.4) * 10) / 10}vmin`;
+/** The How step's dice at their usual height, and the stage's height (the screen less its 6vmin margins), both in vmin. */
+const DICE_VMIN = 24;
+const STAGE_VMIN = 88;
+
+/** How tall the QR's block is, in vmin: the code, its white and red frames, the gap and the line under it. */
+function qrBlockVmin(qr: BoardQr): number {
+  return qr.side + 4 + 2 + 2 + 5.4;
+}
+
+/**
+ * The QR at the host's size (qrSide stops it at 140% here: past that the
+ * steps beside it would have no room), and the host's words under it. A
+ * picture goes in the red frame without the white.
+ */
+function Qr({ qr, scan }: { qr: BoardQr; scan: string }) {
+  const side = `${qr.side}vmin`;
   return (
     <div className="flex shrink-0 flex-col items-center gap-[2vmin]">
       <div className="rounded-[2.4vmin] p-[1vmin]" style={{ background: RED }}>
-        <div className="rounded-[1.6vmin] bg-white p-[2vmin]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="QR code to submit your bad decision" width={400} height={400} className="block" style={{ width: side, height: side }} />
-        </div>
+        {qr.picture ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qr.src} alt={qr.alt} width={400} height={400} decoding="async" className="block rounded-[1.6vmin] bg-black object-contain" style={{ width: `calc(${side} + 4vmin)`, height: `calc(${side} + 4vmin)` }} />
+        ) : (
+          <div className="rounded-[1.6vmin] bg-white p-[2vmin]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qr.src} alt={qr.alt || "QR code to submit your bad decision"} width={400} height={400} className="block" style={{ width: side, height: side }} />
+          </div>
+        )}
       </div>
-      <p className={`${POSTER} text-[3.6vmin] font-bold tracking-[0.3em]`}>Scan me</p>
+      <p className={`${POSTER} max-w-[60vmin] break-words text-center text-[3.6vmin] font-bold leading-[1.5] tracking-[0.3em]`}>{scan}</p>
     </div>
   );
 }

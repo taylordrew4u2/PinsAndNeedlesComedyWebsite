@@ -13,3 +13,9 @@ test("different URLs produce different codes", async () => {
   const b = await decisionsQrSvg("https://another-site.test/bad-decisions");
   assert.notEqual(a, b);
 });
+
+test("any address makes a code, and the Bad Decisions name is the same encoder", async () => {
+  const { qrSvg } = await import("../src/lib/qr.ts");
+  assert.equal(await qrSvg("https://www.instagram.com/pixelatedrecords/"), await decisionsQrSvg("https://www.instagram.com/pixelatedrecords/"));
+  assert.match(await qrSvg("https://example.com/menu"), /^<svg/);
+});

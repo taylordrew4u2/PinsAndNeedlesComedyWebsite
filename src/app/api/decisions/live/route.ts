@@ -7,12 +7,13 @@ import { freshExplainer } from "@/lib/explainer";
 import { publicSelection } from "@/lib/live-selection";
 import { customLook } from "@/lib/drink-menu";
 import { liveMarquee, liveMarqueeLook } from "@/lib/drink-menu";
-import { visibleMenu } from "@/lib/drink-list";
+import { boardDrinks } from "@/lib/drink-list";
+import { signedQrSrc } from "@/lib/qr-link";
 import { spaceOf, type Space } from "@/lib/space";
 import { cleanBuild, currentBuild } from "@/lib/build";
 import { Throttle, clientAddress } from "@/lib/throttle";
 import { liveWrites, readMessage, readScreen, readSoundTest, writeScreenBuild } from "@/lib/live-store";
-import { changedScreen, freshSoundTest } from "@/lib/screen-settings";
+import { changedScreen, freshSoundTest, shownQr } from "@/lib/screen-settings";
 import { publicMessage } from "@/lib/screen-message";
 import { SharedReads } from "@/lib/shared-reads";
 
@@ -61,7 +62,8 @@ export async function GET(request: Request) {
       questionKey: selection ? createHash("sha256").update(selection.submissionId).digest("base64url").slice(0, 16) : null,
       menu: menu.on,
       marquee: liveMarquee(menu),
-      menuCustom: menu.on ? customLook(menu) : null,
+      // The custom menu's look, with its own QR (a host's link as a signed code address, or their picture); null for none.
+      menuCustom: menu.on ? customLook(menu, (link) => signedQrSrc(link)) : null,
       explainer: freshExplainer(explainer, now),
       performer: screen?.performer ?? null,
       // The deployment answering, so a screen left open across an update knows to reload.
@@ -69,11 +71,13 @@ export async function GET(request: Request) {
       segment: status.running ? { remainingMs: status.remainingMs, nextSwitchMs: status.nextSwitchMs } : null,
       // Only the settings the host changed ({} draws the screen as it always was), their message while it is up, and a recent sound test.
       screen: changedScreen(screenSettings),
+      // Where the show screens' QR leads: the question form, or the host's link (a signed code address) or picture.
+      screenQr: shownQr(screenSettings, (link) => signedQrSrc(link)),
       message: publicMessage(message),
       soundTest: freshSoundTest(soundTest, now),
-      // While a menu is up: how its marquee runs, and the drinks that show (none hidden, sold-out ones marked).
+      // While a menu is up: how its marquee runs, and the drinks that show (none hidden; one price's drinks on one line unless the host turned that off).
       marqueeLook: liveMarqueeLook(menu),
-      drinks: menu.on ? visibleMenu(drinks) : null,
+      drinks: menu.on ? boardDrinks(drinks, menu.samePriceLine) : null,
     }, { headers });
   } catch (error) {
     console.error("[live-show] read failed", error);
