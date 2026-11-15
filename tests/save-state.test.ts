@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { JUST_SAVED_MS, NO_SAVES, SAVE_WORDS, justSaved, saveEnded, savePhase, saveStarted, saveWords } from "../src/lib/save-state.ts";
+import { JUST_SAVED_MS, NO_SAVES, SAVE_WORDS, justSaved, pageSave, saveEnded, savePhase, saveStarted, saveWords } from "../src/lib/save-state.ts";
 
 test("where a card stands: saving beats everything, a failure only counts while its changes are still there", () => {
   assert.equal(savePhase(false, NO_SAVES), "saved");
@@ -61,4 +61,13 @@ test("the badge and the button for each phase, and a card's own words", () => {
   assert.equal(saveWords("saved", true, words).badge, "✓ On screen just now");
   assert.equal(saveWords("saving", false, words).badge, "Putting it up…");
   assert.equal(saveWords("failed", false, { saved: "✓ On screen" }).badge, "✕ Didn't save");
+});
+
+test("the page's sign: a failure first, then saving, then how many cards are unsaved", () => {
+  assert.deepEqual(pageSave([]), { phase: "saved", words: "All changes saved", card: null });
+  assert.deepEqual(pageSave([["a", "saved"], ["b", "saved"]]), { phase: "saved", words: "All changes saved", card: null });
+  assert.deepEqual(pageSave([["a", "saved"], ["b", "unsaved"], ["c", "unsaved"]]), { phase: "unsaved", words: "2 unsaved", card: "b" });
+  assert.deepEqual(pageSave([["a", "unsaved"], ["b", "saving"]]), { phase: "saving", words: "Saving…", card: null });
+  // A failure is the one thing to act on, even while another card saves: tapping opens the card that failed.
+  assert.deepEqual(pageSave([["a", "saving"], ["b", "unsaved"], ["c", "failed"]]), { phase: "failed", words: "Couldn't save — tap to see", card: "c" });
 });

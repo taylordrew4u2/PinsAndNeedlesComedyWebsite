@@ -67,3 +67,28 @@ export function saveWords(phase: SavePhase, fresh: boolean, words?: Partial<Save
   if (phase === "unsaved") return { badge: set.unsaved, button: "Save" };
   return { badge: fresh ? set.fresh : set.saved, button: "Saved ✓" };
 }
+
+/** The whole page at a glance: the sign at the top of the Control Center. */
+export type PageSave = {
+  /** The page's own phase: failed if any card failed, then saving, then unsaved, else saved. */
+  phase: SavePhase;
+  /** The sign's words. */
+  words: string;
+  /** The card to open when the sign is tapped (the first that failed, else the first not saved); null when all is saved or saving. */
+  card: string | null;
+};
+
+/**
+ * Sums every card's phase, keyed by the card's id, in page order. A failure
+ * comes first, since it is the one thing the host must act on; then a save on
+ * its way; then how many cards have changes nobody has saved yet.
+ */
+export function pageSave(cards: readonly (readonly [string, SavePhase])[]): PageSave {
+  const first = (phase: SavePhase) => cards.find(([, entry]) => entry === phase)?.[0] ?? null;
+  const failed = first("failed");
+  if (failed) return { phase: "failed", words: "Couldn't save — tap to see", card: failed };
+  if (first("saving")) return { phase: "saving", words: "Saving…", card: null };
+  const unsaved = cards.filter(([, entry]) => entry === "unsaved").length;
+  if (unsaved) return { phase: "unsaved", words: `${unsaved} unsaved`, card: first("unsaved") };
+  return { phase: "saved", words: "All changes saved", card: null };
+}

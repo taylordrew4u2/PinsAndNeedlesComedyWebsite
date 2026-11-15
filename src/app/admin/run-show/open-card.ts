@@ -8,9 +8,9 @@
 export function openCard(id: string, focus?: string): void {
   const card = document.getElementById(id);
   if (!card) return;
-  // The card itself, or the folded card it sits in.
-  const details = card instanceof HTMLDetailsElement ? card : card.closest("details");
-  if (details) details.open = true;
+  // The card itself and every folded card it sits in: a group of words inside the words card opens the card too,
+  // or it would scroll to a box the host can't see.
+  for (let fold = card.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) fold.open = true;
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   card.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
   if (focus) card.querySelector<HTMLElement>(focus)?.focus({ preventScroll: true });

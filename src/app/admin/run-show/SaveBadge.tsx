@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import { JUST_SAVED_MS, NO_SAVES, saveEnded, savePhase, saveStarted, saveWords, type SaveMemo, type SaveWordSet } from "@/lib/save-state";
+import { JUST_SAVED_MS, NO_SAVES, pageSave, saveEnded, savePhase, saveStarted, saveWords, type SaveMemo, type SavePhase, type SaveWordSet } from "@/lib/save-state";
+import { openCard } from "./open-card";
 
 /**
  * Keeps a card's save history for its badge and Save button: wrap the
@@ -101,9 +102,44 @@ export function SaveButton({ dirty, memo, fresh, busy, blocked, tone = "amber", 
       type={type}
       onClick={onClick}
       disabled={busy || blocked || phase === "saving" || phase === "saved"}
-      className={`rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60 ${style}`}
+      // 44px tall on a phone, where it is tapped with a thumb mid-show; its own size from a tablet up.
+      className={`min-h-11 rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60 sm:min-h-0 ${style}`}
     >
       {text}
     </button>
+  );
+}
+
+const PILL_TONE = {
+  saved: "border-emerald-400/60 text-emerald-300",
+  unsaved: "border-amber-300/70 bg-amber-300/15 text-amber-200",
+  saving: "border-white/25 text-neutral-300",
+  failed: "border-red-500 bg-red-500/20 text-red-100",
+} as const;
+
+/**
+ * The sign at the top of the Control Center: every card's saving summed up,
+ * so the host can see at a glance, from anywhere on the page, that nothing
+ * is waiting. `cards` is each card's id and phase, in page order. While a
+ * card couldn't save, or has changes not saved yet, the sign is a button
+ * that opens that card. Read out politely as it changes.
+ */
+export function SavePill({ cards }: { cards: readonly (readonly [string, SavePhase])[] }): ReactElement {
+  const { phase, words, card } = pageSave(cards);
+  const style = `inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold sm:min-h-0 ${PILL_TONE[phase]}`;
+  const mark = phase === "saving"
+    ? <span aria-hidden="true" className="h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent motion-reduce:animate-none" />
+    : <span aria-hidden="true">{phase === "saved" ? "✓" : phase === "failed" ? "✕" : "●"}</span>;
+  return (
+    <div role="status" aria-live="polite">
+      {card ? (
+        <button type="button" onClick={() => openCard(card)} className={style}>
+          {mark}{words}
+          <span className="sr-only">{phase === "failed" ? ": opens the card that didn't save" : " changes: opens the first card with changes"}</span>
+        </button>
+      ) : (
+        <span className={style}>{mark}{words}</span>
+      )}
+    </div>
   );
 }
