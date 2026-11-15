@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  FULL_PAGE, PAGE_DRINKS_MAX, SMALL_SECTION_MAX, holdMs, keepPage, menuPages, nextPage, pageLabel, rearmMs, rotationSummary, roundMs, splitEvenly, type MenuPage,
+  FULL_PAGE, PAGE_DRINKS_MAX, SMALL_SECTION_MAX, holdMs, keepPage, menuPages, nextPage, pageLabel, rearmMs, rotationSummary, roundMs, splitEvenly, turnsPages, type MenuPage,
 } from "../src/lib/menu-rotation.ts";
 import { boardDrinks, visibleMenu } from "../src/lib/drink-list.ts";
 import type { DrinkSection } from "../src/lib/drink-menu.ts";
@@ -123,6 +123,26 @@ test("turning: each page after the one before, back to the full board after the 
   assert.equal(keepPage(undefined, pages), 0);
   assert.equal(holdMs(FULL_PAGE, TIMING), 30_000);
   assert.equal(holdMs(pages[3], TIMING), 8_000);
+});
+
+test("the pages turn only with the rotation on and more than the full board to show", () => {
+  const pages = menuPages(boardDrinks(null, true));
+  assert.equal(turnsPages(pages, TIMING), true);
+  // Rotation switched off: the custom look has no timing.
+  assert.equal(turnsPages(pages, null), false);
+  // One section, so nothing to turn to.
+  assert.equal(turnsPages(menuPages([[sectionOf("A", 3)], [], []]), TIMING), false);
+  assert.equal(turnsPages([], TIMING), false);
+});
+
+test("every drink of the printed menu, joined lines included, is on exactly one section page, in order", () => {
+  const board = boardDrinks(null, true);
+  const onPages = menuPages(board).slice(1).flatMap((page) => page.sections.flatMap((entry) => entry.section.drinks.map((drink) => drink.name)));
+  assert.deepEqual(onPages, board.flat().flatMap((section) => section.drinks.map((drink) => drink.name)));
+  // A joined line keeps each drink's own name, for the board to keep whole.
+  const joined = board.flat().flatMap((section) => section.drinks).filter((drink) => drink.names);
+  assert.ok(joined.length > 0);
+  for (const drink of joined) assert.equal(drink.name, drink.names?.join(" · "));
 });
 
 test("a new time counts from when the page went up: shorter takes effect at once, never below 0, and a clock that went backwards waits the whole time", () => {

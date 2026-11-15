@@ -74,6 +74,15 @@ export function menuPages(columns: readonly (readonly DrinkSection[])[]): MenuPa
   })];
 }
 
+/**
+ * Whether the pages turn at all: the rotation is on (it has a timing) and
+ * there is more than the full board to show. What the live screen turns by,
+ * and what the Control Center's status line says ("turning pages").
+ */
+export function turnsPages(pages: readonly MenuPage[], timing: RotationTiming | null): boolean {
+  return timing !== null && pages.length > 1;
+}
+
 /** Where the page with this key is now, so an edit keeps the same page up; the full board (0) when it is gone. */
 export function keepPage(key: string | null | undefined, pages: readonly MenuPage[]): number {
   const index = key ? pages.findIndex((page) => page.key === key) : -1;
