@@ -866,7 +866,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             )}
 
             <details className="mt-6 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">➕ Preload questions</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">➕ Preload questions</summary>
               <form className="mt-3 space-y-3" onSubmit={(event) => { event.preventDefault(); void preload(); }}>
                 <p className="text-sm text-neutral-400">Add your own questions to the pile, alongside the ones that come in from the QR code. One per line. They work the same: show them, draw them, delete them.</p>
                 <label htmlFor="preload-text" className="sr-only">Questions, one per line</label>
@@ -898,7 +898,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             </details>
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">Already shown tonight{state ? ` (${state.shown.length})` : ""}</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">Already shown tonight{state ? ` (${state.shown.length})` : ""}</summary>
               {state?.shown.length ? (
                 <div role="list" className="mt-3 space-y-2">
                   {state.shown.map((item) => isEditing("shown", item.id) ? (
@@ -923,7 +923,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             </details>
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">End of the night</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">End of the night</summary>
               <p className="mt-3 text-sm text-neutral-400">Archive everything so next week starts at zero. Archived questions stay here until you delete them.</p>
               <button type="button" onClick={() => void archive()} disabled={busy || !state || (!waiting.length && !state.shown.length)} className="mt-3 rounded-md border border-red-500/60 bg-red-950/40 px-4 py-2 text-sm text-red-200 disabled:opacity-40">🧹 Archive everything from tonight</button>
               {state?.archived.length ? (
@@ -1010,7 +1010,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             ) : null}
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">🔊 Sound on the live screen</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">🔊 Sound on the live screen</summary>
               <div className="mt-3 space-y-3 text-sm text-neutral-300">
                 <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“Sound is off. Tap to turn it on”</strong> button in the corner. No button means sound is on.</p>
                 <p className="font-semibold text-white">Every show (works on any browser)</p>
@@ -1032,7 +1032,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             </details>
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
-              <summary className="cursor-pointer text-sm">📱 QR code for the tables</summary>
+              <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">📱 QR code for the tables</summary>
               <QrCode />
             </details>
           </section>

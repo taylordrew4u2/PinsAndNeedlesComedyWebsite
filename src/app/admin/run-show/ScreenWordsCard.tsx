@@ -130,7 +130,7 @@ export default function ScreenWordsCard({ saved, busy, pageLive, save, onPhase }
 
   return (
     <details id="screen-words-card" className="mt-4 rounded-lg border border-white/20 p-4">
-      <summary className="cursor-pointer text-sm">
+      <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">
         ✏️ Words on the screen
         {ownCount ? <span className="ml-1 text-xs text-neutral-400">({ownCount} of your own)</span> : null}
         <SaveBadge dirty={dirty} memo={memo} fresh={fresh} />

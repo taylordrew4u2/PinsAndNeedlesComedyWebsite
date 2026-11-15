@@ -135,7 +135,7 @@ export function SavePill({ cards }: { cards: readonly (readonly [string, SavePha
       {card ? (
         <button type="button" onClick={() => openCard(card)} className={style}>
           {mark}{words}
-          <span className="sr-only">{phase === "failed" ? ": opens the card that didn't save" : " changes: opens the first card with changes"}</span>
+          <span className="sr-only">{phase === "failed" ? ". Opens the card that didn't save." : ". Opens the first card with changes."}</span>
         </button>
       ) : (
         <span className={style}>{mark}{words}</span>

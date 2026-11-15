@@ -55,7 +55,7 @@ export default function CardTiming({ lineup, performer, live, liveTiming, busy, 
   return (
     <details id={`card-timing-${performer.id}`} className="open:basis-full">
       <summary
-        className={`cursor-pointer list-none rounded-md border px-2.5 py-1 [&::-webkit-details-marker]:hidden ${performer.timing ? "border-[#ff2e4d]/70 text-[#ff8a9c]" : "border-white/30"}`}
+        className={`flex min-h-11 cursor-pointer list-none items-center rounded-md border px-2.5 py-1 sm:min-h-0 [&::-webkit-details-marker]:hidden ${performer.timing ? "border-[#ff2e4d]/70 text-[#ff8a9c]" : "border-white/30"}`}
         title={performer.timing ? "This card has its own timing" : "This card follows the lineup's set timing"}
       >
         ⏱ {performer.timing ? timingShort(performer.timing) : "Timing"}

@@ -46,7 +46,7 @@ export default function SetTimingCard({ lineup, running, busy, save, onPhase }: 
 
   return (
     <details id="set-timing-card" className="mt-3 rounded-md border border-white/20 p-3">
-      <summary className="cursor-pointer text-sm">
+      <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">
         ⏱ Set timing
         <SaveBadge dirty={changed} memo={memo} fresh={fresh} />
       </summary>

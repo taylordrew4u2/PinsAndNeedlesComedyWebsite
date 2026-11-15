@@ -69,7 +69,7 @@ export default function MessageCard({ message, menu, busy, send, onPhase }: Prop
 
   return (
     <details id="message-card" className="mt-4 rounded-lg border border-sky-300/50 p-4">
-      <summary className="cursor-pointer text-sm">
+      <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">
         💬 Message on screen
         {live ? <span className="ml-2 rounded-full bg-sky-300 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-black">Up now</span> : null}
         {/* Nothing to say while no message is up and nothing is typed; up, it says whether the screen has the latest words. */}

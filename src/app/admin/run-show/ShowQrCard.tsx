@@ -93,7 +93,7 @@ export default function ShowQrCard({ saved, busy, pageLive, save, onPhase }: {
 
   return (
     <details id="show-qr-card" className="mt-4 rounded-lg border border-white/20 p-4">
-      <summary className="cursor-pointer text-sm">
+      <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">
         🔳 QR code on the show screens
         <span className="ml-1 text-xs text-neutral-400">({savedWords(saved)})</span>
         <SaveBadge dirty={dirty} memo={memo} fresh={fresh} />
