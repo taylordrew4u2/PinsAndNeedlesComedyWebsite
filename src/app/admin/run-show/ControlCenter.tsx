@@ -27,7 +27,7 @@ import ScreenWordsCard from "./ScreenWordsCard";
 import ShowQrCard from "./ShowQrCard";
 import TestSoundButton from "./TestSoundButton";
 import { SavePill } from "./SaveBadge";
-import { parseScreenSettings, previewQr, standardMenuWords, stingName, type ScreenSettings } from "@/lib/screen-settings";
+import { SCREEN_TEXT, parseScreenSettings, previewQr, standardMenuWords, stingName, type ScreenSettings } from "@/lib/screen-settings";
 import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
 import { screenStatus } from "@/lib/screen-status";
 import QuestionEditor from "./QuestionEditor";
@@ -1022,7 +1022,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <details className="mt-4 rounded-lg border border-white/20 p-4">
               <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">🔊 Sound on the live screen</summary>
               <div className="mt-3 space-y-3 text-sm text-neutral-300">
-                <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“Sound is off. Tap to turn it on”</strong> button in the corner. No button means sound is on.</p>
+                <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“{screenSettings.soundOffPrompt || SCREEN_TEXT.soundOffPrompt.fallback}”</strong> button in the corner (change its words in <strong>✏️ Words on the screen</strong>, under “Buttons on the TV”). No button means sound is on.</p>
                 <p className="font-semibold text-white">Every show (works on any browser)</p>
                 <ol className="list-decimal space-y-1 pl-5">
                   <li>Open the live screen on the TV laptop.</li>
