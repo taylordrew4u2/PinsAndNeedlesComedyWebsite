@@ -384,7 +384,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     change(API, { samePriceLine: on }, (data) => {
       takeMenu(data);
       setNotice(on ? "Drinks with the same price now share a line." : "Every drink has its own line again.");
-    }, "Could not save the drink list.");
+    }, "Could not save the same-price setting.");
 
   /** The live screen's own cards (settings, message, test sound): one change, then the server's word on what is saved and, when a message went up, the drink menu. */
   const screenAction = (body: object, done: string, failed: string) =>
