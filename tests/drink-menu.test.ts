@@ -8,7 +8,7 @@ import {
 } from "../src/lib/drink-menu.ts";
 import {
   CUSTOM_MENU_KEYS, DEFAULT_CUSTOM_MENU, NO_MENU_VIEW, ROTATE_FULL, ROTATE_SECTION, SAME_PRICE_JOIN, compactMenu, compactSection, customMenuChanges, customQrOf,
-  customSettingsOf, isRotateFull, isRotateSection, liveCustomLook, menuView, parseCustomMenuChange, readCustomLook, readMenuView, rotateFullMs, rotateSectionMs, wordingToSave,
+  customSettingsOf, isRotateFull, isRotateSection, linesOfBoxes, liveCustomLook, menuView, parseCustomMenuChange, readCustomLook, readMenuView, rotateFullMs, rotateSectionMs, wordingToSave, wrapsMore,
   type CustomMenuSettings, type DrinkSection, type MenuState,
 } from "../src/lib/drink-menu.ts";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, MENU_FONTS, SCRIPT_FONTS, isMenuFont, isScriptFont } from "../src/lib/menu-fonts.ts";
@@ -463,4 +463,27 @@ test("one line for one price: drinks with no detail line that cost the same shar
   assert.deepEqual(compactSection(compact), compact);
   // A whole board, section by section.
   assert.deepEqual(compactMenu([[section], [lone], []]), [[compact], [lone], []]);
+});
+
+test("a piece of text's lines are counted by where its boxes sit, so a same-price line breaking onto two is seen even when its box count stays the same", () => {
+  const box = (top: number, width = 120, height = 34) => ({ top, height, width });
+  assert.equal(linesOfBoxes([]), 0);
+  assert.equal(linesOfBoxes([box(100)]), 1);
+  // "Pilsner ·", " ", "IPA ·", " ", "Stout" on one line: five boxes, one line, whatever order they come in.
+  assert.equal(linesOfBoxes([box(102), box(100, 8, 30), box(101), box(100, 8, 30), box(100)]), 1);
+  // Grown a step, "Stout" moves down a line: still five boxes, now two lines.
+  assert.equal(linesOfBoxes([box(102), box(100, 8, 30), box(101), box(100, 8, 30), box(140)]), 2);
+  assert.equal(linesOfBoxes([box(180), box(100), box(140)]), 3);
+  // An empty box (a space left at the end of a line) is no line of its own.
+  assert.equal(linesOfBoxes([box(100), box(125, 0, 30), box(125, 10, 0)]), 1);
+});
+
+test("growing the drinks stops when any marked piece takes more lines than before, even if another takes fewer", () => {
+  assert.equal(wrapsMore([1, 1, 2], [1, 1, 2]), false);
+  // The same-price line in the middle wrapped onto two.
+  assert.equal(wrapsMore([1, 1, 2], [1, 2, 2]), true);
+  // One more line in one piece and one fewer in another: still a line that broke, so it stops.
+  assert.equal(wrapsMore([1, 1, 2], [1, 2, 1]), true);
+  assert.equal(wrapsMore([1, 2], [1, 1]), false);
+  assert.equal(wrapsMore([], []), false);
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MENU_WORDING, SAME_PRICE_JOIN, type BoardWords, type CustomLook, type Drink, type DrinkSection } from "@/lib/drink-menu";
+import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MENU_WORDING, SAME_PRICE_JOIN, linesOfBoxes, wrapsMore, type BoardWords, type CustomLook, type Drink, type DrinkSection } from "@/lib/drink-menu";
 import { menuFontScale, scriptFontScale } from "@/lib/menu-fonts";
 import type { MenuPage } from "@/lib/menu-rotation";
 import { boardQr, type BoardQr } from "@/lib/screen-qr";
@@ -41,7 +41,12 @@ const FIT_STEP = 0.02;
  * spilling or a name breaking onto a second line it didn't need before.
  */
 const FIT_CEILING = 1.2;
-/** Finds the text that should keep its lines as the drinks grow: drink names, section headings and the bartender's name. */
+/**
+ * Finds the text that should keep its lines as the drinks grow: drink names,
+ * section headings and the bartender's name. A line of several drinks at one
+ * price counts too: its names are marked together, so the line wrapping onto
+ * a second line stops the growth like a long name would.
+ */
 const KEEP_LINES = "[data-keep-lines]";
 /**
  * A section page's type, as a share of the full board's: a few drinks to a
@@ -178,12 +183,12 @@ export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, 
           apply(size);
         }
       } else {
-        // Room to spare: grow into it, but stop before anything spills or a name, heading or the bartender breaks onto another line.
+        // Room to spare: grow into it, but stop before anything spills or a name, a same-price line, a heading or the bartender breaks onto another line.
         const lines = keptLines(box);
         while (size < FIT_CEILING) {
           const next = Math.min(FIT_CEILING, Math.round((size + FIT_STEP) * 100) / 100);
           apply(next);
-          if (overflows(box) || keptLines(box) > lines) {
+          if (overflows(box) || wrapsMore(lines, keptLines(box))) {
             apply(size);
             break;
           }
@@ -377,15 +382,16 @@ function DrinkName({ drink }: { drink: Drink }) {
   const names = drink.names && drink.names.length > 1 ? drink.names : null;
   if (!names) return <span data-keep-lines="">{drink.name}</span>;
   const dot = SAME_PRICE_JOIN.trim();
+  // One mark around all the names, so growing can't wrap them onto another line unnoticed (see keptLines).
   return (
-    <>
+    <span data-keep-lines="">
       {names.map((name, index) => (
         <Fragment key={index}>
           {index ? " " : null}
           <span style={NAME_PIECE}>{index < names.length - 1 ? `${name}\u00a0${dot}` : name}</span>
         </Fragment>
       ))}
-    </>
+    </span>
   );
 }
 
@@ -409,16 +415,19 @@ function JoinedLine({ names, price, size }: { names: string[]; price: string; si
   const priceType = { fontWeight: 700, fontVariantNumeric: "tabular-nums" } as const;
   return (
     <div style={{ overflow: "hidden", fontSize: size, fontWeight: 600 }}>
-      <span style={{ background: BOARD_BG }}>
-        {names.slice(0, last).map((name, index) => (
-          <Fragment key={index}>
-            <span style={NAME_PIECE}>{`${name}\u00a0${dot}`}</span>{" "}
-          </Fragment>
-        ))}
-      </span>
-      <span style={{ whiteSpace: "nowrap" }}>
-        <span style={{ ...NAME_PIECE, maxWidth: `calc(100% - ${price.length}ch - 1.3em)`, whiteSpace: "normal", background: BOARD_BG, paddingRight: "0.43em" }}>{names[last]}</span>
-        <span aria-hidden="true" style={{ ...priceType, visibility: "hidden", paddingLeft: "0.86em" }}>{price}</span>
+      {/* The names, marked as one, so the drinks growing can't push this line onto two unnoticed (see keptLines). */}
+      <span data-keep-lines="">
+        <span style={{ background: BOARD_BG }}>
+          {names.slice(0, last).map((name, index) => (
+            <Fragment key={index}>
+              <span style={NAME_PIECE}>{`${name}\u00a0${dot}`}</span>{" "}
+            </Fragment>
+          ))}
+        </span>
+        <span style={{ whiteSpace: "nowrap" }}>
+          <span style={{ ...NAME_PIECE, maxWidth: `calc(100% - ${price.length}ch - 1.3em)`, whiteSpace: "normal", background: BOARD_BG, paddingRight: "0.43em" }}>{names[last]}</span>
+          <span aria-hidden="true" style={{ ...priceType, visibility: "hidden", paddingLeft: "0.86em" }}>{price}</span>
+        </span>
       </span>
       <span style={{ ...priceType, float: "right", marginLeft: "-100%", position: "relative", zIndex: 1, background: BOARD_BG, paddingLeft: "0.43em" }}>{price}</span>
       <span aria-hidden="true" style={{ float: "left", width: 0, whiteSpace: "nowrap" }}>
@@ -560,11 +569,13 @@ export function useBrokenImage(src: string | null): boolean {
   return src !== null && broken === src;
 }
 
-/** How many lines the marked text (drink names, section headings, the bartender) takes: growing the drinks must not add one. */
-function keptLines(grid: HTMLElement): number {
-  let lines = 0;
-  for (const item of grid.querySelectorAll<HTMLElement>(KEEP_LINES)) lines += item.getClientRects().length;
-  return lines;
+/**
+ * How many lines each piece of marked text (drink names, same-price lines,
+ * section headings, the bartender) takes, in page order: growing the drinks
+ * must not add one to any of them.
+ */
+function keptLines(grid: HTMLElement): number[] {
+  return [...grid.querySelectorAll<HTMLElement>(KEEP_LINES)].map((item) => linesOfBoxes([...item.getClientRects()]));
 }
 
 /**

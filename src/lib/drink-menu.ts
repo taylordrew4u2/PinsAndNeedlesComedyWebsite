@@ -699,6 +699,39 @@ export function compactMenu(columns: DrinkSection[][]): DrinkSection[][] {
   return columns.map((column) => column.map(compactSection));
 }
 
+/** One box the browser drew a piece of text in (from getClientRects), as far as counting its lines goes. */
+export type TextBox = { top: number; height: number; width: number };
+
+/**
+ * How many lines a piece of text takes, from its boxes. Counted by where the
+ * boxes sit, not how many there are: the browser can give a mark around
+ * several pieces (a same-price line's names) a box per piece on one line, so
+ * the last name moving down a line can leave the number of boxes the same.
+ * A box starting below the middle of the line above starts a new line; an
+ * empty box (a space at the end of a line) is no line at all.
+ */
+export function linesOfBoxes(boxes: readonly TextBox[]): number {
+  let lines = 0;
+  let middle = -Infinity;
+  for (const box of [...boxes].filter((entry) => entry.width > 0 && entry.height > 0).sort((a, b) => a.top - b.top)) {
+    if (box.top < middle) continue;
+    lines += 1;
+    middle = box.top + box.height / 2;
+  }
+  return lines;
+}
+
+/**
+ * Whether growing the drinks broke any marked piece of text (a name, a
+ * same-price line, a heading, the bartender) onto more lines than it took
+ * before: then the growth stops a step back. Each piece is compared with
+ * itself, in the same order, so one piece wrapping can't hide behind
+ * another taking fewer lines.
+ */
+export function wrapsMore(before: readonly number[], after: readonly number[]): boolean {
+  return after.some((lines, index) => lines > (before[index] ?? Infinity));
+}
+
 /**
  * The drink menu as the Control Center shows it: which one is up, and every
  * saved setting ("" for a default). One shape for every answer about the
