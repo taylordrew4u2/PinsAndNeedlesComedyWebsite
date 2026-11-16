@@ -131,7 +131,7 @@ export default function ShowQrCard({ saved, busy, pageLive, save, onPhase }: {
         <div className="flex flex-wrap gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
           <SaveButton type="submit" dirty={dirty} memo={memo} fresh={fresh} busy={busy} blocked={Boolean(problem) || uploading} />
           {Object.keys(draft).length ? (
-            <button type="button" onClick={() => setDraft({})} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button>
+            <button type="button" onClick={() => setDraft({})} disabled={busy || uploading} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button>
           ) : null}
           <button
             type="button"
@@ -142,7 +142,7 @@ export default function ShowQrCard({ saved, busy, pageLive, save, onPhase }: {
             Use defaults
           </button>
         </div>
-        {uploading ? <p className="text-xs text-neutral-500">Save waits until the picture is in.</p> : null}
+        {uploading ? <p className="text-xs text-neutral-500">Save and Undo wait until the picture is in.</p> : null}
       </form>
     </details>
   );
