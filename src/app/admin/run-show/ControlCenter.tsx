@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { DEFAULT_MARQUEE, NO_MENU_VIEW, customSettingsOf, readMenuView, type CustomMenuSettings, type MarqueeChange, type MenuStyle, type MenuView } from "@/lib/drink-menu";
+import { NO_MENU_VIEW, customSettingsOf, marqueeSavedNotice, readMenuView, type CustomMenuSettings, type MarqueeChange, type MenuStyle, type MenuView } from "@/lib/drink-menu";
 import { boardQr } from "@/lib/screen-qr";
 import BartenderField, { type BartenderChange } from "./BartenderField";
 import CustomMenuCard from "./CustomMenuCard";
@@ -334,15 +334,13 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
    */
   const saveMarquee = async ({ text, style, custom }: MarqueeChange) => {
     if (text === undefined && !style && custom === undefined) return true;
-    let saved: Record<string, unknown> = {};
-    const take = (data: Change & Record<string, unknown>) => { takeMenu(data); saved = data; };
+    let saved = NO_MENU_VIEW;
+    const take = (data: Change & Record<string, unknown>) => { takeMenu(data); saved = readMenuView(data, saved); };
     if (text !== undefined && !(await change(API, { marquee: text }, take, "Could not update the marquee."))) return false;
     if (style && !(await change(API, { marqueeStyle: style }, take, "Could not update the marquee."))) return false;
     if (custom !== undefined && !(await change(API, { customMenu: { customMarquee: custom } }, take, "Could not update the marquee."))) return false;
-    // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
-    setNotice(saved.marqueeOn === false
-      ? `Marquee off: the drink menu fills the screen.${text !== undefined ? " Its text is saved for when it comes back on." : ""}`
-      : `${text === "" ? `Marquee back to “${DEFAULT_MARQUEE}”.` : "Marquee saved."} ${saved.menu ? "The live screen has it now." : "It runs when you show either drink menu."}`);
+    // "The live screen has it now" only for what the screen is showing: the show-night text never runs on the daytime menu.
+    setNotice(marqueeSavedNotice({ text, style, custom }, saved));
     return true;
   };
 
@@ -991,6 +989,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 speed={state.marqueeSpeed}
                 color={state.marqueeColor}
                 live={state.menu}
+                showLive={state.menu && state.menuStyle === "standard"}
                 busy={busy}
                 save={saveMarquee}
                 onPhase={phaseOf("marquee-card")}

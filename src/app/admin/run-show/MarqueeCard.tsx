@@ -25,8 +25,10 @@ type Props = MarqueeStyle & {
   text: string;
   /** The daytime menu's own marquee text as saved ("" for none). Only told here, so the card can say what it is; its box is in the custom menu card. */
   custom?: string;
-  /** A drink menu is on the live screen now, so a save shows at once. */
+  /** A drink menu (either one) is on the live screen now, so on, off, speed and colour show at once. */
   live: boolean;
+  /** The standard (show-night) menu is the one up, so this card's text is running now. The daytime menu runs only its own text, or none. */
+  showLive: boolean;
   busy: boolean;
   /** Only what changed: the text, how it runs, or both. True once all of it is saved. */
   save: (change: MarqueeChange) => Promise<boolean>;
@@ -46,7 +48,7 @@ function speedLabel(id: string): string {
  * and nothing reaches the screen until then, so a stray tap mid-show changes
  * nothing.
  */
-export default function MarqueeCard({ live, busy, save, onPhase, custom = "", ...shown }: Props) {
+export default function MarqueeCard({ live, showLive, busy, save, onPhase, custom = "", ...shown }: Props) {
   // The daytime text rides along unchanged on both sides, so marqueeChange never sends it from here.
   const saved: MarqueeSettings = { ...shown, custom };
   // Only what the host has touched; everything else shows the saved value.
@@ -102,7 +104,7 @@ export default function MarqueeCard({ live, busy, save, onPhase, custom = "", ..
         </div>
         <p className="mt-2 text-xs text-neutral-500">
           {saved.on
-            ? `${live ? "Running now" : "Saved"}: ${words}, ${speedLabel(saved.speed).toLowerCase()}, ${saved.color ? `in ${saved.color}` : "in the menu's text colour"}.`
+            ? `${showLive ? "Running now" : "Saved"}: ${words}, ${speedLabel(saved.speed).toLowerCase()}, ${saved.color ? `in ${saved.color}` : "in the menu's text colour"}.${live && !showLive ? (custom ? " The daytime menu is up now, running its own text at this speed and colour." : " The daytime menu is up now, with no marquee.") : ""}`
             : `Switched off, so the menu fills the screen. Its text, ${words}, is kept for when it comes back on.`}
         </p>
 

@@ -657,6 +657,26 @@ export function marqueeChange(saved: MarqueeSettings, next: MarqueeSettings): Ma
   };
 }
 
+/**
+ * What the Control Center says once a marquee Save has landed, from the
+ * menu as the server answered. The show-night text runs only on the
+ * standard menu (the daytime menu runs its own text, or no band at all),
+ * while on, off, speed and colour go for both: "the live screen has it now"
+ * is said only of what the screen is showing.
+ */
+export function marqueeSavedNotice(change: MarqueeChange, view: Pick<MenuView, "menu" | "menuStyle" | "marqueeOn" | "marqueeCustom">): string {
+  // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
+  if (!view.marqueeOn) return `Marquee off: the drink menu fills the screen.${change.text !== undefined ? " Its text is saved for when it comes back on." : ""}`;
+  const saved = change.text === "" ? `Marquee back to “${DEFAULT_MARQUEE}”.` : "Marquee saved.";
+  if (view.menu && view.menuStyle === "standard") return `${saved} The live screen has it now.`;
+  // The daytime menu is up with a band of its own text, which takes this card's speed and colour.
+  const daytimeBand = view.menu && view.menuStyle === "custom" && view.marqueeCustom !== "";
+  if (change.text === undefined) {
+    return `${saved} ${daytimeBand ? "The live screen has it now." : "It shows on the standard menu, and on the daytime menu when that has its own marquee text."}`;
+  }
+  return `${saved} Its text runs when you show the standard menu.${change.style && daytimeBand ? " The daytime menu up now runs its own text with the new speed and colour." : ""}`;
+}
+
 /** Joins the names of drinks that share one line. */
 export const SAME_PRICE_JOIN = " · ";
 

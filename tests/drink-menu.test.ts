@@ -4,7 +4,7 @@ import {
   DEFAULT_MENU_COLOR, DRINK_MENU, HEADLINE_MAX, MARQUEE_MAX, MENU_COLORS, NOTE_MAX, BARTENDER_MAX, cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, customLook, parseMenuState,
 } from "../src/lib/drink-menu.ts";
 import {
-  DEFAULT_MARQUEE, DEFAULT_MARQUEE_SPEED, MARQUEE_SPEEDS, MENU_WORDING, WORDING_KEYS, cleanWording, customWording, isMarqueeSpeed, liveMarquee, liveMarqueeLook, marqueeChange, marqueeSpeedOf,
+  DEFAULT_MARQUEE, DEFAULT_MARQUEE_SPEED, MARQUEE_SPEEDS, MENU_WORDING, WORDING_KEYS, cleanWording, customWording, isMarqueeSpeed, liveMarquee, liveMarqueeLook, marqueeChange, marqueeSavedNotice, marqueeSpeedOf,
 } from "../src/lib/drink-menu.ts";
 import {
   CUSTOM_MENU_KEYS, DEFAULT_CUSTOM_MENU, NO_MENU_VIEW, ROTATE_FULL, ROTATE_SECTION, SAME_PRICE_JOIN, compactMenu, compactSection, customMenuChanges, customQrOf,
@@ -232,6 +232,34 @@ test("the marquee's one Save sends only the part that changed: the text, how it 
   assert.deepEqual(marqueeChange({ ...saved, custom: "Open till 6" }, { ...saved, custom: " " }), { custom: "" });
   // Too long is capped, as the server caps it.
   assert.equal(marqueeChange(saved, { ...saved, text: "x".repeat(MARQUEE_MAX + 20) }).text?.length, MARQUEE_MAX);
+});
+
+test("after a marquee Save, the live screen is said to have it only when it is on screen: the show-night text never runs on the daytime menu", () => {
+  const view = (menu: boolean, menuStyle: "standard" | "custom", marqueeCustom = "", marqueeOn = true) => ({ menu, menuStyle, marqueeOn, marqueeCustom });
+  const style = { on: true, speed: "fast", color: "" };
+  // The standard menu up: whatever changed is on the screen.
+  assert.equal(marqueeSavedNotice({ text: "Last call at 11" }, view(true, "standard")), "Marquee saved. The live screen has it now.");
+  assert.equal(marqueeSavedNotice({ text: "" }, view(true, "standard")), `Marquee back to “${DEFAULT_MARQUEE}”. The live screen has it now.`);
+  // The daytime menu up: the show-night text waits for the standard menu, whether or not the daytime menu runs its own.
+  for (const custom of ["", "Open till 6"]) {
+    const said = marqueeSavedNotice({ text: "Last call at 11" }, view(true, "custom", custom));
+    assert.equal(said, "Marquee saved. Its text runs when you show the standard menu.", custom);
+    assert.ok(!said.includes("has it now"), custom);
+  }
+  assert.ok(!marqueeSavedNotice({ text: "" }, view(true, "custom")).includes("has it now"));
+  // Speed and colour go for both menus: on screen now only when the daytime menu runs a band of its own text.
+  assert.equal(marqueeSavedNotice({ style }, view(true, "custom", "Open till 6")), "Marquee saved. The live screen has it now.");
+  assert.equal(marqueeSavedNotice({ style }, view(true, "custom")), "Marquee saved. It shows on the standard menu, and on the daytime menu when that has its own marquee text.");
+  assert.equal(
+    marqueeSavedNotice({ text: "Last call at 11", style }, view(true, "custom", "Open till 6")),
+    "Marquee saved. Its text runs when you show the standard menu. The daytime menu up now runs its own text with the new speed and colour.",
+  );
+  // No menu up: nothing is on screen yet.
+  assert.equal(marqueeSavedNotice({ text: "Last call at 11" }, view(false, "standard")), "Marquee saved. Its text runs when you show the standard menu.");
+  assert.equal(marqueeSavedNotice({ style }, view(false, "custom", "Open till 6")), "Marquee saved. It shows on the standard menu, and on the daytime menu when that has its own marquee text.");
+  // Switched off: the menu fills the screen, and typed text is kept.
+  assert.equal(marqueeSavedNotice({ style: { ...style, on: false } }, view(true, "standard", "", false)), "Marquee off: the drink menu fills the screen.");
+  assert.equal(marqueeSavedNotice({ text: "x", style: { ...style, on: false } }, view(true, "custom", "", false)), "Marquee off: the drink menu fills the screen. Its text is saved for when it comes back on.");
 });
 
 test("the custom menu has no QR until the host picks one; an old qrOff switch is ignored either way", () => {
