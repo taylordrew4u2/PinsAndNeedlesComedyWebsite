@@ -292,21 +292,23 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                   // Keyed by its question, so an open editor (and its typing) moves with the question when the slots
                   // move under it. A repeat from an older save falls back to the slot's place, so keys stay unique.
                   const first = slot ? performer.slots.findIndex((entry) => entry?.submissionId === slot.submissionId) === i : false;
+                  const editing = Boolean(slot && slot.submissionId === editingSlot);
                   return (
                     <li
                       key={slot && first ? `q-${slot.submissionId}` : `slot-${i}`}
                       onDragOver={(event) => { if (dragging && !past) { event.preventDefault(); setDropOn(key); } }}
                       onDragLeave={() => setDropOn((current) => (current === key ? null : current))}
                       onDrop={(event) => { event.preventDefault(); setDropOn(null); drop(performer.id, i); setDragging(null); }}
-                      className={`flex items-start gap-3 rounded-md border px-3 py-2 ${up ? "border-white bg-white/10" : past ? "border-white/10 opacity-50" : dropOn === key ? "border-[#ff2e4d] bg-[#ff2e4d]/10" : "border-white/15"}`}
+                      className={`flex flex-wrap items-start gap-x-3 gap-y-1 rounded-md border px-3 py-2 ${up ? "border-white bg-white/10" : past ? "border-white/10 opacity-50" : dropOn === key ? "border-[#ff2e4d] bg-[#ff2e4d]/10" : "border-white/15"}`}
                     >
-                      {/* Narrower on a phone, with the buttons two by two, so the question gets room to read in whole lines. */}
+                      {/* Narrower on a phone, so the question beside it gets room to read in whole lines. */}
                       <span className="w-14 shrink-0 text-xs leading-5 text-neutral-400 sm:w-[4.5rem]">
                         <span className="block font-semibold text-white">{clock(slotStartMs(i, timing))}</span>
                         {up ? "on screen" : past ? "done" : live ? `in ${clock(time.left - (timing.setMs - slotStartMs(i, timing)))}` : null}
                       </span>
-                      {slot && slot.submissionId === editingSlot ? (
-                        <div className="min-w-0 flex-1">
+                      {slot && editing ? (
+                        // The editor takes the slot's whole width, under its time, so the question can be read and fixed in whole lines.
+                        <div className="min-w-0 basis-full">
                           <QuestionEditor question={slotQuestion(slot)} live={up} busy={busy} save={(change) => editQuestion(slot.submissionId, change)} close={() => setEditingSlot(null)} />
                         </div>
                       ) : slot ? (
@@ -320,11 +322,12 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                           <span className="block text-xs text-neutral-500">{slot.name || "Anonymous"}</span>
                         </span>
                       ) : <span className="flex-1 text-sm text-neutral-500">{past ? "Nothing went up" : "Drop a question here"}</span>}
+                      {/* On a phone, where each is a 44px tap, the buttons are a row of their own under the question; beside it from a tablet up. */}
                       {!past ? (
-                        <span className="grid shrink-0 grid-cols-2 gap-1 sm:flex">
+                        <span className={`flex shrink-0 basis-full justify-end gap-1 ${editing ? "" : "sm:basis-auto"}`}>
                           <button type="button" aria-label="Move up" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i - 1))} disabled={busy || i <= open} className={`${ICON} rounded px-1.5`}>↑</button>
                           <button type="button" aria-label="Move down" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i + 1))} disabled={busy || i >= performer.slots.length - 1} className={`${ICON} rounded px-1.5`}>↓</button>
-                          {slot && slot.submissionId !== editingSlot ? <button type="button" aria-label="Edit question" title="Fix the words or the name" onClick={() => setEditingSlot(slot.submissionId)} disabled={busy} className={`${ICON} rounded px-1.5`}>✎</button> : null}
+                          {slot && !editing ? <button type="button" aria-label="Edit question" title="Fix the words or the name" onClick={() => setEditingSlot(slot.submissionId)} disabled={busy} className={`${ICON} rounded px-1.5`}>✎</button> : null}
                           {slot ? <button type="button" aria-label="Empty slot" onClick={() => editSlots(performer.id, (slots) => slots.map((entry, j) => (j === i ? null : entry)))} disabled={busy} className={`${ICON} rounded px-1.5`}>✕</button> : null}
                         </span>
                       ) : null}
