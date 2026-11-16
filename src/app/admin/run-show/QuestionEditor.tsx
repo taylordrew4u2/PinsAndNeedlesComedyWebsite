@@ -67,7 +67,7 @@ export default function QuestionEditor({ question, live = false, busy, save, clo
         onChange={(event) => setName(event.target.value)}
         maxLength={NAME_MAX}
         placeholder="Empty means no name on screen"
-        className="w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+        className="min-h-11 w-full rounded-md border border-white/30 bg-black px-3 py-2 text-base text-white placeholder:text-neutral-500 sm:min-h-0 sm:text-sm"
       />
       {edited ? (
         <p className="whitespace-pre-wrap break-words text-xs text-neutral-500">
@@ -75,7 +75,8 @@ export default function QuestionEditor({ question, live = false, busy, save, clo
         </p>
       ) : null}
       {live ? <p className="text-xs text-amber-200">This is on the live screen. Saving changes it there within a few seconds.</p> : null}
-      <div className="flex flex-wrap gap-2 pt-1">
+      {/* 44px tall on a phone, where this is tapped mid-show; their own size from a tablet up. */}
+      <div className="flex flex-wrap gap-2 pt-1 [&>button]:min-h-11 sm:[&>button]:min-h-0">
         <button type="submit" disabled={busy || !ready} className="rounded-md bg-sky-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save</button>
         <button type="button" onClick={close} className="rounded-md border border-white/30 px-4 py-2 text-sm">Cancel</button>
         {edited ? (
