@@ -719,7 +719,7 @@ export function compactMenu(columns: DrinkSection[][]): DrinkSection[][] {
   return columns.map((column) => column.map(compactSection));
 }
 
-/** One box the browser drew a piece of text in (from getClientRects), as far as counting its lines goes. */
+/** One box the browser drew a piece of text in (a text range's getClientRects), as far as counting its lines goes. */
 export type TextBox = { top: number; height: number; width: number };
 
 /**
@@ -727,6 +727,8 @@ export type TextBox = { top: number; height: number; width: number };
  * boxes sit, not how many there are: the browser can give a mark around
  * several pieces (a same-price line's names) a box per piece on one line, so
  * the last name moving down a line can leave the number of boxes the same.
+ * The boxes are the text's own, not the mark's: a name wrapping inside its
+ * own inline box gives the mark no new box, only its text a new line.
  * A box starting below the middle of the line above starts a new line; an
  * empty box (a space at the end of a line) is no line at all.
  */

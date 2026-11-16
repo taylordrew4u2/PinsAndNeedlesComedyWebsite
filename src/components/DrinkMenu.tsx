@@ -415,7 +415,7 @@ function JoinedLine({ names, price, size }: { names: string[]; price: string; si
   const priceType = { fontWeight: 700, fontVariantNumeric: "tabular-nums" } as const;
   return (
     <div style={{ overflow: "hidden", fontSize: size, fontWeight: 600 }}>
-      {/* The names, marked as one, so the drinks growing can't push this line onto two unnoticed (see keptLines). */}
+      {/* The names, marked as one, so the drinks growing can't push this line onto two, or the last name onto two inside its own box, unnoticed (see keptLines). */}
       <span data-keep-lines="">
         <span style={{ background: BOARD_BG }}>
           {names.slice(0, last).map((name, index) => (
@@ -575,7 +575,24 @@ export function useBrokenImage(src: string | null): boolean {
  * must not add one to any of them.
  */
 function keptLines(grid: HTMLElement): number[] {
-  return [...grid.querySelectorAll<HTMLElement>(KEEP_LINES)].map((item) => linesOfBoxes([...item.getClientRects()]));
+  return [...grid.querySelectorAll<HTMLElement>(KEEP_LINES)].map((item) => linesOfBoxes(textBoxes(item)));
+}
+
+/**
+ * The boxes a mark's words are drawn in, line by line. Taken from the text
+ * itself, not the mark: a same-price line's last name is a box of its own
+ * (an inline-block), and a name wrapping inside it gives the mark no new box,
+ * only the name's text a new line.
+ */
+function textBoxes(item: HTMLElement): DOMRect[] {
+  const boxes: DOMRect[] = [];
+  const range = document.createRange();
+  const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    range.selectNodeContents(text);
+    boxes.push(...range.getClientRects());
+  }
+  return boxes;
 }
 
 /**

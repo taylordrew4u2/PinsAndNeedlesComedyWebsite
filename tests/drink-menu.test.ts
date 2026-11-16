@@ -515,3 +515,17 @@ test("growing the drinks stops when any marked piece takes more lines than befor
   assert.equal(wrapsMore([1, 2], [1, 1]), false);
   assert.equal(wrapsMore([], []), false);
 });
+
+test("a same-price line's last name wrapping inside its own box is a new line when the boxes come from the text, though the mark's own boxes stay two", () => {
+  const box = (top: number, width: number, height = 32) => ({ top, height, width });
+  // "IPA · Pilsner ·" / "Hazy Double Dry Hopped Imperial … $8", at 100%: the text's boxes.
+  const before = [box(515, 50), box(515, 8), box(515, 60), box(551, 300), box(551, 20)];
+  // A step bigger, "Imperial" goes onto a line of its own inside the last name's box (the hidden price copy with it).
+  const after = [box(492, 55), box(492, 9), box(492, 66), box(532, 270), box(572, 90), box(572, 22)];
+  assert.equal(linesOfBoxes(before), 2);
+  assert.equal(linesOfBoxes(after), 3);
+  assert.equal(wrapsMore([linesOfBoxes(before)], [linesOfBoxes(after)]), true);
+  // The mark around the names gets one box for its first line and one on the last name's last line, either way:
+  // counted from those, the extra line goes unseen and the drinks grow on.
+  assert.equal(linesOfBoxes([box(515, 110), box(551, 332)]), linesOfBoxes([box(492, 123), box(572, 334)]));
+});
