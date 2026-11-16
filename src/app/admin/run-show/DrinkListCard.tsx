@@ -54,8 +54,11 @@ export default function DrinkListCard({ saved, live, qr, words, busy, save, same
   const [from, setFrom] = useState<DrinkList | null>(null);
   // How the preview fitted the list: the drinks' type size, and whether it fits at all.
   const [fit, setFit] = useState({ size: 1, fits: true });
-  // One save history for the card: the list's Save, "Back to the printed menu" and the same-price switch.
+  // The list's save history: its Save and "Back to the printed menu", for the card's badge and Save button.
   const { memo, fresh, track } = useSaveTracker();
+  // The same-price switch's own, with its own sign beside it: a switch that didn't save is not the list failing,
+  // and "Try again" on the list must never stand for it.
+  const switchSave = useSaveTracker();
   const base = useMemo(() => saved ?? defaultDrinkList(), [saved]);
   const value = draft ?? base;
   // Previewed as it would save: cleaned, so "7" shows as "$7" and a drink without a name is left off.
@@ -67,8 +70,9 @@ export default function DrinkListCard({ saved, live, qr, words, busy, save, same
   const empty = !shown.flat().length;
   const count = drinkCount(value);
 
-  // Where saving stands, told to the page only when it changes.
-  const phase = savePhase(changed, memo);
+  // Where saving stands, told to the page only when it changes: the list's, or saving while the switch is on its way.
+  const listPhase = savePhase(changed, memo);
+  const phase = listPhase === "saved" && switchSave.memo.saving > 0 ? "saving" : listPhase;
   const report = useRef(onPhase);
   useEffect(() => { report.current = onPhase; });
   useEffect(() => { report.current?.(phase); }, [phase]);
@@ -96,8 +100,12 @@ export default function DrinkListCard({ saved, live, qr, words, busy, save, same
     if (await track(() => save(null, "The printed drink menu is back."))) setDraft(null);
   };
 
-  // Saved the moment it is switched, with the card's sign saying so.
-  const switchSamePriceLine = (on: boolean) => void track(() => saveSamePriceLine(on));
+  // Saved the moment it is switched, with its own sign saying so.
+  const switchSamePriceLine = (on: boolean) => void switchSave.track(() => saveSamePriceLine(on));
+  // The switch's sign: only while it saves, just after, or when it didn't save (the box is back as it was then).
+  const switchWords = switchSave.memo.saving > 0 ? "Saving…"
+    : switchSave.memo.failed ? "✕ Didn't save. Tap it again to try again."
+      : switchSave.fresh ? "✓ Saved" : "";
 
   // Save and Undo, above the list as well as below it: the whole list runs to thousands of pixels, so an
   // edit near the top is never left unsaved for want of scrolling to the bottom.
@@ -129,6 +137,7 @@ export default function DrinkListCard({ saved, live, qr, words, busy, save, same
         />
         Put drinks with the same price on one line
       </label>
+      <p role="status" aria-live="polite" className={`mt-1 text-xs font-semibold ${switchSave.memo.saving ? "text-neutral-300" : switchSave.memo.failed ? "text-red-300" : "text-emerald-300"} ${switchWords ? "" : "sr-only"}`}>{switchWords}</p>
       <p id="same-price-line-hint" className="mt-1 text-xs text-neutral-500">
         Drinks that cost the same and have no small line under them share one line (&ldquo;Gimlet · Mojito&rdquo;, then the price once), to make room. On both menus. Saved straight away{live ? ", and the live screen changes with it" : ""}.
       </p>

@@ -450,6 +450,22 @@ export function customLook(state: MenuState, srcOf: (link: string) => string | n
   return state.style === "custom" ? customLookOf(state, srcOf) : null;
 }
 
+/**
+ * The custom look as the live screen's poll sends it: customLook with
+ * `qrOff: true` added. A screen still running the code from before this
+ * update (a TV in full screen never reloads itself, and the daytime TV is
+ * the one most likely to sit there all day) draws the Bad Decisions
+ * question-form code, with the show's words under it, unless it sees
+ * qrOff: true, and that code is never right on the daytime menu. Those
+ * screens draw no QR at all; today's read the look through readCustomLook,
+ * which leaves qrOff out. Kept off CustomLook itself, so the Control
+ * Center's preview has no use for it.
+ */
+export function liveCustomLook(state: MenuState, srcOf: (link: string) => string | null): (CustomLook & { qrOff: true }) | null {
+  const look = customLook(state, srcOf);
+  return look && { ...look, qrOff: true };
+}
+
 /** How long the pages stay up, as the live screen receives it: only times from the tables, or null (no rotation). */
 function readRotation(raw: unknown): RotationTiming | null {
   if (!raw || typeof raw !== "object") return null;
@@ -641,6 +657,26 @@ export function marqueeChange(saved: MarqueeSettings, next: MarqueeSettings): Ma
   };
 }
 
+/**
+ * What the Control Center says once a marquee Save has landed, from the
+ * menu as the server answered. The show-night text runs only on the
+ * standard menu (the daytime menu runs its own text, or no band at all),
+ * while on, off, speed and colour go for both: "the live screen has it now"
+ * is said only of what the screen is showing.
+ */
+export function marqueeSavedNotice(change: MarqueeChange, view: Pick<MenuView, "menu" | "menuStyle" | "marqueeOn" | "marqueeCustom">): string {
+  // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
+  if (!view.marqueeOn) return `Marquee off: the drink menu fills the screen.${change.text !== undefined ? " Its text is saved for when it comes back on." : ""}`;
+  const saved = change.text === "" ? `Marquee back to “${DEFAULT_MARQUEE}”.` : "Marquee saved.";
+  if (view.menu && view.menuStyle === "standard") return `${saved} The live screen has it now.`;
+  // The daytime menu is up with a band of its own text, which takes this card's speed and colour.
+  const daytimeBand = view.menu && view.menuStyle === "custom" && view.marqueeCustom !== "";
+  if (change.text === undefined) {
+    return `${saved} ${daytimeBand ? "The live screen has it now." : "It shows on the standard menu, and on the daytime menu when that has its own marquee text."}`;
+  }
+  return `${saved} Its text runs when you show the standard menu.${change.style && daytimeBand ? " The daytime menu up now runs its own text with the new speed and colour." : ""}`;
+}
+
 /** Joins the names of drinks that share one line. */
 export const SAME_PRICE_JOIN = " · ";
 
@@ -681,6 +717,41 @@ export function compactSection(section: DrinkSection): DrinkSection {
 /** Every section of a board through compactSection. */
 export function compactMenu(columns: DrinkSection[][]): DrinkSection[][] {
   return columns.map((column) => column.map(compactSection));
+}
+
+/** One box the browser drew a piece of text in (a text range's getClientRects), as far as counting its lines goes. */
+export type TextBox = { top: number; height: number; width: number };
+
+/**
+ * How many lines a piece of text takes, from its boxes. Counted by where the
+ * boxes sit, not how many there are: the browser can give a mark around
+ * several pieces (a same-price line's names) a box per piece on one line, so
+ * the last name moving down a line can leave the number of boxes the same.
+ * The boxes are the text's own, not the mark's: a name wrapping inside its
+ * own inline box gives the mark no new box, only its text a new line.
+ * A box starting below the middle of the line above starts a new line; an
+ * empty box (a space at the end of a line) is no line at all.
+ */
+export function linesOfBoxes(boxes: readonly TextBox[]): number {
+  let lines = 0;
+  let middle = -Infinity;
+  for (const box of [...boxes].filter((entry) => entry.width > 0 && entry.height > 0).sort((a, b) => a.top - b.top)) {
+    if (box.top < middle) continue;
+    lines += 1;
+    middle = box.top + box.height / 2;
+  }
+  return lines;
+}
+
+/**
+ * Whether growing the drinks broke any marked piece of text (a name, a
+ * same-price line, a heading, the bartender) onto more lines than it took
+ * before: then the growth stops a step back. Each piece is compared with
+ * itself, in the same order, so one piece wrapping can't hide behind
+ * another taking fewer lines.
+ */
+export function wrapsMore(before: readonly number[], after: readonly number[]): boolean {
+  return after.some((lines, index) => lines > (before[index] ?? Infinity));
 }
 
 /**

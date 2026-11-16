@@ -1,16 +1,31 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { fetchWithin, gaveUp } from "@/lib/fetch-within";
 import Cropper from "./Cropper";
 import { Button, Label } from "./ui";
 
-/** Send a file to the content store and get back the URL it lives at. */
-export async function upload(blob: Blob, filename: string): Promise<string> {
+/**
+ * Send a file to the content store and get back the URL it lives at. With
+ * `ms`, it is given up after that long, with plain words saying so: on a
+ * stalled venue connection an upload can otherwise hang for minutes, holding
+ * whatever waits on it (a card's Save, say) the whole time.
+ */
+export async function upload(blob: Blob, filename: string, ms?: number): Promise<string> {
   const form = new FormData();
   form.append("file", new File([blob], filename, { type: blob.type }));
-  const response = await fetch("/api/admin/upload", { method: "POST", body: form });
-  const data = await response.json();
-  if (!response.ok || !data.ok) throw new Error(data.error || "Upload failed");
+  const init = { method: "POST", body: form };
+  let answer: { response: Response; text: string };
+  try {
+    answer = ms === undefined
+      ? await fetch("/api/admin/upload", init).then(async (response) => ({ response, text: await response.text() }))
+      : await fetchWithin("/api/admin/upload", init, ms);
+  } catch (error) {
+    if (gaveUp(error)) throw new Error("The upload took too long, so it was stopped. Check this phone's connection, then try again.");
+    throw error;
+  }
+  const data = JSON.parse(answer.text);
+  if (!answer.response.ok || !data.ok) throw new Error(data.error || "Upload failed");
   return data.url as string;
 }
 

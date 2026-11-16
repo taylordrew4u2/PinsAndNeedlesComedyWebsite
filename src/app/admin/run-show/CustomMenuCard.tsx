@@ -384,7 +384,7 @@ export default function CustomMenuCard({ saved, marqueeStyle, drinks, samePriceL
             label={dirty ? `Save ${Object.keys(pending).length === 1 ? "1 change" : `${Object.keys(pending).length} changes`}` : undefined}
           />
           {Object.keys(draft).length ? (
-            <button type="button" onClick={() => setDraft({})} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button>
+            <button type="button" onClick={() => setDraft({})} disabled={busy || uploading} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Undo changes</button>
           ) : null}
           <button
             type="button"
@@ -394,7 +394,7 @@ export default function CustomMenuCard({ saved, marqueeStyle, drinks, samePriceL
           >
             Use defaults
           </button>
-          {uploading ? <span className="w-full text-xs text-neutral-500">Save waits until the picture is in.</span> : qrProblem ? <span className="w-full text-xs text-amber-200">Save waits for the QR code: {qrProblem}</span> : null}
+          {uploading ? <span className="w-full text-xs text-neutral-500">Save and Undo wait until the picture is in.</span> : qrProblem ? <span className="w-full text-xs text-amber-200">Save waits for the QR code: {qrProblem}</span> : null}
         </div>
       </form>
     </details>

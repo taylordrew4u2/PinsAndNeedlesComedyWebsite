@@ -13,6 +13,13 @@ import QuestionEditor from "./QuestionEditor";
 import type { QuestionChange } from "@/lib/questions";
 import type { SavePhase } from "@/lib/save-state";
 
+/**
+ * The small ↑ ↓ ✎ ✕ buttons: a 44px square on a phone, where they are tapped
+ * with a thumb mid-show (and ✕ sits right beside ↓); their own small size
+ * from a tablet up.
+ */
+const ICON = "flex min-h-11 min-w-11 items-center justify-center text-sm text-neutral-400 hover:text-white disabled:opacity-30 sm:min-h-0 sm:min-w-0";
+
 /** What is being dragged: a waiting question, or a question already in a card. */
 export type Drag = { from: "pile"; id: string } | { from: "slot"; performer: string; slot: number };
 
@@ -237,7 +244,7 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
               : `${timingSentence(lineup.timing)}${someOwnTiming ? " Some cards have their own timing." : ""} Drag questions in any time.`}
           </p>
         </div>
-        {time.running ? <button type="button" onClick={() => void stop()} disabled={busy} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50">Stop</button> : null}
+        {time.running ? <button type="button" onClick={() => void stop()} disabled={busy} className="min-h-11 rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-50 sm:min-h-0">Stop</button> : null}
       </div>
       <SetTimingCard lineup={lineup} running={time.running} busy={busy} save={saveLineupTiming} onPhase={(phase) => onPhase?.("set-timing-card", phase)} />
 
@@ -261,16 +268,16 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                   onKeyDown={(event) => { if (event.key === "Enter") (event.target as HTMLInputElement).blur(); }}
                   maxLength={PERFORMER_NAME_MAX}
                   placeholder="Performer's name"
-                  className="min-w-0 flex-1 basis-40 rounded-md border border-white/30 bg-black px-3 py-1.5 text-sm font-semibold text-white placeholder:font-normal placeholder:text-neutral-500"
+                  className="min-h-11 min-w-0 flex-1 basis-40 rounded-md border border-white/30 bg-black px-3 py-1.5 text-base font-semibold text-white placeholder:font-normal placeholder:text-neutral-500 sm:min-h-0 sm:text-sm"
                 />
                 {live
                   ? <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-black">On stage</span>
-                  : <button type="button" onClick={() => void start(performer.id)} disabled={busy} className="rounded-md bg-[#ff2e4d] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">{ran ? "▶ Again" : "▶ Start"}</button>}
+                  : <button type="button" onClick={() => void start(performer.id)} disabled={busy} className="min-h-11 rounded-md bg-[#ff2e4d] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50 sm:min-h-0">{ran ? "▶ Again" : "▶ Start"}</button>}
                 <span className="flex shrink-0">
-                  <button type="button" aria-label={`Move performer ${number + 1} up`} onClick={() => moveBy(performer.id, -1)} disabled={busy || number === 0} className="px-1 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
-                  <button type="button" aria-label={`Move performer ${number + 1} down`} onClick={() => moveBy(performer.id, 1)} disabled={busy || number === lineup.performers.length - 1} className="px-1 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
+                  <button type="button" aria-label={`Move performer ${number + 1} up`} onClick={() => moveBy(performer.id, -1)} disabled={busy || number === 0} className={`${ICON} px-1`}>↑</button>
+                  <button type="button" aria-label={`Move performer ${number + 1} down`} onClick={() => moveBy(performer.id, 1)} disabled={busy || number === lineup.performers.length - 1} className={`${ICON} px-1`}>↓</button>
                 </span>
-                {live ? null : <button type="button" aria-label={`Remove performer ${number + 1}`} onClick={() => removePerformer(performer.id)} disabled={busy} className="px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✕</button>}
+                {live ? null : <button type="button" aria-label={`Remove performer ${number + 1}`} onClick={() => removePerformer(performer.id)} disabled={busy} className={`${ICON} px-1.5`}>✕</button>}
               </div>
               {timing.nameMs ? (
                 <p className={`mt-2 text-xs ${live && time.index === null ? "font-semibold text-white" : "text-neutral-500"}`}>
@@ -285,21 +292,23 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                   // Keyed by its question, so an open editor (and its typing) moves with the question when the slots
                   // move under it. A repeat from an older save falls back to the slot's place, so keys stay unique.
                   const first = slot ? performer.slots.findIndex((entry) => entry?.submissionId === slot.submissionId) === i : false;
+                  const editing = Boolean(slot && slot.submissionId === editingSlot);
                   return (
                     <li
                       key={slot && first ? `q-${slot.submissionId}` : `slot-${i}`}
                       onDragOver={(event) => { if (dragging && !past) { event.preventDefault(); setDropOn(key); } }}
                       onDragLeave={() => setDropOn((current) => (current === key ? null : current))}
                       onDrop={(event) => { event.preventDefault(); setDropOn(null); drop(performer.id, i); setDragging(null); }}
-                      className={`flex items-start gap-3 rounded-md border px-3 py-2 ${up ? "border-white bg-white/10" : past ? "border-white/10 opacity-50" : dropOn === key ? "border-[#ff2e4d] bg-[#ff2e4d]/10" : "border-white/15"}`}
+                      className={`flex flex-wrap items-start gap-x-3 gap-y-1 rounded-md border px-3 py-2 ${up ? "border-white bg-white/10" : past ? "border-white/10 opacity-50" : dropOn === key ? "border-[#ff2e4d] bg-[#ff2e4d]/10" : "border-white/15"}`}
                     >
-                      {/* Narrower on a phone, with the buttons two by two, so the question gets room to read in whole lines. */}
+                      {/* Narrower on a phone, so the question beside it gets room to read in whole lines. */}
                       <span className="w-14 shrink-0 text-xs leading-5 text-neutral-400 sm:w-[4.5rem]">
                         <span className="block font-semibold text-white">{clock(slotStartMs(i, timing))}</span>
                         {up ? "on screen" : past ? "done" : live ? `in ${clock(time.left - (timing.setMs - slotStartMs(i, timing)))}` : null}
                       </span>
-                      {slot && slot.submissionId === editingSlot ? (
-                        <div className="min-w-0 flex-1">
+                      {slot && editing ? (
+                        // The editor takes the slot's whole width, under its time, so the question can be read and fixed in whole lines.
+                        <div className="min-w-0 basis-full">
                           <QuestionEditor question={slotQuestion(slot)} live={up} busy={busy} save={(change) => editQuestion(slot.submissionId, change)} close={() => setEditingSlot(null)} />
                         </div>
                       ) : slot ? (
@@ -313,19 +322,20 @@ export default function LineupPanel({ lineup, clock: time, waiting, busy, draggi
                           <span className="block text-xs text-neutral-500">{slot.name || "Anonymous"}</span>
                         </span>
                       ) : <span className="flex-1 text-sm text-neutral-500">{past ? "Nothing went up" : "Drop a question here"}</span>}
+                      {/* On a phone, where each is a 44px tap, the buttons are a row of their own under the question; beside it from a tablet up. */}
                       {!past ? (
-                        <span className="grid shrink-0 grid-cols-2 gap-1 sm:flex">
-                          <button type="button" aria-label="Move up" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i - 1))} disabled={busy || i <= open} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
-                          <button type="button" aria-label="Move down" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i + 1))} disabled={busy || i >= performer.slots.length - 1} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
-                          {slot && slot.submissionId !== editingSlot ? <button type="button" aria-label="Edit question" title="Fix the words or the name" onClick={() => setEditingSlot(slot.submissionId)} disabled={busy} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✎</button> : null}
-                          {slot ? <button type="button" aria-label="Empty slot" onClick={() => editSlots(performer.id, (slots) => slots.map((entry, j) => (j === i ? null : entry)))} disabled={busy} className="rounded px-1.5 text-sm text-neutral-400 hover:text-white disabled:opacity-30">✕</button> : null}
+                        <span className={`flex shrink-0 basis-full justify-end gap-1 ${editing ? "" : "sm:basis-auto"}`}>
+                          <button type="button" aria-label="Move up" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i - 1))} disabled={busy || i <= open} className={`${ICON} rounded px-1.5`}>↑</button>
+                          <button type="button" aria-label="Move down" onClick={() => editSlots(performer.id, (slots) => swap(slots, i, i + 1))} disabled={busy || i >= performer.slots.length - 1} className={`${ICON} rounded px-1.5`}>↓</button>
+                          {slot && !editing ? <button type="button" aria-label="Edit question" title="Fix the words or the name" onClick={() => setEditingSlot(slot.submissionId)} disabled={busy} className={`${ICON} rounded px-1.5`}>✎</button> : null}
+                          {slot ? <button type="button" aria-label="Empty slot" onClick={() => editSlots(performer.id, (slots) => slots.map((entry, j) => (j === i ? null : entry)))} disabled={busy} className={`${ICON} rounded px-1.5`}>✕</button> : null}
                         </span>
                       ) : null}
                     </li>
                   );
                 })}
               </ol>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              <div className="mt-2 flex flex-wrap gap-2 text-xs [&>button]:min-h-11 sm:[&>button]:min-h-0">
                 <button type="button" onClick={() => fill(performer.id)} disabled={busy || !waiting.length || !performer.slots.some((slot, i) => i >= open && !slot)} className="rounded-md border border-white/30 px-2.5 py-1 disabled:opacity-40">🎲 Fill empty</button>
                 <button type="button" onClick={() => editSlots(performer.id, (slots, from) => slots.map((slot, i) => (i < from ? slot : null)))} disabled={busy || !performer.slots.some((slot, i) => i >= open && slot)} className="rounded-md px-2.5 py-1 text-neutral-400 underline disabled:opacity-40">Empty all</button>
                 <CardTiming lineup={lineup} performer={performer} live={live} liveTiming={time.timing} busy={busy} save={(next) => saveCardTiming(performer.id, next)} onPhase={(phase) => onPhase?.(`card-timing-${performer.id}`, phase)} />

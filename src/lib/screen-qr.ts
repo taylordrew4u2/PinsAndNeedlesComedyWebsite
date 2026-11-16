@@ -194,6 +194,18 @@ export function boardQr(qr: ShownQr | null, place: QrPlace): BoardQr | null {
 }
 
 /**
+ * Whether a picture that has just gone up goes into the QR choice, by what
+ * is picked as it lands: only "My picture". Another choice picked while it
+ * went up ("No QR code", say) stands, so a later Save never puts the picture
+ * up; going back to "My picture" before it lands takes it, as the host is
+ * waiting for it there. What is picked now, not how often the choice changed
+ * on the way.
+ */
+export function pictureLands(kindNow: QrKind): boolean {
+  return kindNow === "picture";
+}
+
+/**
  * What stops a QR choice from saving, in plain words, or "" when it can be
  * saved. `to` and `image` are what would be saved: the Control Center puts
  * "https://" in front of a bare address before asking.

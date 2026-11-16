@@ -4,11 +4,11 @@ import {
   DEFAULT_MENU_COLOR, DRINK_MENU, HEADLINE_MAX, MARQUEE_MAX, MENU_COLORS, NOTE_MAX, BARTENDER_MAX, cleanBartender, cleanColor, cleanHeadline, cleanMarquee, cleanNote, customLook, parseMenuState,
 } from "../src/lib/drink-menu.ts";
 import {
-  DEFAULT_MARQUEE, DEFAULT_MARQUEE_SPEED, MARQUEE_SPEEDS, MENU_WORDING, WORDING_KEYS, cleanWording, customWording, isMarqueeSpeed, liveMarquee, liveMarqueeLook, marqueeChange, marqueeSpeedOf,
+  DEFAULT_MARQUEE, DEFAULT_MARQUEE_SPEED, MARQUEE_SPEEDS, MENU_WORDING, WORDING_KEYS, cleanWording, customWording, isMarqueeSpeed, liveMarquee, liveMarqueeLook, marqueeChange, marqueeSavedNotice, marqueeSpeedOf,
 } from "../src/lib/drink-menu.ts";
 import {
   CUSTOM_MENU_KEYS, DEFAULT_CUSTOM_MENU, NO_MENU_VIEW, ROTATE_FULL, ROTATE_SECTION, SAME_PRICE_JOIN, compactMenu, compactSection, customMenuChanges, customQrOf,
-  customSettingsOf, isRotateFull, isRotateSection, menuView, parseCustomMenuChange, readCustomLook, readMenuView, rotateFullMs, rotateSectionMs, wordingToSave,
+  customSettingsOf, isRotateFull, isRotateSection, linesOfBoxes, liveCustomLook, menuView, parseCustomMenuChange, readCustomLook, readMenuView, rotateFullMs, rotateSectionMs, wordingToSave, wrapsMore,
   type CustomMenuSettings, type DrinkSection, type MenuState,
 } from "../src/lib/drink-menu.ts";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, MENU_FONTS, SCRIPT_FONTS, isMenuFont, isScriptFont } from "../src/lib/menu-fonts.ts";
@@ -234,6 +234,34 @@ test("the marquee's one Save sends only the part that changed: the text, how it 
   assert.equal(marqueeChange(saved, { ...saved, text: "x".repeat(MARQUEE_MAX + 20) }).text?.length, MARQUEE_MAX);
 });
 
+test("after a marquee Save, the live screen is said to have it only when it is on screen: the show-night text never runs on the daytime menu", () => {
+  const view = (menu: boolean, menuStyle: "standard" | "custom", marqueeCustom = "", marqueeOn = true) => ({ menu, menuStyle, marqueeOn, marqueeCustom });
+  const style = { on: true, speed: "fast", color: "" };
+  // The standard menu up: whatever changed is on the screen.
+  assert.equal(marqueeSavedNotice({ text: "Last call at 11" }, view(true, "standard")), "Marquee saved. The live screen has it now.");
+  assert.equal(marqueeSavedNotice({ text: "" }, view(true, "standard")), `Marquee back to “${DEFAULT_MARQUEE}”. The live screen has it now.`);
+  // The daytime menu up: the show-night text waits for the standard menu, whether or not the daytime menu runs its own.
+  for (const custom of ["", "Open till 6"]) {
+    const said = marqueeSavedNotice({ text: "Last call at 11" }, view(true, "custom", custom));
+    assert.equal(said, "Marquee saved. Its text runs when you show the standard menu.", custom);
+    assert.ok(!said.includes("has it now"), custom);
+  }
+  assert.ok(!marqueeSavedNotice({ text: "" }, view(true, "custom")).includes("has it now"));
+  // Speed and colour go for both menus: on screen now only when the daytime menu runs a band of its own text.
+  assert.equal(marqueeSavedNotice({ style }, view(true, "custom", "Open till 6")), "Marquee saved. The live screen has it now.");
+  assert.equal(marqueeSavedNotice({ style }, view(true, "custom")), "Marquee saved. It shows on the standard menu, and on the daytime menu when that has its own marquee text.");
+  assert.equal(
+    marqueeSavedNotice({ text: "Last call at 11", style }, view(true, "custom", "Open till 6")),
+    "Marquee saved. Its text runs when you show the standard menu. The daytime menu up now runs its own text with the new speed and colour.",
+  );
+  // No menu up: nothing is on screen yet.
+  assert.equal(marqueeSavedNotice({ text: "Last call at 11" }, view(false, "standard")), "Marquee saved. Its text runs when you show the standard menu.");
+  assert.equal(marqueeSavedNotice({ style }, view(false, "custom", "Open till 6")), "Marquee saved. It shows on the standard menu, and on the daytime menu when that has its own marquee text.");
+  // Switched off: the menu fills the screen, and typed text is kept.
+  assert.equal(marqueeSavedNotice({ style: { ...style, on: false } }, view(true, "standard", "", false)), "Marquee off: the drink menu fills the screen.");
+  assert.equal(marqueeSavedNotice({ text: "x", style: { ...style, on: false } }, view(true, "custom", "", false)), "Marquee off: the drink menu fills the screen. Its text is saved for when it comes back on.");
+});
+
 test("the custom menu has no QR until the host picks one; an old qrOff switch is ignored either way", () => {
   assert.equal(parseMenuState({ style: "custom" }).qrKind, "");
   for (const qrOff of [true, false, "true", 1, null]) {
@@ -331,6 +359,26 @@ test("the live screen reads the custom look carefully: an older server's draws w
   // Times that aren't from the tables don't rotate.
   assert.equal(readCustomLook({ ...sent, rotate: { fullMs: 1, sectionMs: 8_000 } })?.rotate, null);
   for (const junk of [null, "custom", {}, { color: "#FFF" }, { headline: "x" }, { color: 1, headline: "x" }]) assert.equal(readCustomLook(junk), null, JSON.stringify(junk));
+});
+
+test("the live poll's custom look tells screens from before this update to draw no QR, and today's screens ignore that", () => {
+  // A TV still running the old code draws the question-form code on the custom menu unless it sees qrOff: true.
+  for (const raw of [
+    { on: true, style: "custom" },
+    { on: true, style: "custom", qrKind: "link", qrTo: "https://example.com/x" },
+    { on: true, style: "custom", qrKind: "picture", qrImage: "/uploads/logo.webp", qrCaption: "Follow us" },
+  ]) {
+    const sent = JSON.parse(JSON.stringify(liveCustomLook(parseMenuState(raw), sign)));
+    // Read as such a screen reads it: still the daytime menu (a colour and a headline, even an empty one), and its
+    // QR off, which also leaves off the headline and the three lines under the QR ("SCAN TO SUBMIT" and the rest).
+    assert.ok(typeof sent.color === "string" && typeof sent.headline === "string", JSON.stringify(raw));
+    assert.equal(sent.qrOff, true, JSON.stringify(raw));
+    // Read as today's screens read it: exactly the look, with no qrOff.
+    assert.deepEqual(readCustomLook(sent), lookOf(raw), JSON.stringify(raw));
+  }
+  // The Control Center's preview look has no qrOff, and the standard menu sends no custom look.
+  assert.ok(!("qrOff" in (lookOf({ on: true, style: "custom" }) ?? {})));
+  assert.equal(liveCustomLook(parseMenuState({ on: true, style: "standard" }), sign), null);
 });
 
 test("a custom menu change: any of its settings, each checked, at least one known; plain words for what can't be saved", () => {
@@ -443,4 +491,41 @@ test("one line for one price: drinks with no detail line that cost the same shar
   assert.deepEqual(compactSection(compact), compact);
   // A whole board, section by section.
   assert.deepEqual(compactMenu([[section], [lone], []]), [[compact], [lone], []]);
+});
+
+test("a piece of text's lines are counted by where its boxes sit, so a same-price line breaking onto two is seen even when its box count stays the same", () => {
+  const box = (top: number, width = 120, height = 34) => ({ top, height, width });
+  assert.equal(linesOfBoxes([]), 0);
+  assert.equal(linesOfBoxes([box(100)]), 1);
+  // "Pilsner ·", " ", "IPA ·", " ", "Stout" on one line: five boxes, one line, whatever order they come in.
+  assert.equal(linesOfBoxes([box(102), box(100, 8, 30), box(101), box(100, 8, 30), box(100)]), 1);
+  // Grown a step, "Stout" moves down a line: still five boxes, now two lines.
+  assert.equal(linesOfBoxes([box(102), box(100, 8, 30), box(101), box(100, 8, 30), box(140)]), 2);
+  assert.equal(linesOfBoxes([box(180), box(100), box(140)]), 3);
+  // An empty box (a space left at the end of a line) is no line of its own.
+  assert.equal(linesOfBoxes([box(100), box(125, 0, 30), box(125, 10, 0)]), 1);
+});
+
+test("growing the drinks stops when any marked piece takes more lines than before, even if another takes fewer", () => {
+  assert.equal(wrapsMore([1, 1, 2], [1, 1, 2]), false);
+  // The same-price line in the middle wrapped onto two.
+  assert.equal(wrapsMore([1, 1, 2], [1, 2, 2]), true);
+  // One more line in one piece and one fewer in another: still a line that broke, so it stops.
+  assert.equal(wrapsMore([1, 1, 2], [1, 2, 1]), true);
+  assert.equal(wrapsMore([1, 2], [1, 1]), false);
+  assert.equal(wrapsMore([], []), false);
+});
+
+test("a same-price line's last name wrapping inside its own box is a new line when the boxes come from the text, though the mark's own boxes stay two", () => {
+  const box = (top: number, width: number, height = 32) => ({ top, height, width });
+  // "IPA · Pilsner ·" / "Hazy Double Dry Hopped Imperial … $8", at 100%: the text's boxes.
+  const before = [box(515, 50), box(515, 8), box(515, 60), box(551, 300), box(551, 20)];
+  // A step bigger, "Imperial" goes onto a line of its own inside the last name's box (the hidden price copy with it).
+  const after = [box(492, 55), box(492, 9), box(492, 66), box(532, 270), box(572, 90), box(572, 22)];
+  assert.equal(linesOfBoxes(before), 2);
+  assert.equal(linesOfBoxes(after), 3);
+  assert.equal(wrapsMore([linesOfBoxes(before)], [linesOfBoxes(after)]), true);
+  // The mark around the names gets one box for its first line and one on the last name's last line, either way:
+  // counted from those, the extra line goes unseen and the drinks grow on.
+  assert.equal(linesOfBoxes([box(515, 110), box(551, 332)]), linesOfBoxes([box(492, 123), box(572, 334)]));
 });

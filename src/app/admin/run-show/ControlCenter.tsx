@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { DEFAULT_MARQUEE, NO_MENU_VIEW, customSettingsOf, readMenuView, type CustomMenuSettings, type MarqueeChange, type MenuStyle, type MenuView } from "@/lib/drink-menu";
+import { NO_MENU_VIEW, customSettingsOf, marqueeSavedNotice, readMenuView, type CustomMenuSettings, type MarqueeChange, type MenuStyle, type MenuView } from "@/lib/drink-menu";
 import { boardQr } from "@/lib/screen-qr";
 import BartenderField, { type BartenderChange } from "./BartenderField";
 import CustomMenuCard from "./CustomMenuCard";
@@ -17,7 +17,7 @@ import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
 import { clockText, durationWords, parseLineup, slottedIds, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
 import LineupPanel, { applyDrop, clockFor, firstEmptySlot, type Drag, type LineupInput } from "./LineupPanel";
 import { useWakeLock } from "@/lib/use-wake-lock";
-import { fetchWithin } from "@/lib/fetch-within";
+import { fetchWithin, gaveUp } from "@/lib/fetch-within";
 import { isNewerBuild } from "@/lib/build";
 import LiveMirror from "./LiveMirror";
 import MenuQrSizeCard from "./MenuQrSizeCard";
@@ -27,7 +27,7 @@ import ScreenWordsCard from "./ScreenWordsCard";
 import ShowQrCard from "./ShowQrCard";
 import TestSoundButton from "./TestSoundButton";
 import { SavePill } from "./SaveBadge";
-import { parseScreenSettings, previewQr, standardMenuWords, stingName, type ScreenSettings } from "@/lib/screen-settings";
+import { SCREEN_TEXT, parseScreenSettings, previewQr, standardMenuWords, stingName, type ScreenSettings } from "@/lib/screen-settings";
 import { parseMessage, type MessageChange, type ScreenMessage } from "@/lib/screen-message";
 import { screenStatus } from "@/lib/screen-status";
 import QuestionEditor from "./QuestionEditor";
@@ -334,15 +334,13 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
    */
   const saveMarquee = async ({ text, style, custom }: MarqueeChange) => {
     if (text === undefined && !style && custom === undefined) return true;
-    let saved: Record<string, unknown> = {};
-    const take = (data: Change & Record<string, unknown>) => { takeMenu(data); saved = data; };
+    let saved = NO_MENU_VIEW;
+    const take = (data: Change & Record<string, unknown>) => { takeMenu(data); saved = readMenuView(data, saved); };
     if (text !== undefined && !(await change(API, { marquee: text }, take, "Could not update the marquee."))) return false;
     if (style && !(await change(API, { marqueeStyle: style }, take, "Could not update the marquee."))) return false;
     if (custom !== undefined && !(await change(API, { customMenu: { customMarquee: custom } }, take, "Could not update the marquee."))) return false;
-    // Switched off, the text is kept for when it comes back on: say so rather than that it runs.
-    setNotice(saved.marqueeOn === false
-      ? `Marquee off: the drink menu fills the screen.${text !== undefined ? " Its text is saved for when it comes back on." : ""}`
-      : `${text === "" ? `Marquee back to “${DEFAULT_MARQUEE}”.` : "Marquee saved."} ${saved.menu ? "The live screen has it now." : "It runs when you show either drink menu."}`);
+    // "The live screen has it now" only for what the screen is showing: the show-night text never runs on the daytime menu.
+    setNotice(marqueeSavedNotice({ text, style, custom }, saved));
     return true;
   };
 
@@ -386,7 +384,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
     change(API, { samePriceLine: on }, (data) => {
       takeMenu(data);
       setNotice(on ? "Drinks with the same price now share a line." : "Every drink has its own line again.");
-    }, "Could not save the drink list.");
+    }, "Could not save the same-price setting.");
 
   /** The live screen's own cards (settings, message, test sound): one change, then the server's word on what is saved and, when a message went up, the drink menu. */
   const screenAction = (body: object, done: string, failed: string) =>
@@ -841,7 +839,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             {fresh.size ? (
               <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/50 bg-emerald-950/40 px-4 py-2 text-sm text-emerald-200">
                 <span>{fresh.size === 1 ? "1 new question" : `${fresh.size} new questions`} since you last looked</span>
-                <button type="button" onClick={() => setFresh(new Set())} className="underline">Got it</button>
+                <button type="button" onClick={() => setFresh(new Set())} className="min-h-11 px-1 underline sm:min-h-0">Got it</button>
               </div>
             ) : null}
             {/* A greyed-out button's title only shows to a mouse, so a phone gets the reason in words too. */}
@@ -862,7 +860,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                       <p className="whitespace-pre-wrap break-words text-lg leading-relaxed">{item.decision}</p>
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                         <span className="text-sm text-neutral-400">{item.name || "Anonymous"}{item.createdAt ? ` · ${timeOf(item.createdAt)}` : ""}</span>
-                        <span className="flex flex-wrap gap-2">
+                        <span className="flex flex-wrap gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
                           <button type="button" onClick={() => setEditing({ at: "pile", id: item.id })} disabled={busy || item.id === held} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                           <button type="button" onClick={() => void remove(item)} disabled={busy} className="rounded-md px-3 py-2.5 text-sm text-neutral-400 hover:text-white disabled:opacity-50">Delete</button>
                           <button type="button" onClick={() => addToSet(item)} disabled={busy || !state || item.id === held || !openSlot} title={item.id === held ? "Save or cancel the edit first" : !openSlot ? `No open slot. ${NO_OPEN_SLOT}` : "Into the next empty slot: the set on stage first, then the next performer"} className="rounded-md border border-[#ff2e4d]/70 px-3 py-2.5 text-sm text-[#ff8a9c] disabled:opacity-40">+ Set</button>
@@ -888,7 +886,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   rows={5}
                   placeholder={"Should I text my ex back?\nShould I quit my job to sell hot sauce?"}
                   disabled={!state}
-                  className="w-full rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+                  className="w-full rounded-md border border-white/30 bg-black px-3 py-2 text-base text-white placeholder:text-neutral-500 sm:text-sm"
                 />
                 <div className="flex flex-wrap gap-2 [&>*]:min-h-11 sm:[&>*]:min-h-0">
                   <label htmlFor="preload-name" className="sr-only">Name on screen (optional)</label>
@@ -900,7 +898,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                     maxLength={NAME_MAX}
                     placeholder="Name on screen (optional)"
                     disabled={!state}
-                    className="min-w-0 flex-1 basis-48 rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+                    className="min-w-0 flex-1 basis-48 rounded-md border border-white/30 bg-black px-3 py-2 text-base text-white placeholder:text-neutral-500 sm:text-sm"
                   />
                   <button type="submit" disabled={busy || !state || !preloadText.trim()} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Add to pile</button>
                 </div>
@@ -920,7 +918,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                         <span className="block whitespace-pre-wrap break-words text-sm">{item.decision}</span>
                         <span className="block text-xs text-neutral-500">{item.name || "Anonymous"}{item.id === onScreenId ? " · on screen now" : ""}</span>
                       </span>
-                      <span className="flex shrink-0 gap-1">
+                      <span className="flex shrink-0 gap-1 [&>button]:min-h-11 [&>button]:min-w-11 sm:[&>button]:min-h-0 sm:[&>button]:min-w-0">
                         <button type="button" onClick={() => setEditing({ at: "shown", id: item.id })} disabled={busy} className="px-2 py-1.5 text-xs text-neutral-400 hover:text-white disabled:opacity-50">Edit</button>
                         {item.id === onScreenId ? null : (
                           <button type="button" onClick={() => void putBack(item.id)} disabled={busy} className="rounded-md border border-white/20 px-3 py-1.5 text-xs disabled:opacity-50">Put it back</button>
@@ -943,7 +941,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                   {state.archived.map((item) => (
                     <div role="listitem" key={item.id} className="flex items-start justify-between gap-3 text-sm text-neutral-400">
                       <span className="whitespace-pre-wrap break-words">{item.decision}{item.name ? <span className="text-neutral-600"> — {item.name}</span> : null}</span>
-                      <span className="flex shrink-0 gap-1">
+                      <span className="flex shrink-0 gap-1 [&>button]:min-h-11 sm:[&>button]:min-h-0">
                       <button type="button" onClick={() => void restore(item.id)} disabled={busy} title="Back to the waiting list" className="shrink-0 px-2 py-1 text-xs hover:text-white disabled:opacity-50">Restore</button>
                       <button type="button" onClick={() => void remove(item)} disabled={busy} className="shrink-0 px-2 py-1 text-xs hover:text-white disabled:opacity-50">Delete</button>
                       </span>
@@ -991,6 +989,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                 speed={state.marqueeSpeed}
                 color={state.marqueeColor}
                 live={state.menu}
+                showLive={state.menu && state.menuStyle === "standard"}
                 busy={busy}
                 save={saveMarquee}
                 onPhase={phaseOf("marquee-card")}
@@ -1023,7 +1022,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             <details className="mt-4 rounded-lg border border-white/20 p-4">
               <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">🔊 Sound on the live screen</summary>
               <div className="mt-3 space-y-3 text-sm text-neutral-300">
-                <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“Sound is off. Tap to turn it on”</strong> button in the corner. No button means sound is on.</p>
+                <p>Browsers block sound until someone taps the page, unless you allow it for this site. When sound is off, the live screen shows a red <strong>“{screenSettings.soundOffPrompt || SCREEN_TEXT.soundOffPrompt.fallback}”</strong> button in the corner (change its words in <strong>✏️ Words on the screen</strong>, under “Buttons on the TV”). No button means sound is on.</p>
                 <p className="font-semibold text-white">Every show (works on any browser)</p>
                 <ol className="list-decimal space-y-1 pl-5">
                   <li>Open the live screen on the TV laptop.</li>
@@ -1095,11 +1094,6 @@ async function collectTexts(setTexting: (value: { on: boolean; error: string }) 
     // A failed pull must never stop the pile from loading.
     setTexting({ on: true, error: "Mailbox unreachable" });
   }
-}
-
-/** The request was given up on (or the page is leaving), not refused. */
-function gaveUp(failure: unknown): boolean {
-  return failure instanceof Error && (failure.name === "AbortError" || failure.name === "TimeoutError");
 }
 
 /** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */

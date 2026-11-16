@@ -31,9 +31,9 @@ export default function QuestionSearch({ value, onChange, total, matching }: {
           onKeyDown={(event) => { if (event.key === "Escape") onChange(""); }}
           maxLength={SEARCH_MAX}
           placeholder="🔍 Search waiting questions or names"
-          className="min-w-0 flex-1 rounded-md border border-white/30 bg-black px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+          className="min-h-11 min-w-0 flex-1 rounded-md border border-white/30 bg-black px-3 py-2 text-base text-white placeholder:text-neutral-500 sm:min-h-0 sm:text-sm"
         />
-        {value ? <button type="button" onClick={() => onChange("")} className="rounded-md border border-white/30 px-3 py-2 text-sm">Clear</button> : null}
+        {value ? <button type="button" onClick={() => onChange("")} className="min-h-11 rounded-md border border-white/30 px-3 py-2 text-sm sm:min-h-0">Clear</button> : null}
       </div>
       {typed ? (
         <p role="status" className="mt-1 text-xs text-neutral-500">
