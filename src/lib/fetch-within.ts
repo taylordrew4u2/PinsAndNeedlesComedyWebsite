@@ -26,3 +26,8 @@ export async function fetchWithin(url: string, init: RequestInit, ms: number, ou
     outer?.removeEventListener("abort", abort);
   }
 }
+
+/** The request was given up on (fetchWithin's time limit, or the page leaving), not refused or dropped. */
+export function gaveUp(error: unknown): boolean {
+  return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
+}

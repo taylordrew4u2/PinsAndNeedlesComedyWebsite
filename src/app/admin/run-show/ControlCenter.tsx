@@ -17,7 +17,7 @@ import { NAME_MAX, PRELOAD_MAX } from "@/lib/decisions";
 import { clockText, durationWords, parseLineup, slottedIds, timingOf, type Lineup, type SegmentStatus } from "@/lib/segment";
 import LineupPanel, { applyDrop, clockFor, firstEmptySlot, type Drag, type LineupInput } from "./LineupPanel";
 import { useWakeLock } from "@/lib/use-wake-lock";
-import { fetchWithin } from "@/lib/fetch-within";
+import { fetchWithin, gaveUp } from "@/lib/fetch-within";
 import { isNewerBuild } from "@/lib/build";
 import LiveMirror from "./LiveMirror";
 import MenuQrSizeCard from "./MenuQrSizeCard";
@@ -1094,11 +1094,6 @@ async function collectTexts(setTexting: (value: { on: boolean; error: string }) 
     // A failed pull must never stop the pile from loading.
     setTexting({ on: true, error: "Mailbox unreachable" });
   }
-}
-
-/** The request was given up on (or the page is leaving), not refused. */
-function gaveUp(failure: unknown): boolean {
-  return failure instanceof Error && (failure.name === "AbortError" || failure.name === "TimeoutError");
 }
 
 /** What to tell the host when a request fails: the server's own words, or a plain line for a timeout or a garbled answer. */

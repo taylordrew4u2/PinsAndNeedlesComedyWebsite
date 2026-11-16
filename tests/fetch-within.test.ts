@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { fetchWithin } from "../src/lib/fetch-within.ts";
+import { fetchWithin, gaveUp } from "../src/lib/fetch-within.ts";
 
 /** A server that answers /ok at once, never answers /hang, and stalls /slow-body after the headers. */
 async function serve(): Promise<{ url: string; server: Server }> {
@@ -43,4 +43,23 @@ test("fetchWithin: the outer signal aborts it too", async () => {
     setTimeout(() => outer.abort(), 50);
     await assert.rejects(pending);
   } finally { server.closeAllConnections(); server.close(); }
+});
+
+test("gaveUp: a request given up for time says so, so the host is told it took too long rather than that it failed", async () => {
+  const { url, server } = await serve();
+  try {
+    const timedOut = await fetchWithin(`${url}/hang`, {}, 100).then(() => null, (error: unknown) => error);
+    assert.equal(gaveUp(timedOut), true);
+    // Nobody listening: the request failed, it wasn't given up.
+    const closed = createServer();
+    await new Promise<void>((resolve) => closed.listen(0, "127.0.0.1", resolve));
+    const port = (closed.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => closed.close(() => resolve()));
+    const refused = await fetchWithin(`http://127.0.0.1:${port}/`, {}, 2_000).then(() => null, (error: unknown) => error);
+    assert.ok(refused);
+    assert.equal(gaveUp(refused), false);
+  } finally { server.closeAllConnections(); server.close(); }
+  for (const other of [new Error("Upload failed"), new TypeError("Failed to fetch"), new SyntaxError("Unexpected token"), "AbortError", null]) {
+    assert.equal(gaveUp(other), false, String(other));
+  }
 });

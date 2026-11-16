@@ -21,6 +21,9 @@ const PREVIEW_PX = 76;
 /** A typed address waits this long after the last key before the preview draws it. */
 const PREVIEW_WAIT_MS = 450;
 
+/** A picture still going up after this is given up on, so a stalled connection can't hold the card's Save for minutes. */
+const UPLOAD_WAIT_MS = 60_000;
+
 /** Taller on a phone, so every button here is an easy 44px tap; back to its own size from a tablet up. */
 const TAP = "min-h-11 sm:min-h-0";
 
@@ -139,7 +142,7 @@ export default function QrChooser({ value, onChange, kinds, places, busy, idPref
     onUploading?.(true);
     try {
       const small = await shrinkPicture(file);
-      const address = cleanAssetUrl(await upload(small, small.name));
+      const address = cleanAssetUrl(await upload(small, small.name, UPLOAD_WAIT_MS));
       if (!address) throw new Error("The picture went up, but its address can't be used on the screen. Try again.");
       onChange({ kind: "picture", image: address });
       setPasting(false);
