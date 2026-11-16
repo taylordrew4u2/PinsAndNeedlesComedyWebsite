@@ -450,6 +450,22 @@ export function customLook(state: MenuState, srcOf: (link: string) => string | n
   return state.style === "custom" ? customLookOf(state, srcOf) : null;
 }
 
+/**
+ * The custom look as the live screen's poll sends it: customLook with
+ * `qrOff: true` added. A screen still running the code from before this
+ * update (a TV in full screen never reloads itself, and the daytime TV is
+ * the one most likely to sit there all day) draws the Bad Decisions
+ * question-form code, with the show's words under it, unless it sees
+ * qrOff: true, and that code is never right on the daytime menu. Those
+ * screens draw no QR at all; today's read the look through readCustomLook,
+ * which leaves qrOff out. Kept off CustomLook itself, so the Control
+ * Center's preview has no use for it.
+ */
+export function liveCustomLook(state: MenuState, srcOf: (link: string) => string | null): (CustomLook & { qrOff: true }) | null {
+  const look = customLook(state, srcOf);
+  return look && { ...look, qrOff: true };
+}
+
 /** How long the pages stay up, as the live screen receives it: only times from the tables, or null (no rotation). */
 function readRotation(raw: unknown): RotationTiming | null {
   if (!raw || typeof raw !== "object") return null;

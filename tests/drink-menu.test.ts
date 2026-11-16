@@ -8,7 +8,7 @@ import {
 } from "../src/lib/drink-menu.ts";
 import {
   CUSTOM_MENU_KEYS, DEFAULT_CUSTOM_MENU, NO_MENU_VIEW, ROTATE_FULL, ROTATE_SECTION, SAME_PRICE_JOIN, compactMenu, compactSection, customMenuChanges, customQrOf,
-  customSettingsOf, isRotateFull, isRotateSection, menuView, parseCustomMenuChange, readCustomLook, readMenuView, rotateFullMs, rotateSectionMs, wordingToSave,
+  customSettingsOf, isRotateFull, isRotateSection, liveCustomLook, menuView, parseCustomMenuChange, readCustomLook, readMenuView, rotateFullMs, rotateSectionMs, wordingToSave,
   type CustomMenuSettings, type DrinkSection, type MenuState,
 } from "../src/lib/drink-menu.ts";
 import { DEFAULT_MENU_FONT, DEFAULT_SCRIPT_FONT, MENU_FONTS, SCRIPT_FONTS, isMenuFont, isScriptFont } from "../src/lib/menu-fonts.ts";
@@ -331,6 +331,26 @@ test("the live screen reads the custom look carefully: an older server's draws w
   // Times that aren't from the tables don't rotate.
   assert.equal(readCustomLook({ ...sent, rotate: { fullMs: 1, sectionMs: 8_000 } })?.rotate, null);
   for (const junk of [null, "custom", {}, { color: "#FFF" }, { headline: "x" }, { color: 1, headline: "x" }]) assert.equal(readCustomLook(junk), null, JSON.stringify(junk));
+});
+
+test("the live poll's custom look tells screens from before this update to draw no QR, and today's screens ignore that", () => {
+  // A TV still running the old code draws the question-form code on the custom menu unless it sees qrOff: true.
+  for (const raw of [
+    { on: true, style: "custom" },
+    { on: true, style: "custom", qrKind: "link", qrTo: "https://example.com/x" },
+    { on: true, style: "custom", qrKind: "picture", qrImage: "/uploads/logo.webp", qrCaption: "Follow us" },
+  ]) {
+    const sent = JSON.parse(JSON.stringify(liveCustomLook(parseMenuState(raw), sign)));
+    // Read as such a screen reads it: still the daytime menu (a colour and a headline, even an empty one), and its
+    // QR off, which also leaves off the headline and the three lines under the QR ("SCAN TO SUBMIT" and the rest).
+    assert.ok(typeof sent.color === "string" && typeof sent.headline === "string", JSON.stringify(raw));
+    assert.equal(sent.qrOff, true, JSON.stringify(raw));
+    // Read as today's screens read it: exactly the look, with no qrOff.
+    assert.deepEqual(readCustomLook(sent), lookOf(raw), JSON.stringify(raw));
+  }
+  // The Control Center's preview look has no qrOff, and the standard menu sends no custom look.
+  assert.ok(!("qrOff" in (lookOf({ on: true, style: "custom" }) ?? {})));
+  assert.equal(liveCustomLook(parseMenuState({ on: true, style: "standard" }), sign), null);
 });
 
 test("a custom menu change: any of its settings, each checked, at least one known; plain words for what can't be saved", () => {
