@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ASSET_URL_MAX, DECISIONS_QR_SRC, DEFAULT_QR_SIZE, FORM_QR, QR_BASE, QR_KINDS, QR_LINK_LONG, QR_LINK_MAX, QR_SIZE_MAX, QR_SIZE_MIN, adminQrPreviewSrc, boardQr,
-  cleanAssetUrl, cleanQrLink, fitWithin, isLiveQrSrc, isQrKind, isQrSize, linkLabel, longLink, qrChoiceProblem, qrPercent, qrSide, readShownQr, withHttps,
+  cleanAssetUrl, cleanQrLink, fitWithin, isLiveQrSrc, isQrKind, isQrSize, linkLabel, longLink, pictureLands, qrChoiceProblem, qrPercent, qrSide, readShownQr, withHttps,
 } from "../src/lib/screen-qr.ts";
 
 test("a QR's link: a secure web address with a real host name, kept as the browser spells it", () => {
@@ -130,4 +130,13 @@ test("what stops a QR choice from saving, in plain words", () => {
   // A link left behind while the picture is picked doesn't matter, and the other way round.
   assert.equal(qrChoiceProblem({ kind: "picture", to: "http://old", image: "/uploads/a.webp" }), "");
   assert.equal(qrChoiceProblem({ kind: "", to: "http://old", image: "junk" }), "");
+});
+
+test("a picture that lands goes in only while My picture is picked, whatever was tapped on the way", () => {
+  // Still on My picture, or back on it after "No QR code" while it went up: the host is waiting for it there.
+  assert.equal(pictureLands("picture"), true);
+  // Moved on to "No QR code" (or the question form) or a link while it went up: that choice stands.
+  assert.equal(pictureLands(""), false);
+  assert.equal(pictureLands("link"), false);
+  for (const kind of QR_KINDS) assert.equal(pictureLands(kind), kind === "picture");
 });

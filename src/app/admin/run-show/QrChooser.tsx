@@ -6,7 +6,7 @@ import { uploadedFileName } from "@/lib/audio-upload";
 import { JPEG_QUALITY, hasTransparency, pictureName, pictureProblem, pictureType, shrunkSize } from "@/lib/picture-upload";
 import {
   DECISIONS_QR_SRC, DEFAULT_QR_SIZE, QR_BASE, QR_IMAGE_MAX_PX, QR_LINK_MAX, QR_SIZE_MAX, QR_SIZE_MIN, QR_SIZE_STEP, adminQrPreviewSrc, cleanAssetUrl, cleanQrLink,
-  linkLabel, longLink, qrChoiceProblem, withHttps, type QrKind, type QrPlace,
+  linkLabel, longLink, pictureLands, qrChoiceProblem, withHttps, type QrKind, type QrPlace,
 } from "@/lib/screen-qr";
 
 /** One QR choice as a card edits it: where it leads, the link and picture (kept while another is picked), and its size as a percentage. */
@@ -112,10 +112,10 @@ export default function QrChooser({ value, onChange, kinds, places, busy, idPref
   onUploading?: (uploading: boolean) => void;
 }): ReactElement {
   const fileInput = useRef<HTMLInputElement>(null);
-  // Which upload is the current one. Picking another choice, or the picture changing any other way (the card's Undo,
-  // say), moves it on, so an upload still going up then is stale: when it lands it changes nothing.
-  const uploadTurn = useRef(0);
-  useEffect(() => { uploadTurn.current += 1; }, [value.kind, value.image]);
+  // What is picked now, for a picture landing: it goes in only while "My picture" is (pictureLands). The picture can't
+  // change under an upload any other way: the paste box, and the card's Undo, Use defaults and Save, wait for it.
+  const kindNow = useRef(value.kind);
+  useEffect(() => { kindNow.current = value.kind; }, [value.kind]);
   const [uploading, setUploading] = useState(false);
   const [uploadProblem, setUploadProblem] = useState("");
   // The paste box is for a picture already online; most hosts upload one, so it starts folded unless a pasted address is in use.
@@ -144,18 +144,17 @@ export default function QrChooser({ value, onChange, kinds, places, busy, idPref
     if (wrong) return;
     setUploading(true);
     onUploading?.(true);
-    const turn = ++uploadTurn.current;
     try {
       const small = await shrinkPicture(file);
       const address = cleanAssetUrl(await upload(small, small.name, UPLOAD_WAIT_MS));
       // The host picked something else while it went up ("No QR code", say): their choice stands, and a later Save
-      // never puts this picture up.
-      if (turn !== uploadTurn.current) return;
+      // never puts this picture up. Back on "My picture" by now, it goes in as if they had never left.
+      if (!pictureLands(kindNow.current)) return;
       if (!address) throw new Error("The picture went up, but its address can't be used on the screen. Try again.");
       onChange({ kind: "picture", image: address });
       setPasting(false);
     } catch (error) {
-      if (turn !== uploadTurn.current) return;
+      if (!pictureLands(kindNow.current)) return;
       // The server's own words when it answered; a dropped connection or a garbled answer gets a plain line, not the browser's ("Failed to fetch").
       const plain = error instanceof Error && error.message && !(error instanceof TypeError) && !(error instanceof SyntaxError);
       setUploadProblem(plain ? error.message : "The picture didn't upload. Check this phone's connection, then try again.");
