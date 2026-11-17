@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import PageHeader from "@/components/PageHeader";
 import JsonLd from "@/components/JsonLd";
 import ShopEmbed from "@/components/ShopEmbed";
+import ShopProducts from "@/components/ShopProducts";
+import { listShopProducts } from "@/lib/printify";
 import { getContent } from "@/lib/store";
 import { toMetadata } from "@/lib/meta";
 import { breadcrumbSchema, faqSchema } from "@/lib/schema";
@@ -16,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ShopPage() {
-  const content = await getContent();
+  const [content, products] = await Promise.all([getContent(), listShopProducts()]);
   const { site, shop } = content;
   const faq = faqSchema(shop.seo);
 
@@ -33,9 +35,9 @@ export default async function ShopPage() {
       <PageHeader hero={content.home.hero} nav={site.nav} active="/shop" />
       <PageIntro title={shop.heading} description={shop.intro} artwork="flash-lipstick" />
 
-      <ShopEmbed shop={shop} />
+      {products.length ? <ShopProducts products={products} /> : <ShopEmbed shop={shop} />}
 
-      {shop.storefrontUrl ? (
+      {shop.storefrontUrl && !products.length ? (
         <div className="mx-auto max-w-6xl px-5 pb-20 pt-8">
           <a
             href={shop.storefrontUrl}

@@ -6,7 +6,9 @@ import type { MenuFontId, ScriptFontId } from "@/lib/menu-fonts";
  * one the host picked, when the menu is drawn in it.
  */
 const bebas = Bebas_Neue({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
-const oswald = Oswald({ weight: ["500", "600", "700"], subsets: ["latin"], display: "swap", preload: false });
+// Variable font (one file covers 500–700). Listing the weights separately makes
+// Google repeat the same file URL per weight, which Turbopack's font loader rejects.
+const oswald = Oswald({ subsets: ["latin"], display: "swap", preload: false });
 const anton = Anton({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
 const playfair = Playfair_Display({ weight: ["500", "600", "700"], subsets: ["latin"], display: "swap", preload: false });
 const abril = Abril_Fatface({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
