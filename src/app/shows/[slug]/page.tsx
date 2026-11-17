@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import JsonLd from "@/components/JsonLd";
-import { getContent } from "@/lib/store";
+import LiveShowLineups from "@/components/LiveShowLineups";
+import { getPublicContent } from "@/lib/showrunner-public-content";
 import { toMetadata } from "@/lib/meta";
 import { aspectValue, formatDate, renderBody } from "@/lib/render";
 import { breadcrumbSchema, eventSchema, faqSchema } from "@/lib/schema";
@@ -21,7 +22,7 @@ const STATUS_NOTE: Record<string, string> = {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
-  const { site, shows } = await getContent();
+  const { site, shows } = await getPublicContent();
   const show = shows.find((entry) => entry.slug === slug);
   if (!show) return { title: "Not found" };
 
@@ -42,7 +43,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 
 export default async function ShowPage({ params }: Params) {
   const { slug } = await params;
-  const content = await getContent();
+  const content = await getPublicContent();
   const show = content.shows.find((entry) => entry.slug === slug && entry.published);
   if (!show) notFound();
 
@@ -67,6 +68,7 @@ export default async function ShowPage({ params }: Params) {
 
   return (
     <main>
+      <LiveShowLineups />
       <JsonLd data={eventSchema(content, show)} />
       <JsonLd
         data={breadcrumbSchema(site.url, [
@@ -125,12 +127,14 @@ export default async function ShowPage({ params }: Params) {
               />
             ) : null}
 
-            {bill.length ? (
+            {bill.length || show.lineupUnavailable ? (
               <section className="mt-10">
                 <h2 className="mb-4 text-[11px] uppercase tracking-[0.32em] text-[var(--pnc-muted)]">
                   The bill
                 </h2>
-                {bill.map((group) => (
+                {show.lineupUnavailable ? (
+                  <p className="text-[15px] text-[var(--pnc-muted)]">Lineup temporarily unavailable</p>
+                ) : bill.map((group) => (
                   <div key={group.role || "cast"} className="mb-6">
                     {group.role ? (
                       <h3 className="mb-2 text-[12px] uppercase tracking-[0.18em]">{group.role}</h3>

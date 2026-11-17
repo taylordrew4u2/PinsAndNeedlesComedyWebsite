@@ -180,6 +180,10 @@ export type ShowStatus = "scheduled" | "sold-out" | "postponed" | "cancelled";
 /** Everything about one night: when, where, who, how to get in, and what happened. */
 export type Show = {
   id: string;
+  /** Public request-time overlay identity; never written into admin content. */
+  showrunnerId?: string;
+  /** Linked public lineup could not be read, distinct from a successful empty bill. */
+  lineupUnavailable?: boolean;
   slug: string;
   title: string;
   tagline: string;
