@@ -140,9 +140,9 @@ export type AboutPage = {
 export type ShopPage = {
   heading: string;
   intro: string;
-  /** Paste a Shopify Buy Button / iframe snippet here. Rendered as-is. */
+  /** Backup embed snippet (iframe/HTML), shown only when no Printify products load. */
   embedHtml: string;
-  /** Fallback: a plain link out to the Shopify storefront. */
+  /** Fallback: a plain link out to another storefront. */
   storefrontUrl: string;
   storefrontLabel: string;
   embedHeight: number;

@@ -243,9 +243,9 @@ export const defaultContent: Content = {
 
   shop: {
     heading: "Shop",
-    intro: "Tees, totes and caps. Shipped from the Pins & Needles Shopify store.",
+    intro: "Tees, totes and caps. Printed to order and shipped to your door.",
     embedHtml: "",
-    storefrontUrl: "https://www.pinsandneedlescomedy.com/collections/all",
+    storefrontUrl: "",
     storefrontLabel: "Open the full store",
     embedHeight: 1400,
     seo: seo({
@@ -262,7 +262,7 @@ export const defaultContent: Content = {
       canonical: `${SITE_URL}/shop`,
       aiSummary: `Official merchandise store for Pins & Needles Comedy, the NYC comedy brand run by ${creditLine(
         PRODUCERS
-      )}, selling t-shirts, tote bags and caps through Shopify.`,
+      )}, selling t-shirts, tote bags and caps, printed to order.`,
     }),
   },
 

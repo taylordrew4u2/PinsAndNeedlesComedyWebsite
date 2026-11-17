@@ -4,9 +4,9 @@ import { useEffect, useRef } from "react";
 import type { ShopPage } from "@/lib/types";
 
 /**
- * Renders whatever embed snippet the admin pastes in — a Shopify Buy Button
+ * Renders whatever embed snippet the admin pastes in — an embed
  * script, an iframe, or raw HTML. Scripts in `innerHTML` never execute, so we
- * re-create them here; that is what makes Shopify's own snippet work.
+ * re-create them here; that is what makes pasted embed snippets work.
  */
 export default function ShopEmbed({ shop }: { shop: ShopPage }) {
   const hostRef = useRef<HTMLDivElement | null>(null);

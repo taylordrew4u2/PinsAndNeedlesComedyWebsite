@@ -13,26 +13,30 @@ export default function ShopTab({ content, update }: { content: Content; update:
 
   return (
     <>
-      <Section icon="🛍️" title="Shop" hint="Paste your Shopify code once and the shop shows up on /shop.">
-        <Area
-          label="Shopify code"
-          hint="Paste the whole snippet. Scripts run, so Shopify's own Buy Button code works as-is. An iframe from any other store works too."
-          rows={10}
-          value={shop.embedHtml}
-          placeholder='<div id="collection-component-…"></div><script type="text/javascript">…</script>'
-          onChange={(v) => update((d) => void (d.shop.embedHtml = v))}
-        />
-        <More title="Where to get the code">
+      <Section
+        icon="🛍️"
+        title="Shop"
+        hint="Products come straight from Printify. Add, price or hide a product in Printify and /shop updates within 5 minutes."
+      >
+        <More title="How the shop works">
           <Steps>
             <li>
-              Shopify admin → <span className="text-neutral-100">Sales channels → Buy Button</span> →
-              create a collection or product button.
+              Every visible product in your Printify <span className="text-neutral-100">API shop</span> shows on /shop
+              with its Printify price.
             </li>
-            <li>
-              Choose your layout, then hit <span className="text-neutral-100">Next → Copy code</span>.
-            </li>
-            <li>Paste the whole thing in the box above. It saves itself.</li>
+            <li>People pay with a card through Stripe on this site.</li>
+            <li>Once paid, the order goes to Printify automatically, gets printed and ships to them.</li>
           </Steps>
+        </More>
+        <More title="Backup: paste embed code" hint="Only shown if Printify isn't connected">
+          <Area
+            label="Embed code"
+            hint="An iframe or HTML snippet from another store. Scripts run."
+            rows={8}
+            value={shop.embedHtml}
+            placeholder="<iframe …></iframe>"
+            onChange={(v) => update((d) => void (d.shop.embedHtml = v))}
+          />
         </More>
         <Row>
           <Text
