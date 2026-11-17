@@ -33,7 +33,8 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function text(value: unknown, max: number): string | null {
   return typeof value === "string" && value.length <= max
-    && !/[\u0000-\u001f\u007f]/.test(value) ? value.trim() : null;
+    && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)
+    ? value.replace(/[\t\r\n]+/g, " ").trim() : null;
 }
 
 function calendarDate(value: string): boolean {
@@ -83,7 +84,7 @@ export function parseWebsiteLineupFeed(input: unknown): WebsiteLineupFeed | null
     const name = text(show.name, 300);
     const date = text(show.date, 10);
     const time = text(show.time, 200);
-    const venueName = text(show.venueName, 300);
+    const venueName = text(show.venueName, 1000);
     const location = text(show.location, 1000);
     const ticketLink = text(show.ticketLink, 2048);
     if (name === null || date === null || time === null || venueName === null
@@ -108,7 +109,7 @@ export function parseWebsiteLineupFeed(input: unknown): WebsiteLineupFeed | null
         projected.id = person.id;
       }
       if ("credits" in person) {
-        const credits = text(person.credits, 2000);
+        const credits = text(person.credits, 4000);
         if (credits === null) return null;
         projected.credits = credits;
       }

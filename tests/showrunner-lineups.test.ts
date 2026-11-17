@@ -109,6 +109,38 @@ test("malformed feed fields are rejected without coercion", () => {
     shows: [available(), available()] }), null);
 });
 
+test("legal multiline public text is normalized within backend field limits", () => {
+  const credits = "First credit\nSecond credit\tThird credit\r\n" + "C".repeat(3000);
+  const venueName = "Venue\n" + "V".repeat(700);
+  const current = feed([available({
+    name: "Bad Decisions\tLive",
+    venueName,
+    lineup: [{ id: "comic", name: "First\r\nLast", credits }],
+  })]);
+  const entry = current.shows[0];
+  assert.ok(entry.available);
+  assert.equal(entry.name, "Bad Decisions Live");
+  assert.equal(entry.venueName, "Venue " + "V".repeat(700));
+  assert.deepEqual(entry.lineup, [{
+    id: "comic", name: "First Last",
+    credits: "First credit Second credit Third credit " + "C".repeat(3000),
+  }]);
+  for (const control of ["\u0000", "\u000b", "\u001f", "\u007f"]) {
+    assert.equal(parseWebsiteLineupFeed({
+      version: 1, updatedAt: "2026-11-17T03:00:00Z",
+      shows: [available({ lineup: [{ name: "Comic", credits: "Credit" + control }] })],
+    }), null);
+  }
+  for (const invalid of [
+    available({ venueName: "V".repeat(1001) }),
+    available({ lineup: [{ name: "Comic", credits: "C".repeat(4001) }] }),
+  ]) {
+    assert.equal(parseWebsiteLineupFeed({
+      version: 1, updatedAt: "2026-11-17T03:00:00Z", shows: [invalid],
+    }), null);
+  }
+});
+
 test("unique manual night keeps its public identity, copy, design and ticket settings", () => {
   const saved = manual();
   const original = content([saved]);
