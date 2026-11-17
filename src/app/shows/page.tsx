@@ -5,7 +5,8 @@ import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import JsonLd from "@/components/JsonLd";
 import ShowCard from "@/components/ShowCard";
-import { getContent } from "@/lib/store";
+import LiveShowLineups from "@/components/LiveShowLineups";
+import { getPublicContent } from "@/lib/showrunner-public-content";
 import { toMetadata } from "@/lib/meta";
 import { breadcrumbSchema, faqSchema } from "@/lib/schema";
 import { formatTime, nyToday, splitShows } from "@/lib/shows";
@@ -16,12 +17,12 @@ import styles from "./shows.module.css";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { site, showsPage } = await getContent();
+  const { site, showsPage } = await getPublicContent();
   return await toMetadata(site, showsPage.seo, "/shows");
 }
 
 export default async function ShowsIndexPage() {
-  const content = await getContent();
+  const content = await getPublicContent();
   const { site, showsPage, weekly } = content;
   const today = nyToday();
   const { past } = splitShows(content.shows, today);
@@ -37,6 +38,7 @@ export default async function ShowsIndexPage() {
 
   return (
     <main>
+      <LiveShowLineups />
       <JsonLd data={{ "@context": "https://schema.org", "@type": "ItemList", itemListElement: upcoming.map((show, index) => ({ "@type": "ListItem", position: index + 1, name: `${show.title} — ${show.date}`, url: `${site.url.replace(/\/$/, "")}${show.generated ? `/shows#${show.id}` : `/shows/${show.slug}`}` })) }} />
       <JsonLd
         data={breadcrumbSchema(site.url, [
@@ -67,7 +69,7 @@ export default async function ShowsIndexPage() {
                 </div>
                 <div className={styles.lineup}>
                   <h3 className={styles.label}>Lineup</h3>
-                  {names.length ? <ul className={styles.names}>{names.map((name, index) => <li key={index}>{name}</li>)}</ul> : <p className={styles.pending}>Lineup to be announced</p>}
+                  {show.lineupUnavailable ? <p className={styles.pending}>Lineup temporarily unavailable</p> : names.length ? <ul className={styles.names}>{names.map((name, index) => <li key={index}>{name}</li>)}</ul> : <p className={styles.pending}>Lineup to be announced</p>}
                   {!show.generated ? <Link className={styles.details} href={`/shows/${show.slug}`}>Show details </Link> : null}
                 </div>
               </article>;

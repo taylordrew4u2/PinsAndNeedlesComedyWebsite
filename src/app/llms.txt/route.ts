@@ -1,4 +1,4 @@
-import { getContent } from "@/lib/store";
+import { getPublicContent } from "@/lib/showrunner-public-content";
 import { clamp, siteBase, stripMarkdown } from "@/lib/seo";
 import { nyToday, splitShows, timeLine, venueLine } from "@/lib/shows";
 import { weeklySummary } from "@/lib/decisions";
@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * llms.txt — a plain-text brief written for answer engines and AI crawlers.
- * Everything in here comes from the AI Summary fields in /admin.
+ * Site summaries come from /admin; linked show lineups use the current public feed.
  */
 export async function GET() {
-  const content = await getContent();
+  const content = await getPublicContent();
   const { site, about, shop, contact, weekly } = content;
   const { upcoming, past } = splitShows(content.shows, nyToday());
   const base = siteBase(site.url);
@@ -72,7 +72,9 @@ ${
             } — ${venueLine(show) || "venue to be announced"}${
               show.price ? ` — ${show.price}` : ""
             }${show.ticketUrl ? ` — tickets: ${show.ticketUrl}` : ""}${
-              show.lineup.length
+              show.lineupUnavailable
+                ? " — lineup temporarily unavailable"
+                : show.lineup.length
                 ? ` — lineup: ${show.lineup.map((person) => person.name).filter(Boolean).join(", ")}`
                 : ""
             }`
@@ -103,7 +105,7 @@ ${posts
   return new Response(body, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "public, max-age=0, s-maxage=600",
+      "Cache-Control": "no-store",
     },
   });
 }
