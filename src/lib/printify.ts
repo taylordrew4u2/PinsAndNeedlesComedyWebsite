@@ -1,6 +1,8 @@
 import "server-only";
+import { claimProduction } from "./shop-production-claim";
 
 import { fetchWithin } from "./fetch-within";
+import { fulfillPrintifyOrder, PrintifyError } from "./shop-fulfillment";
 import { pickShopId, toShopProduct, toShopProducts, type PrintifyAddress, type ShopProduct } from "./shop-catalog";
 
 /**
@@ -24,10 +26,12 @@ function headers(): HeadersInit {
   };
 }
 
-async function call(path: string, init: RequestInit & { next?: { revalidate: number } } = {}): Promise<unknown> {
+async function call(path: string, init: RequestInit = {}): Promise<unknown> {
   const { response, text } = await fetchWithin(`${API}${path}`, { ...init, headers: headers(), redirect: "error" }, TIMEOUT_MS);
-  if (!response.ok) throw new Error(`Printify ${response.status} on ${path.split("?")[0]}: ${text.slice(0, 300)}`);
-  return text ? JSON.parse(text) : null;
+  let data: unknown = null;
+  try { data = text ? JSON.parse(text) : null; } catch { /* Non-JSON upstream error. */ }
+  if (!response.ok) throw new PrintifyError(response.status, data);
+  return data;
 }
 
 export async function printifyShopId(): Promise<string | null> {
@@ -64,33 +68,30 @@ export async function getShopProduct(productId: string): Promise<ShopProduct | n
   return toShopProduct(await call(`/shops/${shop}/products/${productId}.json`, { cache: "no-store" }));
 }
 
-/** Create the order and send it straight to print. Returns the Printify order id. */
+/** Recover or create one order, persist its identity, then resume production. */
 export async function createPrintifyOrder(input: {
   externalId: string;
   productId: string;
   variantId: number;
   quantity: number;
   address: PrintifyAddress;
+  existingId?: string;
+  existingShopId?: string;
+  saveOrder: (id: string, shopId: string) => Promise<unknown>;
 }): Promise<string> {
-  const shop = await printifyShopId();
+  const shop = input.existingShopId || await printifyShopId();
   if (!shop) throw new Error("No Printify API shop found");
-  const created = (await call(`/shops/${shop}/orders.json`, {
-    method: "POST",
-    cache: "no-store",
-    body: JSON.stringify({
-      external_id: input.externalId,
+  return fulfillPrintifyOrder({
+    shopId: shop,
+    externalId: input.externalId,
+    existingId: input.existingId,
+    hold: process.env.PRINTIFY_HOLD_ORDERS === "1",
+    body: {
       label: `Website ${input.externalId.slice(-8)}`,
       line_items: [{ product_id: input.productId, variant_id: input.variantId, quantity: input.quantity }],
       shipping_method: 1,
       send_shipping_notification: true,
       address_to: input.address,
-    }),
-  })) as { id?: string } | null;
-  const id = created?.id;
-  if (!id) throw new Error("Printify created no order id");
-
-  if (process.env.PRINTIFY_HOLD_ORDERS !== "1") {
-    await call(`/shops/${shop}/orders/${id}/send_to_production.json`, { method: "POST", cache: "no-store" });
-  }
-  return id;
+    },
+  }, { call, saveOrder: input.saveOrder, claimProduction });
 }
