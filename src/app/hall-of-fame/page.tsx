@@ -30,6 +30,16 @@ export default async function HallOfFamePage() {
           <h1 className={styles.title}>{hall.heading}</h1>
           <p className={styles.description}>{hall.intro}</p>
         </div>
+        <figure className={styles.poster}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/stripped-down-for-stand-up.svg"
+            alt="Pins & Needles Comedy flyer for Stripped Down for Stand-Up: two tattooed comics in their underwear surrounded by tattoo flash, with the line “Tattooed comics strip down for stand-up.”"
+            width={2880}
+            height={1920}
+            fetchPriority="high"
+          />
+        </figure>
         {performers.length ? (
           <>
           <div className={styles.rosterHeading}><span>The comics who stripped down</span><span>Alphabetical · A–Z</span></div>
