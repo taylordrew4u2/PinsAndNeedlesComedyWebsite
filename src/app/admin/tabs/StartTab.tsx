@@ -145,7 +145,7 @@ export default function StartTab({
             onClick={() => go("news", "write")}
           />
           <Job icon="🎬" title="Add reels" hint="Pull videos in from Instagram" onClick={() => go("reels")} />
-          <Job icon="⭐" title="Add someone to the Hall of Fame" hint="A comic who performed with you" onClick={addPerformer} />
+          <Job icon="⭐" title="Add someone to the Hall of Fame" hint="A comic from Stripped Down for Stand-Up" onClick={addPerformer} />
           <Job icon="👀" title="Look at the website" hint="Opens in a new tab" href="/" external />
           <Job icon="⚙️" title="Change how the site looks" hint="Name, colors, fonts, menu" onClick={() => go("site")} />
         </div>

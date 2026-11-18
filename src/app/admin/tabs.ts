@@ -5,7 +5,7 @@ export const TABS = [
   { id: "weekly", icon: "🎲", label: "Bad Decisions", blurb: "The weekly show and tonight's pile" },
   { id: "news", icon: "📰", label: "News", blurb: "Recaps and announcements" },
   { id: "reels", icon: "🎬", label: "Reels", blurb: "Instagram videos on the site" },
-  { id: "hall", icon: "⭐", label: "Hall of Fame", blurb: "Everyone who has performed" },
+  { id: "hall", icon: "⭐", label: "Hall of Fame", blurb: "Stripped Down for Stand-Up comics" },
   { id: "home", icon: "🏠", label: "Homepage", blurb: "The headline and the logo" },
   { id: "about", icon: "👋", label: "About", blurb: "Your story and the producers" },
   { id: "contact", icon: "📬", label: "Contact", blurb: "Emails and links" },

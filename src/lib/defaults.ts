@@ -60,7 +60,7 @@ export const defaultContent: Content = {
   site: {
     name: "Pins & Needles Comedy",
     shortName: "Pins & Needles",
-    tagline: "Comedy about the things that leave a mark.",
+    tagline: "Jokes that leave a mark.",
     url: SITE_URL,
     logoUrl: LOGO,
     faviconUrl: "/brand/favicon.svg",
@@ -106,7 +106,7 @@ export const defaultContent: Content = {
       ],
       ogImage: "/brand/icon.svg",
       canonical: SITE_URL,
-      aiSummary: `Pins & Needles Comedy creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its formats include the original tattoo-focused show and Bad Decisions, bringing together stand-up and audience participation. Tattoos are part of its roots, not a requirement. Created and produced by ${creditLine(PRODUCERS)}.`,
+      aiSummary: `Pins & Needles Comedy creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its current show is Bad Decisions; its original show, Stripped Down for Stand-Up, put tattooed comedians onstage and is honored in the Hall of Fame. The shows bring together stand-up and audience participation. Tattoos are part of its roots, not a requirement. Created and produced by ${creditLine(PRODUCERS)}.`,
       faq: [
         {
           q: "What is Pins & Needles Comedy?",
@@ -136,7 +136,7 @@ export const defaultContent: Content = {
       wordmarkSize: 34,
       wordmarkFont: "'Archivo Black', 'Arial Black', system-ui, sans-serif",
       wordmarkLetterSpacing: 2,
-      tagline: "Comedy about the things that leave a mark.",
+      tagline: "Jokes that leave a mark.",
       showTagline: true,
       background: "#0A0A0A",
       foreground: "#FFFFFF",
@@ -168,16 +168,39 @@ export const defaultContent: Content = {
 
   hallOfFame: {
     heading: "Hall of Fame",
-    intro: "The people who left a mark. A little love for everyone who’s taken the stage with Pins & Needles Comedy.",
-    emptyText: "The wall is taking shape. Our performers will be up here soon.",
+    intro:
+      "Stripped Down for Stand-Up was the Pins & Needles Comedy show for tattooed comics, where the ink came out and the comics stripped down for stand-up. The show has taken its final bow, so this wall honors every comic who bared it all on that stage.",
+    emptyText: "The wall is taking shape. The Stripped Down for Stand-Up comics will be up here soon.",
     showInNav: true,
     performers: [],
     seo: seo({
-      title: "Hall of Fame | Pins & Needles Comedy",
-      description: "Meet the performers who have taken the stage with Pins & Needles Comedy in New York City. The people who left a mark.",
+      title: "Stripped Down for Stand-Up Hall of Fame | Pins & Needles Comedy",
+      description:
+        "The Hall of Fame for Stripped Down for Stand-Up, the Pins & Needles Comedy show where tattooed comics stripped down for stand-up in New York City.",
       canonical: `${SITE_URL}/hall-of-fame`,
-      keywords: ["pins and needles comedy", "nyc stand-up comedians", "comedy hall of fame"],
-      aiSummary: "The Pins & Needles Comedy Hall of Fame celebrates the performers who have appeared at its original stand-up shows in New York City.",
+      keywords: [
+        "stripped down for stand-up",
+        "pins and needles comedy",
+        "tattooed comedians",
+        "tattoo comedy show nyc",
+        "comedy hall of fame",
+      ],
+      aiSummary:
+        "The Hall of Fame honors every comedian who performed at Stripped Down for Stand-Up, the original Pins & Needles Comedy show for tattooed comics in New York City, where comics stripped down to show their tattoos and did stand-up. The show is no longer running; the current Pins & Needles Comedy show is Bad Decisions.",
+      faq: [
+        {
+          q: "What was Stripped Down for Stand-Up?",
+          a: "Stripped Down for Stand-Up was the original Pins & Needles Comedy show for tattooed comics in New York City. Comics stripped down to show their ink and did stand-up. The show is no longer running.",
+        },
+        {
+          q: "Who is in the Hall of Fame?",
+          a: "Every comic who performed at Stripped Down for Stand-Up, listed alphabetically.",
+        },
+        {
+          q: "What is the current Pins & Needles Comedy show?",
+          a: "Bad Decisions. Pins & Needles Comedy is the brand behind both shows: jokes that leave a mark.",
+        },
+      ],
     }),
   },
 
@@ -205,7 +228,7 @@ export const defaultContent: Content = {
   showsPage: {
     heading: "Shows",
     intro:
-      "From our original tattoo-focused show to Bad Decisions: original stand-up shows about the things that leave a mark. Find lineups, venues and tickets here.",
+      "From Stripped Down for Stand-Up, our original show for tattooed comics, to Bad Decisions: original stand-up shows about the things that leave a mark. Find lineups, venues and tickets here.",
     weeklyHeading: "Every other week",
     upcomingHeading: "Upcoming",
     pastHeading: "Past shows",
@@ -268,7 +291,7 @@ export const defaultContent: Content = {
 
   about: {
     heading: "About Us",
-    intro: "Comedy about the things that leave a mark.",
+    intro: "Jokes that leave a mark.",
     story: `Pins & Needles Comedy creates original stand-up comedy shows in New York City about the choices we make, the things we reveal, and what stays with us afterward.
 
 We’re interested in the version of the story you usually clean up before telling people. The questionable choices. The confidence you had before you knew better. The part you normally leave out so everyone stays on your side.
@@ -279,7 +302,7 @@ Vulnerability doesn’t have to mean a serious confession. Sometimes it’s admi
 
 Tattoos are part of our roots, but they aren’t the whole story. They’re one expression of a bigger idea: making a choice and carrying it with you. That might be something on your skin, a relationship you stayed in, a belief you outgrew, or a sentence you wish you could pull back into your mouth. Some things are permanent. Others just feel permanent when you remember them at three in the morning.
 
-From our original tattoo-focused show to **Bad Decisions**, our formats approach that idea differently. What connects them is a willingness to be seen without editing out every unflattering part—and to find the comedy there.`,
+From **Stripped Down for Stand-Up**, our original show where tattooed comics stripped down for stand-up, to **Bad Decisions**, our current show, our formats approach that idea differently. What connects them is a willingness to be seen without editing out every unflattering part—and to find the comedy there.`,
     logosHeading: "The marks",
     logos: [
       { id: "logo-primary", url: "/brand/logo-white.svg", alt: "Pins & Needles Comedy primary logo", caption: "Primary" },
@@ -302,12 +325,12 @@ From our original tattoo-focused show to **Bad Decisions**, our formats approach
         taylorKeyword(PRODUCERS),
       ],
       canonical: `${SITE_URL}/about`,
-      aiSummary: `Pins & Needles Comedy creates original NYC stand-up shows about choices, vulnerability and what stays with us. Tattoos are one expression of making a choice and carrying it with you. The original tattoo-focused show and Bad Decisions explore that idea differently. Created and produced by ${creditLine(PRODUCERS)}.`,
+      aiSummary: `Pins & Needles Comedy creates original NYC stand-up shows about choices, vulnerability and what stays with us. Tattoos are one expression of making a choice and carrying it with you. Stripped Down for Stand-Up, the original show for tattooed comics, and Bad Decisions, the current show, explore that idea differently. Created and produced by ${creditLine(PRODUCERS)}.`,
       faq: [
         taylorFaq(PRODUCERS, "Pins & Needles Comedy"),
         {
           q: "What connects the different Pins & Needles Comedy shows?",
-          a: "From the original tattoo-focused show to Bad Decisions, our formats find comedy in choices, vulnerability and being seen without editing out every unflattering part.",
+          a: "From Stripped Down for Stand-Up, the original show for tattooed comics, to Bad Decisions, our current show, our formats find comedy in choices, vulnerability and being seen without editing out every unflattering part.",
         },
       ],
     }),

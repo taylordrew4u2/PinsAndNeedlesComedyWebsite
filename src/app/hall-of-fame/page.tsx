@@ -26,13 +26,23 @@ export default async function HallOfFamePage() {
       <PageHeader hero={home.hero} nav={site.nav} active="/hall-of-fame" />
       <section className={styles.gallery}>
         <div className={styles.intro}>
-          <p className={styles.eyebrow}>Pins &amp; Needles Comedy</p>
+          <p className={styles.eyebrow}>Stripped Down for Stand-Up</p>
           <h1 className={styles.title}>{hall.heading}</h1>
           <p className={styles.description}>{hall.intro}</p>
         </div>
+        <figure className={styles.poster}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/stripped-down-for-stand-up.svg"
+            alt="Pins & Needles Comedy flyer for Stripped Down for Stand-Up: two tattooed comics in their underwear surrounded by tattoo flash, with the line “Tattooed comics strip down for stand-up.” and the run, September 2025 to October 2026, in gold."
+            width={2880}
+            height={1920}
+            fetchPriority="high"
+          />
+        </figure>
         {performers.length ? (
           <>
-          <div className={styles.rosterHeading}><span>The performers</span><span>Alphabetical · A–Z</span></div>
+          <div className={styles.rosterHeading}><span>The comics who stripped down</span><span>Alphabetical · A–Z</span></div>
           <div className={styles.grid}>
             {performers.map((person) => {
               const link = performerSocial(person);

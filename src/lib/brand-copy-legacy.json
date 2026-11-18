@@ -282,5 +282,132 @@
         "a": "No. The advice is bad on purpose, but nobody gets humiliated."
       }
     ]
+  },
+  {
+    "path": [
+      "site",
+      "tagline"
+    ],
+    "previous": "Comedy about the things that leave a mark."
+  },
+  {
+    "path": [
+      "site",
+      "seo",
+      "aiSummary"
+    ],
+    "previous": "Pins & Needles Comedy creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its formats include the original tattoo-focused show and Bad Decisions, bringing together stand-up and audience participation. Tattoos are part of its roots, not a requirement. Created and produced by stand-up comedian Taylor Drew."
+  },
+  {
+    "path": [
+      "home",
+      "hero",
+      "tagline"
+    ],
+    "previous": "Comedy about the things that leave a mark."
+  },
+  {
+    "path": [
+      "hallOfFame",
+      "intro"
+    ],
+    "previous": "The people who left a mark. A little love for everyone who’s taken the stage with Pins & Needles Comedy."
+  },
+  {
+    "path": [
+      "hallOfFame",
+      "emptyText"
+    ],
+    "previous": "The wall is taking shape. Our performers will be up here soon."
+  },
+  {
+    "path": [
+      "hallOfFame",
+      "seo",
+      "title"
+    ],
+    "previous": "Hall of Fame | Pins & Needles Comedy"
+  },
+  {
+    "path": [
+      "hallOfFame",
+      "seo",
+      "description"
+    ],
+    "previous": "Meet the performers who have taken the stage with Pins & Needles Comedy in New York City. The people who left a mark."
+  },
+  {
+    "path": [
+      "hallOfFame",
+      "seo",
+      "keywords"
+    ],
+    "previous": [
+      "pins and needles comedy",
+      "nyc stand-up comedians",
+      "comedy hall of fame"
+    ]
+  },
+  {
+    "path": [
+      "hallOfFame",
+      "seo",
+      "aiSummary"
+    ],
+    "previous": "The Pins & Needles Comedy Hall of Fame celebrates the performers who have appeared at its original stand-up shows in New York City."
+  },
+  {
+    "path": [
+      "hallOfFame",
+      "seo",
+      "faq"
+    ],
+    "previous": []
+  },
+  {
+    "path": [
+      "showsPage",
+      "intro"
+    ],
+    "previous": "From our original tattoo-focused show to Bad Decisions: original stand-up shows about the things that leave a mark. Find lineups, venues and tickets here."
+  },
+  {
+    "path": [
+      "about",
+      "intro"
+    ],
+    "previous": "Comedy about the things that leave a mark."
+  },
+  {
+    "path": [
+      "about",
+      "story"
+    ],
+    "previous": "Pins & Needles Comedy creates original stand-up comedy shows in New York City about the choices we make, the things we reveal, and what stays with us afterward.\n\nWe’re interested in the version of the story you usually clean up before telling people. The questionable choices. The confidence you had before you knew better. The part you normally leave out so everyone stays on your side.\n\nOur shows bring together stand-up and audience participation to make room for those stories without requiring a moral at the end. Not every mistake makes you a better person. Sometimes it just gives you something funny to talk about. And not every choice that other people question is one you regret.\n\nVulnerability doesn’t have to mean a serious confession. Sometimes it’s admitting you were the problem. Sometimes it’s defending something nobody else understands. Sometimes it’s getting onstage without pretending you’ve figured everything out. We’re interested in what happens when people stop managing how they look long enough to say something honest.\n\nTattoos are part of our roots, but they aren’t the whole story. They’re one expression of a bigger idea: making a choice and carrying it with you. That might be something on your skin, a relationship you stayed in, a belief you outgrew, or a sentence you wish you could pull back into your mouth. Some things are permanent. Others just feel permanent when you remember them at three in the morning.\n\nFrom our original tattoo-focused show to **Bad Decisions**, our formats approach that idea differently. What connects them is a willingness to be seen without editing out every unflattering part—and to find the comedy there."
+  },
+  {
+    "path": [
+      "about",
+      "seo",
+      "aiSummary"
+    ],
+    "previous": "Pins & Needles Comedy creates original NYC stand-up shows about choices, vulnerability and what stays with us. Tattoos are one expression of making a choice and carrying it with you. The original tattoo-focused show and Bad Decisions explore that idea differently. Created and produced by stand-up comedian Taylor Drew."
+  },
+  {
+    "path": [
+      "about",
+      "seo",
+      "faq"
+    ],
+    "previous": [
+      {
+        "q": "Who created Pins & Needles Comedy?",
+        "a": "Pins & Needles Comedy was created by stand-up comedian Taylor Drew, who hosts and produces every show."
+      },
+      {
+        "q": "What connects the different Pins & Needles Comedy shows?",
+        "a": "From the original tattoo-focused show to Bad Decisions, our formats find comedy in choices, vulnerability and being seen without editing out every unflattering part."
+      }
+    ]
   }
 ]

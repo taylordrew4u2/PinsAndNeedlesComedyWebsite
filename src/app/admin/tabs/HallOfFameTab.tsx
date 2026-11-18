@@ -42,7 +42,7 @@ export const newHallPerformer = (): HallPerformer => ({
   published: false,
 });
 
-const page = { page: "hall of fame: every comedian who has performed at the show", url: "/hall-of-fame" };
+const page = { page: "hall of fame: every comedian who performed at Stripped Down for Stand-Up, the original Pins & Needles show for tattooed comics (no longer running)", url: "/hall-of-fame" };
 
 export default function HallOfFameTab({
   content,

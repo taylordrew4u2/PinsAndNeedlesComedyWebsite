@@ -2,7 +2,7 @@
 export const homeDesignDefaults = {
   artwork: "/brand/pins-and-needles-flames.svg",
   eyebrow: "Original stand-up · New York City",
-  headline: "Comedy about the things that",
+  headline: "Jokes that",
   emphasis: "leave a mark.",
   description:
     "Honest stories. Questionable choices. A room full of people who get it.",
