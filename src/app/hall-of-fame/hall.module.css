@@ -64,6 +64,8 @@
 .description { margin: 0; max-width: 420px; color: #bfb6a3; font-size: 14px; line-height: 1.8; text-wrap: pretty; }
 .poster { margin: 0 0 64px; border: 1px solid #c6a76b55; box-shadow: 0 0 0 6px #0a0a0a, 0 0 0 7px #c6a76b26, 0 30px 80px #000c; background: #000; }
 .hall .poster img { display: block; width: 100%; height: auto; filter: none; }
+.posterLink { display: block; }
+.posterHint { display: none; }
 .rosterHeading { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 28px; color: #bfa56e; font: 500 10px/1.6 var(--font-inter), sans-serif; text-transform: uppercase; letter-spacing: .14em; }
 .accents { max-width: 1096px; margin: auto; border-top: 1px solid #c6a76b26; }
 .accents > div { justify-content: center; gap: 48px; margin: 0; padding: 28px; }
@@ -73,6 +75,8 @@
   .intro { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-bottom: 32px; padding-bottom: 28px; }
   .hall .title { font-size: 46px; }
   .description { max-width: 340px; }
-  .poster { margin-bottom: 36px; box-shadow: 0 0 0 4px #0a0a0a, 0 0 0 5px #c6a76b26; }
+  .poster { margin: 0 -24px 36px; border: 0; box-shadow: none; background: none; }
+  .posterLink { border-block: 1px solid #c6a76b55; background: #000; }
+  .posterHint { display: block; margin: 10px 24px 0; color: #bfa56e; font: 500 10px/1.6 var(--font-inter), sans-serif; text-transform: uppercase; letter-spacing: .2em; text-align: center; }
   .rosterHeading { font-size: 9px; letter-spacing: .08em; margin-bottom: 24px; }
 }

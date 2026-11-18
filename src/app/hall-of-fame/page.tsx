@@ -31,6 +31,7 @@ export default async function HallOfFamePage() {
           <p className={styles.description}>{hall.intro}</p>
         </div>
         <figure className={styles.poster}>
+          <a href="/brand/stripped-down-for-stand-up.svg" target="_blank" rel="noopener" className={styles.posterLink} aria-label="Open the full-size Stripped Down for Stand-Up flyer">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/brand/stripped-down-for-stand-up.svg"
@@ -39,6 +40,8 @@ export default async function HallOfFamePage() {
             height={1920}
             fetchPriority="high"
           />
+          </a>
+          <figcaption className={styles.posterHint}>Tap to see the full flyer</figcaption>
         </figure>
         {performers.length ? (
           <>
