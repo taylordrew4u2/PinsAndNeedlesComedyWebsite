@@ -4,16 +4,7 @@ import { setSessionMetadata, stripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Stripe calls this when someone has paid. It sends the order to Printify,
- * which prints and ships it.
- *
- * Point a Stripe webhook at <site>/api/shop/stripe-webhook for the event
- * checkout.session.completed and put its signing secret in
- * STRIPE_WEBHOOK_SECRET. Stripe retries on any non-2xx answer, so a Printify
- * hiccup is retried; the Printify order id is written back onto the Checkout
- * Session so a retry never orders twice.
- */
+/** Verified paid events resume the same provider order, including partial failures. */
 export async function POST(request: Request): Promise<Response> {
   const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
   if (!secret) return new Response("Webhook not configured", { status: 503 });
@@ -40,7 +31,6 @@ export async function POST(request: Request): Promise<Response> {
     // Read the session fresh: the latest metadata says whether it was already ordered.
     const session = await stripe(`/checkout/sessions/${encodeURIComponent(sessionId)}`);
     const meta = (session.metadata ?? {}) as Record<string, string>;
-    if (meta.printify_order_id) return Response.json({ received: true, order: meta.printify_order_id });
 
     const order = orderFromSession(session);
     if (!order) {
@@ -54,8 +44,12 @@ export async function POST(request: Request): Promise<Response> {
       variantId: order.variantId,
       quantity: order.quantity,
       address: order.address,
+      existingId: meta.printify_order_id,
+      existingShopId: meta.printify_shop_id,
+      saveOrder: (id, shopId) => setSessionMetadata(order.sessionId, {
+        printify_order_id: id, printify_shop_id: shopId,
+      }),
     });
-    await setSessionMetadata(order.sessionId, { printify_order_id: printifyId });
     return Response.json({ received: true, order: printifyId });
   } catch (error) {
     console.error("[shop] order for", sessionId, "failed:", error instanceof Error ? error.message : error);

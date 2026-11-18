@@ -1,3 +1,4 @@
+import { productionClaimsConfigured } from "@/lib/shop-production-claim";
 import { getShopProduct, printifyConfigured } from "@/lib/printify";
 import { checkoutSessionBody, parseCountries } from "@/lib/shop-catalog";
 import { stripe, stripeConfigured } from "@/lib/stripe";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
  * come from Printify here on the server, so nobody can edit what they pay.
  */
 export async function POST(request: Request): Promise<Response> {
-  if (!printifyConfigured() || !stripeConfigured()) {
+  if (!productionClaimsConfigured() || !printifyConfigured() || !stripeConfigured() || !process.env.STRIPE_WEBHOOK_SECRET?.trim()) {
     return Response.json({ error: "The shop is not open yet." }, { status: 503 });
   }
 

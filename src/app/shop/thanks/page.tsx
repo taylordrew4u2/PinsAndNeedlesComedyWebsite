@@ -17,8 +17,8 @@ export default async function ShopThanksPage() {
     <main>
       <PageHeader hero={content.home.hero} nav={content.site.nav} active="/shop" />
       <PageIntro
-        title="Order in. Thank you."
-        description="Payment went through. Your merch is being printed now — a receipt is on its way to your email, and you'll get tracking once it ships."
+        title="Thank you for shopping with us."
+        description="Check your email for payment confirmation. This page does not confirm payment or production status. Tracking will be sent once your order ships."
         artwork="flash-lipstick"
       />
       <div className="mx-auto max-w-6xl px-5 pb-20">
