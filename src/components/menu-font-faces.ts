@@ -10,7 +10,8 @@ const bebas = Bebas_Neue({ weight: "400", subsets: ["latin"], display: "swap", p
 // Google repeat the same file URL per weight, which Turbopack's font loader rejects.
 const oswald = Oswald({ subsets: ["latin"], display: "swap", preload: false });
 const anton = Anton({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
-const playfair = Playfair_Display({ weight: ["500", "600", "700"], subsets: ["latin"], display: "swap", preload: false });
+// Variable fonts (Playfair 400–900, Dancing Script 400–700): no weight list, same reason as Oswald.
+const playfair = Playfair_Display({ subsets: ["latin"], display: "swap", preload: false });
 const abril = Abril_Fatface({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
 const righteous = Righteous({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
 const marker = Permanent_Marker({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
@@ -21,7 +22,7 @@ const pinyon = Pinyon_Script({ weight: "400", subsets: ["latin"], display: "swap
 const parisienne = Parisienne({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
 const yellowtail = Yellowtail({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
 const pacifico = Pacifico({ weight: "400", subsets: ["latin"], display: "swap", preload: false });
-const dancing = Dancing_Script({ weight: ["600", "700"], subsets: ["latin"], display: "swap", preload: false });
+const dancing = Dancing_Script({ subsets: ["latin"], display: "swap", preload: false });
 
 /** The standard menu's font, loaded once for the whole site in the root layout. */
 const POSTER = "var(--font-poster), 'Barlow Condensed', 'Arial Narrow', sans-serif";
