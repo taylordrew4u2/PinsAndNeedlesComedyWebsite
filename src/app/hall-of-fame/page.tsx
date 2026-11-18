@@ -26,13 +26,13 @@ export default async function HallOfFamePage() {
       <PageHeader hero={home.hero} nav={site.nav} active="/hall-of-fame" />
       <section className={styles.gallery}>
         <div className={styles.intro}>
-          <p className={styles.eyebrow}>Pins &amp; Needles Comedy</p>
+          <p className={styles.eyebrow}>Stripped Down for Stand-Up</p>
           <h1 className={styles.title}>{hall.heading}</h1>
           <p className={styles.description}>{hall.intro}</p>
         </div>
         {performers.length ? (
           <>
-          <div className={styles.rosterHeading}><span>The performers</span><span>Alphabetical · A–Z</span></div>
+          <div className={styles.rosterHeading}><span>The comics who stripped down</span><span>Alphabetical · A–Z</span></div>
           <div className={styles.grid}>
             {performers.map((person) => {
               const link = performerSocial(person);

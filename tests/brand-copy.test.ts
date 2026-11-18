@@ -12,7 +12,10 @@ function fixture(legacy: boolean): Content {
       target[key] ??= {};
       target = target[key] as Record<string, unknown>;
     }
-    target[field.path.at(-1)!] = legacy ? structuredClone(field.previous) : `Updated ${field.path.join(".")}`;
+    const key = field.path.at(-1)!;
+    // A path can carry several generations of legacy copy; the fixture holds the oldest.
+    if (legacy && key in target) continue;
+    target[key] = legacy ? structuredClone(field.previous) : `Updated ${field.path.join(".")}`;
   }
   return result as unknown as Content;
 }
@@ -44,4 +47,17 @@ test("custom text, FAQ and visibility settings survive repeated reads", () => {
   assert.deepEqual(result.site.seo.faq, saved.site.seo.faq);
   assert.equal(result.home.hero.showTagline, false);
   assert.deepEqual(upgradeBrandCopy(result, defaults), result);
+});
+
+test("every generation of legacy copy upgrades to the current default", () => {
+  for (const field of legacyFields) {
+    if (field.path.join(".") === "home.hero.showTagline") continue;
+    const saved = fixture(false);
+    let target = saved as unknown as Record<string, unknown>;
+    for (const key of field.path.slice(0, -1)) target = target[key] as Record<string, unknown>;
+    target[field.path.at(-1)!] = structuredClone(field.previous);
+    let result = upgradeBrandCopy(saved, fixture(false)) as unknown as Record<string, unknown>;
+    for (const key of field.path) result = result[key] as Record<string, unknown>;
+    assert.equal(result as unknown, `Updated ${field.path.join(".")}`, field.path.join("."));
+  }
 });

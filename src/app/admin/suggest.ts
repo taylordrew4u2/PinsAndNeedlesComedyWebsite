@@ -44,7 +44,7 @@ export function suggestFor(
       { q: "Where can I find upcoming shows?", a: `Visit ${root}/shows for announced dates, venues, lineups and ticket information.` },
     ],
     hall: [
-      { q: `Who is in the ${brand} Hall of Fame?`, a: `The Hall of Fame celebrates comedians who have performed with ${brand}. Performers are listed alphabetically by display name.` },
+      { q: `Who is in the ${brand} Hall of Fame?`, a: `The Hall of Fame honors every comic who performed at Stripped Down for Stand-Up, the original ${brand} show for tattooed comics. The show is no longer running; performers are listed alphabetically.` },
       { q: "How can I follow a performer?", a: "Use the social profile link beneath their star when one is available." },
     ],
     news: [
@@ -130,9 +130,9 @@ export function suggestFor(
     }
     case "hall":
       return make(
-        `Hall of Fame | ${brand}`,
+        `Stripped Down for Stand-Up Hall of Fame | ${brand}`,
         `Meet the comedians who have performed with ${brand} in New York City.`,
-        `The ${brand} Hall of Fame celebrates the comedians who have performed at its shows. Explore their profiles and find links to their social media.`,
+        `The Hall of Fame for Stripped Down for Stand-Up, the ${brand} show where tattooed comics stripped down for stand-up. Meet the comics and find their social media.`,
         `${content.hallOfFame.heading} ${content.hallOfFame.intro}`,
         "/hall-of-fame",
         ["nyc stand-up comedians", "comedy performers"]
@@ -239,7 +239,7 @@ export function suggestFor(
       return make(
         `${brand} | Original NYC Stand-Up Shows`,
         `${brand} creates original NYC stand-up shows about choices, vulnerability and what stays with us.`,
-        `${brand} creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its formats include the original tattoo-focused show and Bad Decisions, with stand-up and audience participation. Tattoos are part of its roots, not a requirement. The shows are produced by ${creditLine(content.about.producers)}.`,
+        `${brand} creates original stand-up shows in New York City about choices, vulnerability and what stays with us. Its current show is Bad Decisions; its original show, Stripped Down for Stand-Up, was for tattooed comics. The shows mix stand-up and audience participation. Tattoos are part of its roots, not a requirement. The shows are produced by ${creditLine(content.about.producers)}.`,
         `${brand} ${site.tagline} ${content.about.story}`,
         "/",
         ["original comedy shows", "audience participation comedy", taylorKeyword(content.about.producers)],
