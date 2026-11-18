@@ -34,7 +34,7 @@ export default async function HallOfFamePage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/brand/stripped-down-for-stand-up.svg"
-            alt="Pins & Needles Comedy flyer for Stripped Down for Stand-Up: two tattooed comics in their underwear surrounded by tattoo flash, with the line “Tattooed comics strip down for stand-up.”"
+            alt="Pins & Needles Comedy flyer for Stripped Down for Stand-Up: two tattooed comics in their underwear surrounded by tattoo flash, with the line “Tattooed comics strip down for stand-up.” and the run, September 2025 to October 2026, in gold."
             width={2880}
             height={1920}
             fetchPriority="high"
