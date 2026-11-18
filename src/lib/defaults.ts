@@ -169,7 +169,7 @@ export const defaultContent: Content = {
   hallOfFame: {
     heading: "Hall of Fame",
     intro:
-      "Stripped Down for Stand-Up was the Pins & Needles Comedy show for tattooed comics, where the ink came out and the comics stripped down for stand-up. The show has taken its final bow, so this wall honors every comic who bared it all on that stage.",
+      "Taylor Drew had a dream: every comic’s tattoos, seen on stage. Not just the forearm. The back piece. The thigh piece. The one they swear was a dare. Sleeves only go so far, so she asked the obvious question: why not do it in their underwear? That was Stripped Down for Stand-Up, September 2025 to October 2026, and this wall honors every comic brave enough to do it. The show’s over. The ink is forever. The underwear, we hope, has been washed.",
     emptyText: "The wall is taking shape. The Stripped Down for Stand-Up comics will be up here soon.",
     showInNav: true,
     performers: [],

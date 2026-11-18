@@ -409,5 +409,12 @@
         "a": "From the original tattoo-focused show to Bad Decisions, our formats find comedy in choices, vulnerability and being seen without editing out every unflattering part."
       }
     ]
+  },
+  {
+    "path": [
+      "hallOfFame",
+      "intro"
+    ],
+    "previous": "Stripped Down for Stand-Up was the Pins & Needles Comedy show for tattooed comics, where the ink came out and the comics stripped down for stand-up. The show has taken its final bow, so this wall honors every comic who bared it all on that stage."
   }
 ]
