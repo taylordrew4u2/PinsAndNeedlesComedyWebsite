@@ -7,8 +7,21 @@ import { formEncode } from "./shop-catalog";
 
 const API = "https://api.stripe.com/v1";
 
+let warnedAboutKey = false;
+
+/**
+ * True only for a server-side key. A publishable key (pk_...) pasted into
+ * STRIPE_SECRET_KEY looks set but every call fails, so treat it as unset.
+ */
 export function stripeConfigured(): boolean {
-  return !!process.env.STRIPE_SECRET_KEY?.trim();
+  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
+  if (!key) return false;
+  if (/^(sk|rk)_/.test(key)) return true;
+  if (!warnedAboutKey) {
+    warnedAboutKey = true;
+    console.error("[shop] STRIPE_SECRET_KEY is not a secret key (it should start with sk_ or rk_). The shop stays closed until it is replaced.");
+  }
+  return false;
 }
 
 export async function stripe(path: string, body?: string, idempotencyKey?: string): Promise<Record<string, unknown>> {

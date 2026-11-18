@@ -52,6 +52,11 @@ function ProductCard({ product }: { product: ShopProduct }) {
         </p>
         {product.blurb ? <p className="text-[14px] leading-relaxed text-[var(--pnc-muted)]">{product.blurb}</p> : null}
         <div className="mt-auto flex flex-wrap items-end gap-3 pt-2">
+          {single && !/^default/i.test(variant.title) ? (
+            <p className="w-full text-[11px] uppercase tracking-[0.2em] text-[var(--pnc-muted)]">
+              Option: <span className="normal-case tracking-normal text-[14px] text-[var(--pnc-fg)]">{variant.title}</span>
+            </p>
+          ) : null}
           {!single ? (
             <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] uppercase tracking-[0.2em] text-[var(--pnc-muted)]">
               Option
