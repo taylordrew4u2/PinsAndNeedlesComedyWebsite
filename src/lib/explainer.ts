@@ -1,16 +1,18 @@
 /**
  * The "Intro" explainer the host can put on the live screen: how Bad
- * Decisions works, then the sting and intro with an example question, so the
+ * Decisions opens with its logo, explains the rules, then plays the real
+ * question sting and an example, so the
  * room learns what the sound means before the real ones start.
  */
 
 /** Each step and how long it holds the screen, in order. The intro step lasts as long as the real intro. */
 export const EXPLAINER_STEPS = [
-  { step: "how", ms: 6_000 },
-  { step: "listen", ms: 2_000 },
+  { step: "title", ms: 2_800 },
+  { step: "how", ms: 8_000 },
+  { step: "listen", ms: 2_400 },
   { step: "intro", ms: 3_200 },
   { step: "example", ms: 5_000 },
-  { step: "roast", ms: 5_000 },
+  { step: "roast", ms: 6_000 },
 ] as const;
 
 export type ExplainerStep = (typeof EXPLAINER_STEPS)[number]["step"];

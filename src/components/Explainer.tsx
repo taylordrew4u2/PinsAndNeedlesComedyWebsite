@@ -3,138 +3,143 @@ import BadDecisionIntro from "@/components/BadDecisionIntro";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
 import type { BoardQr } from "@/lib/screen-qr";
 import { DEFAULT_LOOK, markBadDecisions, type ScreenSettings } from "@/lib/screen-settings";
+import styles from "./Explainer.module.css";
 
-/** The brand's cream (the flash art's ink) and red. */
-const CREAM = "#f2eddc";
-const RED = "#ff2e4d";
-const HEADING = "font-[family-name:var(--pnc-heading)] uppercase leading-[1.02]";
-const POSTER = "font-[family-name:var(--font-poster)] uppercase";
-
-/**
- * One step of the "Intro" explainer, full screen over whatever is up. Every
- * step shares one stage: the same margins, cream type on black, red accents,
- * and a thin progress line along the bottom. The intro step is the real
- * intro, so the room sees and hears exactly what a new question looks like.
- * Every word on it is the host's from the Control Center (`look`, as
- * screenLook fills it in), the defaults until they change them; the timings
- * never change. `qr` is the show screens' QR (the question form, the host's
- * link or their picture), its side in vmin and stopped at 140% here; none
- * while the Bad Decisions page is off.
- */
+/** The live show's animated opener. Copy, QR and sound still come from the Control Center. */
 export default function Explainer({ step, qr, look = DEFAULT_LOOK }: { step: ExplainerStep; qr?: BoardQr | null; look?: ScreenSettings }) {
-  if (step === "intro") return <BadDecisionIntro word={look.introWord} />;
+  // Use the real question reveal: the sound and image teach the room the same cue.
+  if (step === "intro") return <div className={styles.sting}><BadDecisionIntro word={look.introWord} /></div>;
   return (
-    <div className="fixed inset-0 z-40 overflow-hidden bg-black" style={{ color: CREAM }} aria-live="polite">
-      <div key={step} className="pnc-screen-in absolute inset-[6vmin] flex items-center justify-center">
-        {step === "how" ? <How qr={qr} look={look} />
-          : step === "listen" ? <Listen line={look.listenLine} />
-            : step === "example" ? <Example label={look.exampleLabel} question={look.exampleQuestion} />
-              : <Send qr={qr} line={look.closingLine} call={look.closingCall} scan={look.scanLabel} />}
+    <div className={styles.screen} aria-live="polite">
+      <div className={styles.texture} aria-hidden="true" />
+      <div key={step} className={styles.scene}>
+        {step === "title" ? <Title heading={look.howHeading} /> : (
+          <>
+            <header className={styles.header}>
+              <span>Pins &amp; Needles Comedy</span>
+              <span className={styles.headerMark} aria-hidden="true">✦</span>
+              <span>Bad Decisions</span>
+            </header>
+            <div className={styles.stage}>
+              {step === "how" ? <How qr={qr} look={look} />
+                : step === "listen" ? <Listen line={look.listenLine} />
+                  : step === "example" ? <Example label={look.exampleLabel} question={look.exampleQuestion} />
+                    : <Send qr={qr} line={look.closingLine} call={look.closingCall} scan={look.scanLabel} />}
+            </div>
+          </>
+        )}
       </div>
       <Progress step={step} />
     </div>
   );
 }
 
-function How({ qr, look }: { qr?: BoardQr | null; look: ScreenSettings }) {
-  const steps = [look.howStep1, look.howStep2, look.howStep3];
-  // The dice give up height to a big QR, so the logo, the code and the words under it all stay on the stage (88vmin tall).
-  const dice = qr ? Math.max(12, Math.min(DICE_VMIN, STAGE_VMIN - 5 - qrBlockVmin(qr))) : DICE_VMIN;
+function Title({ heading }: { heading: string }) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-[5vmin]">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/bad-decisions-dice-on-dark.svg" alt="Pins & Needles Comedy: Bad Decisions" width={1620} height={1080} className="w-auto shrink-0" style={{ height: `${dice}vmin` }} />
-      <div className="flex w-full max-w-[150vmin] items-center justify-center gap-[7vmin]">
-        <div className="flex min-w-0 flex-col gap-[3.2vmin]">
-          <h1 className={`${HEADING} text-[8vmin]`}>{look.howHeading}</h1>
-          <ol className="flex flex-col gap-[2.6vmin]">
-            {steps.map((text, index) => (
-              <li key={index} className="pnc-rise flex items-center gap-[2.4vmin]" style={{ animationDelay: `${0.35 + index * 0.35}s` } as CSSProperties}>
-                <span className={`${HEADING} flex h-[7vmin] w-[7vmin] shrink-0 items-center justify-center rounded-full text-[4vmin] text-black`} style={{ background: RED }}>
-                  {index + 1}
-                </span>
-                <span className={`${POSTER} text-[5.8vmin] font-semibold leading-tight tracking-wide`}>{text}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-        {qr ? <Qr qr={qr} scan={look.scanLabel} /> : null}
+    <div className={styles.titleStage}>
+      <div className={styles.orbit} aria-hidden="true" />
+      <span className={styles.titleBrand}>Pins &amp; Needles Comedy</span>
+      <Dice className={styles.titleDice} />
+      <p className={styles.titleTag}>{heading} <Arrow /></p>
+      <span className={styles.cornerStar} aria-hidden="true">✦</span>
+    </div>
+  );
+}
+
+function How({ qr, look }: { qr?: BoardQr | null; look: ScreenSettings }) {
+  return (
+    <div className={`${styles.twoColumn} ${qr ? "" : styles.withoutQr}`}>
+      <div className={styles.instructions}>
+        <h1 className={styles.howHeading}>{look.howHeading}</h1>
+        <ol className={styles.steps}>
+          {[look.howStep1, look.howStep2, look.howStep3].map((text, index) => (
+            <li key={index} className={styles.rule} style={{ "--rule-delay": `${0.4 + index * 1.4}s` } as CSSProperties}>
+              <span className={styles.ruleNumber} aria-hidden="true">0{index + 1}</span>
+              <span className={styles.ruleIcon} aria-hidden="true"><RuleIcon index={index} /></span>
+              <span className={styles.ruleText}>{text}</span>
+            </li>
+          ))}
+        </ol>
       </div>
+      {qr ? <Qr qr={qr} scan={look.scanLabel} /> : <Dice className={styles.sideDice} />}
     </div>
   );
 }
 
 function Listen({ line }: { line: string }) {
   return (
-    <p className={`pnc-snap-in ${HEADING} text-center text-[13vmin]`} style={{ color: RED }}>
-      {line}
-    </p>
+    <div className={styles.listenStage}>
+      <div className={styles.soundwave} aria-hidden="true">
+        {[28, 58, 38, 86, 52, 100, 66, 40, 78, 48, 24].map((height, index) => (
+          <span key={index} style={{ "--bar-height": `${height}%`, "--bar-delay": `${index * -0.09}s` } as CSSProperties} />
+        ))}
+      </div>
+      <h1 className={styles.listenLine}>{line}</h1>
+    </div>
   );
 }
 
 function Example({ label, question }: { label: string; question: string }) {
   return (
-    <div className="flex max-w-[150vmin] flex-col items-center gap-[5vmin] text-center">
-      <p className={`${POSTER} max-w-full break-words rounded-full px-[3vmin] py-[0.8vmin] text-[3.4vmin] font-bold tracking-[0.35em] text-black`} style={{ background: RED }}>
-        {label}
-      </p>
-      <h1 className="break-words font-[family-name:var(--pnc-heading)] text-[9vmin] leading-[1.08]">{question}</h1>
+    <div className={styles.exampleStage}>
+      <span className={styles.exampleStar} aria-hidden="true">✦</span>
+      <div className={styles.questionCard}>
+        <span className={styles.exampleLabel}>{label}</span>
+        <span className={styles.quoteMark} aria-hidden="true">“</span>
+        <h1 className={styles.question}>{question}</h1>
+        <div className={styles.cardFooter} aria-hidden="true"><span>Bad Decisions</span><Arrow /></div>
+      </div>
     </div>
   );
 }
 
-/** The closing lines. "Bad decision" stays red wherever it falls in the host's words. */
 function Send({ qr, line, call, scan }: { qr?: BoardQr | null; line: string; call: string; scan: string }) {
   return (
-    <div className="flex w-full max-w-[150vmin] items-center justify-center gap-[7vmin]">
-      <div className="flex min-w-0 max-w-[95vmin] flex-col gap-[4vmin]">
-        <p className={`${HEADING} break-words text-[7.6vmin]`}>
-          {markBadDecisions(line).map((part, index) => part.mark ? <span key={index} style={{ color: RED }}>{part.text}</span> : part.text)}
-        </p>
-        <p className={`${POSTER} pnc-rise text-[5.4vmin] font-semibold tracking-wide`} style={{ color: RED, animationDelay: "0.5s" }}>
-          {call}
-        </p>
+    <div className={`${styles.twoColumn} ${qr ? "" : styles.withoutQr}`}>
+      <div className={styles.closingCopy}>
+        <h1 className={styles.closingLine}>
+          {markBadDecisions(line).map((part, index) => part.mark ? <span key={index} className={styles.highlight}>{part.text}</span> : part.text)}
+        </h1>
+        <p className={styles.closingCall}>{call} <Arrow /></p>
       </div>
-      {qr ? <Qr qr={qr} scan={scan} /> : null}
+      {qr ? <Qr qr={qr} scan={scan} /> : <Dice className={styles.sideDice} />}
     </div>
   );
 }
 
-/** The How step's dice at their usual height, and the stage's height (the screen less its 6vmin margins), both in vmin. */
-const DICE_VMIN = 24;
-const STAGE_VMIN = 88;
-
-/** How tall the QR's block is, in vmin: the code, its white and red frames, the gap and the line under it. */
-function qrBlockVmin(qr: BoardQr): number {
-  return qr.side + 4 + 2 + 2 + 5.4;
+function Dice({ className }: { className: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/brand/bad-decisions-dice-on-dark.svg" alt="Pins & Needles Comedy: Bad Decisions" width={1620} height={1080} className={className} />;
 }
 
-/**
- * The QR at the host's size (qrSide stops it at 140% here: past that the
- * steps beside it would have no room), and the host's words under it. A
- * picture goes in the red frame without the white.
- */
+/** Fit the host's QR size to the screen while preserving its quiet zone. Pictures use a dark frame. */
 function Qr({ qr, scan }: { qr: BoardQr; scan: string }) {
-  const side = `${qr.side}vmin`;
   return (
-    <div className="flex shrink-0 flex-col items-center gap-[2vmin]">
-      <div className="rounded-[2.4vmin] p-[1vmin]" style={{ background: RED }}>
-        {qr.picture ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={qr.src} alt={qr.alt} width={400} height={400} decoding="async" className="block rounded-[1.6vmin] bg-black object-contain" style={{ width: `calc(${side} + 4vmin)`, height: `calc(${side} + 4vmin)` }} />
-        ) : (
-          <div className="rounded-[1.6vmin] bg-white p-[2vmin]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qr.src} alt={qr.alt || "QR code to submit your bad decision"} width={400} height={400} className="block" style={{ width: side, height: side }} />
-          </div>
-        )}
+    <div className={styles.qrBlock} style={{ "--qr-side": `calc(${qr.side} * var(--unit))` } as CSSProperties}>
+      <div className={`${styles.qrFrame} ${qr.picture ? styles.pictureFrame : ""}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={qr.src} alt={qr.alt || "QR code to submit your bad decision"} width={400} height={400} decoding="async" className={styles.qrImage} />
       </div>
-      <p className={`${POSTER} max-w-[60vmin] break-words text-center text-[3.6vmin] font-bold leading-[1.5] tracking-[0.3em]`}>{scan}</p>
+      <p className={styles.scanLabel}>{scan} <Arrow /></p>
     </div>
   );
 }
 
-/** A thin red line along the bottom that fills across the whole explainer, step by step. */
+function Arrow() {
+  return <svg className={styles.arrow} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14" /></svg>;
+}
+
+function RuleIcon({ index }: { index: number }) {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {index === 0 ? <><path d="M11 4H4v7m17-7h7v7M4 21v7h7m17-7v7h-7M10 10h4v4h-4zm9 0h3v4h-3zm-9 9h4v3h-4zm9 0h3v3h-3z" /><path d="M2 16h28" /></>
+        : index === 1 ? <><path d="m4 14 24-10-10 24-4-10-10-4Z" /><path d="m14 18 8-8" /></>
+          : <><rect x="11" y="3" width="10" height="17" rx="5" /><path d="M7 14v2a9 9 0 0 0 18 0v-2M16 25v4m-5 0h10" /></>}
+    </svg>
+  );
+}
+
+/** One continuous progress line; each scene picks up where the last one ended. */
 function Progress({ step }: { step: ExplainerStep }) {
   let before = 0;
   for (const entry of EXPLAINER_STEPS) {
@@ -142,11 +147,9 @@ function Progress({ step }: { step: ExplainerStep }) {
     before += entry.ms;
   }
   const length = EXPLAINER_STEPS.find((entry) => entry.step === step)?.ms ?? 0;
-  const style = {
-    "--from": `${(before / EXPLAINER_MS) * 100}%`,
-    "--to": `${((before + length) / EXPLAINER_MS) * 100}%`,
+  return <div key={step} className={styles.progress} style={{
+    "--from": before / EXPLAINER_MS,
+    "--to": (before + length) / EXPLAINER_MS,
     animationDuration: `${length}ms`,
-    background: RED,
-  } as CSSProperties;
-  return <div key={step} className="pnc-progress absolute bottom-0 left-0 h-[0.8vmin]" style={style} aria-hidden="true" />;
+  } as CSSProperties} aria-hidden="true" />;
 }
