@@ -1,14 +1,22 @@
 import type { CSSProperties } from "react";
 import BadDecisionIntro from "@/components/BadDecisionIntro";
+import LiveQuestionScreen from "@/components/LiveQuestionScreen";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
 import type { BoardQr } from "@/lib/screen-qr";
 import { DEFAULT_LOOK, markBadDecisions, type ScreenSettings } from "@/lib/screen-settings";
 import styles from "./Explainer.module.css";
 
 /** The live show's animated opener. Copy, QR and sound still come from the Control Center. */
-export default function Explainer({ step, qr, look = DEFAULT_LOOK }: { step: ExplainerStep; qr?: BoardQr | null; look?: ScreenSettings }) {
+export default function Explainer({ step, qr, cornerQr, qrSize, look = DEFAULT_LOOK }: { step: ExplainerStep; qr?: BoardQr | null; cornerQr?: BoardQr | null; qrSize?: number; look?: ScreenSettings }) {
   // Use the real question reveal: the sound and image teach the room the same cue.
   if (step === "intro") return <div className={styles.sting}><BadDecisionIntro word={look.introWord} /></div>;
+  // Demonstrate the actual audience screen, including its font fit and corner code.
+  // The example label stands in for the sender, following the host's name settings.
+  if (step === "example") return (
+    <div className={styles.sting}>
+      <LiveQuestionScreen question={look.exampleQuestion} name={look.names ? look.exampleLabel : null} namePrefix={look.namePrefix} qr={cornerQr} qrSize={qrSize ?? look.qrSize} />
+    </div>
+  );
   return (
     <div className={styles.screen} aria-live="polite">
       <div className={styles.texture} aria-hidden="true" />
@@ -23,8 +31,7 @@ export default function Explainer({ step, qr, look = DEFAULT_LOOK }: { step: Exp
             <div className={styles.stage}>
               {step === "how" ? <How qr={qr} look={look} />
                 : step === "listen" ? <Listen line={look.listenLine} />
-                  : step === "example" ? <Example label={look.exampleLabel} question={look.exampleQuestion} />
-                    : <Send qr={qr} line={look.closingLine} call={look.closingCall} scan={look.scanLabel} />}
+                  : <Send qr={qr} line={look.closingLine} call={look.closingCall} scan={look.scanLabel} />}
             </div>
           </>
         )}
@@ -75,20 +82,6 @@ function Listen({ line }: { line: string }) {
         ))}
       </div>
       <h1 className={styles.listenLine}>{line}</h1>
-    </div>
-  );
-}
-
-function Example({ label, question }: { label: string; question: string }) {
-  return (
-    <div className={styles.exampleStage}>
-      <span className={styles.exampleStar} aria-hidden="true">✦</span>
-      <div className={styles.questionCard}>
-        <span className={styles.exampleLabel}>{label}</span>
-        <span className={styles.quoteMark} aria-hidden="true">“</span>
-        <h1 className={styles.question}>{question}</h1>
-        <div className={styles.cardFooter} aria-hidden="true"><span>Bad Decisions</span><Arrow /></div>
-      </div>
     </div>
   );
 }

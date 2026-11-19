@@ -112,15 +112,6 @@
 .soundwave span { width: calc(2.8 * var(--unit)); height: var(--bar-height); background: var(--red); animation: soundbar 0.6s var(--bar-delay) ease-in-out infinite alternate; }
 .listenLine { max-width: calc(140 * var(--unit)); color: var(--cream); font-size: calc(12 * var(--unit)); line-height: 1.05; text-align: center; text-transform: uppercase; overflow-wrap: anywhere; animation: slam 0.55s both; }
 
-.exampleStage { display: flex; align-items: center; justify-content: center; height: 100%; position: relative; }
-.questionCard { position: relative; width: min(calc(136 * var(--unit)), 100%); padding: calc(5 * var(--unit)) calc(6 * var(--unit)) calc(3 * var(--unit)); background: var(--cream); color: #080808; box-shadow: calc(1.5 * var(--unit)) calc(1.5 * var(--unit)) 0 var(--red); transform: rotate(-2deg); animation: cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.exampleLabel { display: inline-block; max-width: 100%; padding: calc(0.7 * var(--unit)) calc(2 * var(--unit)); background: var(--red); font-size: calc(3.3 * var(--unit)); line-height: 1.1; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; overflow-wrap: anywhere; }
-.quoteMark { display: block; height: calc(7 * var(--unit)); margin-top: calc(1 * var(--unit)); color: var(--red); font-family: Georgia, serif; font-size: calc(14 * var(--unit)); line-height: 1; }
-.question { position: relative; font-size: calc(7.7 * var(--unit)); line-height: 1.08; overflow-wrap: anywhere; }
-.cardFooter { display: flex; justify-content: space-between; align-items: center; margin-top: calc(3 * var(--unit)); padding-top: calc(1.5 * var(--unit)); border-top: 1px solid #08080855; font-size: calc(2.6 * var(--unit)); font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
-.cardFooter > :last-child { color: var(--red); font-size: calc(4 * var(--unit)); line-height: 1; }
-.exampleStar { position: absolute; right: 0; top: 0; color: var(--red); font-size: calc(22 * var(--unit)); line-height: 1; transform: rotate(12deg); }
-
 .closingCopy { min-width: 0; }
 .closingLine { font-size: calc(7.2 * var(--unit)); line-height: 1.08; text-transform: uppercase; overflow-wrap: anywhere; animation: rise 0.6s both; }
 .highlight { color: var(--red); }
@@ -136,7 +127,6 @@
 @keyframes ruleIn { from { opacity: 0; translate: calc(-5 * var(--unit)) 0; } to { opacity: 1; translate: 0 0; } }
 @keyframes soundbar { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }
 @keyframes slam { from { opacity: 0; transform: scale(1.18); } to { opacity: 1; transform: scale(1); } }
-@keyframes cardIn { from { opacity: 0; transform: translateY(calc(12 * var(--unit))) rotate(5deg); } to { opacity: 1; transform: rotate(-2deg); } }
 @keyframes progress { from { transform: scaleX(var(--from)); } to { transform: scaleX(var(--to)); } }
 
 @media (max-aspect-ratio: 3/5) {
@@ -148,8 +138,6 @@
   .sideDice { width: calc(48 * var(--unit)); }
   .withoutQr { gap: calc(9 * var(--unit)); }
   .listenLine { font-size: calc(12 * var(--unit)); }
-  .question { font-size: calc(8 * var(--unit)); }
-  .questionCard { padding: calc(6 * var(--unit)); }
 }
 
 /* The global reduced-motion rule shortens animations.
