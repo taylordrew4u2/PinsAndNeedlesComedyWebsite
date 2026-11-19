@@ -5,7 +5,7 @@ import { readDrinks } from "@/lib/live-store";
 import { segmentScreen, segmentStatus } from "@/lib/segment";
 import { freshExplainer } from "@/lib/explainer";
 import { publicSelection } from "@/lib/live-selection";
-import { liveCustomLook } from "@/lib/drink-menu";
+import { bartenderLookOf, liveCustomLook } from "@/lib/drink-menu";
 import { liveMarquee, liveMarqueeLook } from "@/lib/drink-menu";
 import { boardDrinks } from "@/lib/drink-list";
 import { signedQrSrc } from "@/lib/qr-link";
@@ -66,6 +66,8 @@ export async function GET(request: Request) {
       // It carries qrOff: true as well: a screen from before this update draws the question-form code unless it sees that,
       // and the question form is never right on the daytime menu (see liveCustomLook).
       menuCustom: menu.on ? liveCustomLook(menu, (link) => signedQrSrc(link)) : null,
+      // Tonight's bartender for the standard menu too (the custom one carries its own in menuCustom); null for none.
+      menuBartender: menu.on ? bartenderLookOf(menu) : null,
       explainer: freshExplainer(explainer, now),
       performer: screen?.performer ?? null,
       // The deployment answering, so a screen left open across an update knows to reload.

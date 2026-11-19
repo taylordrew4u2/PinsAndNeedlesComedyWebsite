@@ -7,7 +7,7 @@ import { isNewerBuild, maySelfReload, quietScreen, screenSignature, soundNeededT
 import { modeQuery, type Space } from "@/lib/space";
 import DrinkMenu, { useBrokenImage } from "@/components/DrinkMenu";
 import { useMenuRotation } from "@/components/useMenuRotation";
-import { DRINK_MENU, readCustomLook, type CustomLook } from "@/lib/drink-menu";
+import { DRINK_MENU, readBartenderLook, readCustomLook, type BartenderLook, type CustomLook } from "@/lib/drink-menu";
 import { parseLiveBoard, type LiveBoard } from "@/lib/drink-list";
 import { menuPages } from "@/lib/menu-rotation";
 import { FORM_QR, boardQr, qrPercent, readShownQr, type ShownQr } from "@/lib/screen-qr";
@@ -59,6 +59,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   const [marquee, setMarquee] = useState<string | null>(null);
   // The custom menu's look, its own QR included; null for the standard menu.
   const [menuCustom, setMenuCustom] = useState<CustomLook | null>(null);
+  // Tonight's bartender for the standard menu (the custom menu carries its own).
+  const [menuBartender, setMenuBartender] = useState<BartenderLook | null>(null);
   // The show screens' QR: the question form until a poll says the host picked their own link or picture.
   const [screenQr, setScreenQr] = useState<ShownQr>(FORM_QR);
   // The host's drinks and the marquee's speed and colour; the printed menu at the usual pace until the first poll says otherwise.
@@ -332,6 +334,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         menuSeen.current = which;
         // Keep the same object while nothing changed, so the board does not re-render every poll.
         setMenuCustom((current) => current && custom && JSON.stringify(current) === JSON.stringify(custom) ? current : custom);
+        const tonight = nextMenu ? readBartenderLook(data?.menuBartender) : null;
+        setMenuBartender((current) => current && tonight && JSON.stringify(current) === JSON.stringify(tonight) ? current : tonight);
         setMenu(nextMenu);
         setMarquee(typeof data?.marquee === "string" && data.marquee ? data.marquee : null);
         const nextBoard = parseLiveBoard(data);
@@ -550,6 +554,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
           words={menuWords}
           marquee={marquee}
           custom={menuCustom}
+          bartender={menuBartender}
           drinks={board.drinks ?? undefined}
           marqueeSpeed={board.marqueeSpeed}
           marqueeColor={board.marqueeColor}
