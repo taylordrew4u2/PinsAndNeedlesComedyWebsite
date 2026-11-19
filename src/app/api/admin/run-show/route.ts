@@ -4,7 +4,7 @@ import { isFromPastShow, lastPastShowDate, parsePreload, pickRandom, submissionW
 import { canRunShow } from "@/lib/auth";
 import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
 import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
-import { DEFAULT_TIMING, MAX_PERFORMERS, QUESTIONS_MAX, clearFinished, parseCardTiming, parseTiming, rearrange, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotCountFor, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
+import { DEFAULT_TIMING, MAX_PERFORMERS, QUESTIONS_MAX, clearFinished, freshLineup, parseCardTiming, parseTiming, rearrange, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotCountFor, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
 import { readDrinks, writeDrinks } from "@/lib/live-store";
 import { cleanColor, cleanMarquee, menuView, parseCustomMenuChange } from "@/lib/drink-menu";
 import { isMarqueeSpeed } from "@/lib/drink-menu";
@@ -142,6 +142,22 @@ export async function POST(request: Request) {
   }
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Choose a question or clear the screen." }, { status: 400, headers });
+  }
+  if ("freshShow" in body) {
+    if (body.freshShow !== true) {
+      return NextResponse.json({ error: "Invalid fresh show request" }, { status: 400, headers });
+    }
+    try {
+      // The show's side only: the lineup (keeping its timing), what is on screen and any message.
+      // The questions are archived by the pile's own route first. Nothing on the menu side is read or
+      // written here: drink list, custom menu, bartender, marquee, QR and screen settings all stay.
+      const next = freshLineup(await readLineup(space));
+      await Promise.all([writeLineup(next, space), clearLiveSelection(undefined, space), clearMessage(space)]);
+      return NextResponse.json(lineupView(next), { headers });
+    } catch (error) {
+      console.error("[run-show] fresh show failed", error);
+      return NextResponse.json({ error: "Could not clear the show. Try again." }, { status: 503, headers });
+    }
   }
   if ("explainer" in body) {
     if (body.explainer !== true) {

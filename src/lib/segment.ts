@@ -371,6 +371,14 @@ export function parseCardTiming(raw: unknown): { performerId: string; timing: Se
 }
 
 /** Every card whose set has run, gone; the set on stage and cards still to go stay. */
+/**
+ * A lineup for a new show: no performers, no sets, the same timing. The timing
+ * is how the show is run, not who was on it, so it carries over.
+ */
+export function freshLineup(lineup: Lineup): Lineup {
+  return { timing: lineup.timing, performers: [] };
+}
+
 export function clearFinished(lineup: Lineup, now: number): Lineup {
   return { ...lineup, performers: lineup.performers.filter((performer) => !performer.startedAt || performerStatus(performer, now).running) };
 }

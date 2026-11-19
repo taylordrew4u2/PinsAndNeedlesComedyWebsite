@@ -599,6 +599,33 @@ export default function ControlCenter({ build = "", producer = false }: { build?
     await refresh();
   };
 
+  /**
+   * Clear the show for the next one: archive the questions (as above), then empty the lineup
+   * and take the screen and any message down. The menu side is left exactly as it is.
+   */
+  const freshShow = async () => {
+    if (!window.confirm(
+      "Start a fresh show?\n\n"
+      + "Clears: tonight's questions (archived, so you can restore them), the lineup and its sets, the screen and any message.\n\n"
+      + "Keeps: the drink list, the daytime menu, the bartender, the marquee, the QR codes, the screen words and settings, and your set timing."
+    )) return;
+    let archived = false;
+    for (let pass = 0; pass < 40; pass += 1) {
+      let remaining = 0;
+      const ok = await change(PILE_API, { action: "archive-all" }, (data) => { remaining = Number(data.remaining) || 0; }, "Could not archive the questions. Nothing else was cleared.");
+      if (!ok) break;
+      if (!remaining) { archived = true; break; }
+    }
+    if (!archived) { await refresh(); return; }
+    const ok = await change(API, { freshShow: true }, (data) => {
+      takeLineup(data);
+      setState((current) => current ? { ...current, selected: null, message: current.message ? { ...current.message, on: false } : current.message } : current);
+      setFresh(new Set());
+      setNotice("Fresh show. Questions archived, lineup cleared, screen clear. The menus weren't touched.");
+    }, "The questions are archived, but the lineup could not be cleared. Try again.");
+    if (ok) await refresh();
+  };
+
   if (authLost) return (
     <main className="flex min-h-svh items-center justify-center px-5">
       <a href="/admin/run-show" className="underline">Sign in again to the Control Center</a>
@@ -936,8 +963,12 @@ export default function ControlCenter({ build = "", producer = false }: { build?
 
             <details className="mt-4 rounded-lg border border-white/20 p-4">
               <summary className="-my-3 cursor-pointer py-3 text-sm sm:my-0 sm:py-0">End of the night</summary>
-              <p className="mt-3 text-sm text-neutral-400">Archive everything so next week starts at zero. Archived questions stay here until you delete them.</p>
-              <button type="button" onClick={() => void archive()} disabled={busy || !state || (!waiting.length && !state.shown.length)} className="mt-3 min-h-11 rounded-md border border-red-500/60 bg-red-950/40 px-4 py-2 text-sm text-red-200 disabled:opacity-40 sm:min-h-0">🧹 Archive everything from tonight</button>
+              <p className="mt-3 text-sm text-neutral-400">Clear the show so the next one starts at zero. Archived questions stay here until you delete them, and Restore puts one back.</p>
+              <div className="mt-3 flex flex-wrap gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
+                <button type="button" onClick={() => void freshShow()} disabled={busy || !state || running} title={running ? "Stop the set first." : undefined} className="rounded-md border border-red-500/60 bg-red-950/40 px-4 py-2 text-sm font-semibold text-red-100 disabled:opacity-40">🎬 Start a fresh show</button>
+                <button type="button" onClick={() => void archive()} disabled={busy || !state || (!waiting.length && !state.shown.length)} className="rounded-md border border-white/20 px-4 py-2 text-sm text-neutral-300 disabled:opacity-40">🧹 Archive questions only</button>
+              </div>
+              <p className="mt-2 text-xs text-neutral-500">A fresh show clears the questions, the lineup and the screen. The drink list, the daytime menu, the bartender, the marquee, the QR codes and the screen settings stay as they are.</p>
               {state?.archived.length ? (
                 <div role="list" className="mt-4 space-y-1">
                   <p className="text-xs uppercase tracking-widest text-neutral-500">Archived ({state.archived.length})</p>
