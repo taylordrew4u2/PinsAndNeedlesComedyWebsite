@@ -150,14 +150,23 @@ export type Fetcher = typeof fetch;
  * past that as posts and shows pile up, so anything without inline content
  * is fetched a second time through the blobs API (good to 100MB).
  */
+const FILE_ACCEPT = "application/vnd.github.object+json";
+function fileUrl(config: GithubConfig, path: string): string {
+  return `${config.api}/repos/${config.owner}/${config.repo}/contents/${urlPath(path)}?ref=${encodeURIComponent(config.branch)}`;
+}
+/** The read cache's key for one file, so a write that lost a race can drop the copy it may be holding. */
+function fileKey(config: GithubConfig, path: string): string {
+  return `${FILE_ACCEPT} ${fileUrl(config, path)}`;
+}
+
 export async function readFile(
   config: GithubConfig,
   path: string,
   fetchImpl: Fetcher = fetch
 ): Promise<{ bytes: Buffer | null; sha: string | null }> {
-  const url = `${config.api}/repos/${config.owner}/${config.repo}/contents/${urlPath(path)}?ref=${encodeURIComponent(config.branch)}`;
-  const accept = "application/vnd.github.object+json";
-  const key = `${accept} ${url}`;
+  const url = fileUrl(config, path);
+  const accept = FILE_ACCEPT;
+  const key = fileKey(config, path);
   const response = await fetchImpl(url, {
     headers: conditional(config, accept, key),
     cache: "no-store",
@@ -212,6 +221,12 @@ function putFile(config: GithubConfig, clean: string, bytes: Buffer, message: st
   });
 }
 
+/** The current blob sha GitHub names when it refuses a write: "<path> is at <sha> but expected <sha>". */
+export function conflictSha(text: string): string | null {
+  const match = /\bis at ([0-9a-f]{40})\b/.exec(text);
+  return match ? match[1] : null;
+}
+
 /** Tries in all for one write, and the pause before each retry: short, growing, and jittered. */
 const WRITE_ATTEMPTS = 5;
 const retryPause = (attempt: number) => new Promise((resolve) => setTimeout(resolve, 80 * 2 ** attempt + Math.random() * 120));
@@ -240,13 +255,26 @@ export async function writeFile(
   const put = (sha: string | null) => putFile(config, clean, bytes, message, sha, fetchImpl);
 
   let response = await put(knownSha);
+  const tried = new Set<string | null>([knownSha]);
 
   for (let attempt = 1; attempt < WRITE_ATTEMPTS && (response.status === 409 || response.status === 422); attempt += 1) {
+    // GitHub names the file's current version in the refusal ("is at <sha> but expected <sha>"). That is the
+    // freshest answer there is: a re-read can lag a just-made write, or come back as the copy remembered here,
+    // and then every retry would send the same stale sha and lose again.
+    const named = conflictSha(await response.text());
     if (attempt > 1) await retryPause(attempt - 1);
-    const current = await readFile(config, clean, fetchImpl);
-    response = await put(current.sha);
+    // A named sha already tried (or none at all) means trust a fresh read instead.
+    let sha = named && !tried.has(named) ? named : null;
+    if (!sha) {
+      forget(fileKey(config, clean));
+      sha = (await readFile(config, clean, fetchImpl)).sha;
+    }
+    tried.add(sha);
+    response = await put(sha);
   }
 
+  // Whatever happened, any copy of this file remembered here is now suspect.
+  forget(fileKey(config, clean));
   if (!response.ok) {
     throw new Error(`GitHub write failed (${response.status}): ${await response.text()}`);
   }

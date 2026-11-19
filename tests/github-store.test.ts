@@ -12,6 +12,7 @@ import {
   safePath,
   urlPath,
   writeFile,
+  conflictSha,
 } from "../src/lib/github-store.ts";
 
 const config = { token: "t", owner: "o", repo: "r", branch: "main", api: "https://api.github.com" };
@@ -154,6 +155,25 @@ test("a branch that keeps moving under the write is retried until the write land
   const sha = await writeFile(config, "content/content.json", Buffer.from("hi"), "msg", "same", fetchImpl);
   assert.equal(sha, "saved");
   assert.equal(calls.length, 7);
+});
+
+test("a conflict that names the file's current version is retried with it, without re-reading", async () => {
+  // A re-read can lag a write that just landed, so the sha GitHub names in its refusal is the one to trust.
+  const current = "4fc04436ddffb3b3bd4b5ce797d94e6533410f31";
+  const { fetchImpl, calls } = fakeGithub([
+    { status: 409, body: { message: `content/content.json is at ${current} but expected bd6b1ad1190453473a1651ea587c2c1132a1edaf` } },
+    { status: 200, body: { content: { sha: "saved" } } },
+  ]);
+  const sha = await writeFile(config, "content/content.json", Buffer.from("hi"), "msg", "bd6b1ad1190453473a1651ea587c2c1132a1edaf", fetchImpl);
+  assert.equal(sha, "saved");
+  assert.equal(calls.length, 2, "no read in between");
+  assert.equal((calls[1].body as { sha: string }).sha, current);
+});
+
+test("conflictSha reads GitHub's refusal and nothing else", () => {
+  assert.equal(conflictSha('{"message":"is at 939d13cfb042f6375662c16cbcd7e2895b422c87 but expected f0d8b4c76c3fd83ec6f78c00a61540f039bf9da4"}'), "939d13cfb042f6375662c16cbcd7e2895b422c87");
+  assert.equal(conflictSha("is at 111 but expected 222"), null);
+  assert.equal(conflictSha("Update is not a fast forward"), null);
 });
 
 test("a write that never stops conflicting gives up and raises", async () => {
