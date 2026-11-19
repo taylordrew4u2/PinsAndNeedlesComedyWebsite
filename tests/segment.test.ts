@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_TIMING, NAME_MS, QUESTIONS_MAX, QUESTION_MIN_MS, SEGMENT_MS, SEGMENT_SLOTS, SET_MINUTES_MAX, SET_MINUTES_MIN, SLOT_MS,
-  clearFinished, clockText, droppedQuestions, durationWords, moveCard, nameMaxMs, parseCardTiming, parseLineup, parseTiming, rearrange,
+  clearFinished, clockText, droppedQuestions, freshLineup, durationWords, moveCard, nameMaxMs, parseCardTiming, parseLineup, parseTiming, rearrange,
   scheduleText, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotAt, slotCountFor, slotStartMs, slotTimingOf, slottedIds, startPerformer,
   stopAll, switchAfter, timingOf, timingSentence, timingShort,
   type Lineup, type Performer, type SetTiming,
@@ -478,4 +478,13 @@ test("words: the standard timing reads as it always has; others read plainly", (
   assert.equal(clockText(SEGMENT_MS), "12:00");
   assert.equal(clockText(59_001), "1:00");
   assert.equal(clockText(-5), "0:00");
+});
+
+test("a fresh show empties the lineup but keeps how sets are timed", () => {
+  const timing: SetTiming = { ...DEFAULT_TIMING, setMs: DEFAULT_TIMING.setMs + 60_000 };
+  const lineup = { timing, performers: [{ id: "a", name: "A", slots: [q("1")], startedAt: new Date(start).toISOString() }] } as unknown as Lineup;
+  const fresh = freshLineup(lineup);
+  assert.deepEqual(fresh.performers, []);
+  assert.deepEqual(fresh.timing, timing);
+  assert.equal(lineup.performers.length, 1, "the old lineup is not changed in place");
 });
