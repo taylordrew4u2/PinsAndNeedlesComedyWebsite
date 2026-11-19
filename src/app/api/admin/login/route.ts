@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { COOKIE, checkPassword, cookieOptions, issueToken } from "@/lib/auth";
+import { COOKIE, cookieOptions, issueToken, passwordRole } from "@/lib/auth";
 import { Throttle, clientAddress } from "@/lib/throttle";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
   }
 
-  if (!checkPassword(password)) {
+  const role = passwordRole(password);
+  if (!role) {
     perAddress.record(address);
     everyone.record(ALL);
     // Still worth the pause: it costs a patient attacker real time, and a
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
   // lock out the person who owns the site.
   perAddress.clear(address);
 
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(COOKIE, issueToken(), cookieOptions);
+  const response = NextResponse.json({ ok: true, role });
+  response.cookies.set(COOKIE, issueToken(role), cookieOptions);
   return response;
 }

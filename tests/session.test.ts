@@ -84,3 +84,46 @@ test("a garbled or expired cookie is rejected", async () => {
   assert.equal(auth.verifyToken("no-dots"), false);
   assert.equal(auth.verifyToken(`${Date.now() - 1000}.abc.badsignature`), false);
 });
+
+test("a producer password signs in as a producer, never as the owner", async () => {
+  const auth = await loadAuth({
+    NODE_ENV: "production",
+    ADMIN_PASSWORD: "owner-password",
+    ADMIN_SECRET: "a".repeat(64),
+    PRODUCER_PASSWORD: "producer-password",
+  });
+  assert.equal(auth.passwordRole("owner-password"), "admin");
+  assert.equal(auth.passwordRole("producer-password"), "producer");
+  assert.equal(auth.passwordRole("wrong"), null);
+  assert.equal(auth.checkPassword("producer-password"), false, "the producer password is not the owner's");
+
+  const producer = auth.issueToken("producer");
+  assert.equal(auth.sessionRole(producer), "producer");
+  assert.equal(auth.verifyToken(producer), false, "a producer cookie must open no owner-only route");
+  assert.equal(auth.sessionRole(auth.issueToken()), "admin");
+  assert.equal(auth.verifyToken(auth.issueToken()), true);
+});
+
+test("a producer cookie cannot be edited into an owner's", async () => {
+  const auth = await loadAuth({
+    NODE_ENV: "production",
+    ADMIN_PASSWORD: "owner-password",
+    ADMIN_SECRET: "a".repeat(64),
+    PRODUCER_PASSWORD: "producer-password",
+  });
+  const token: string = auth.issueToken("producer");
+  const [expiry, nonce, , signature] = token.split(".");
+  assert.equal(auth.sessionRole(`${expiry}.${nonce}.${signature}`), null, "dropping the role breaks the signature");
+  assert.equal(auth.sessionRole(`${expiry}.${nonce}.admin.${signature}`), null);
+});
+
+test("production with no producer password has no producer login", async () => {
+  const auth = await loadAuth({
+    NODE_ENV: "production",
+    ADMIN_PASSWORD: "owner-password",
+    ADMIN_SECRET: "a".repeat(64),
+    PRODUCER_PASSWORD: undefined,
+  });
+  assert.equal(auth.passwordRole(""), null, "an empty password must not match an unset one");
+  assert.equal(auth.passwordRole("producer"), null, "the development fallback must not work in production");
+});

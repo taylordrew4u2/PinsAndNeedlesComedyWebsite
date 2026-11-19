@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthed } from "@/lib/auth";
+import { canRunShow } from "@/lib/auth";
 import { pickRandom } from "@/lib/decisions";
 import {
   archiveAll,
@@ -16,7 +16,7 @@ export const maxDuration = 60;
 
 /** The whole pile, newest first. The admin's "Tonight" panel reads this. */
 export async function GET() {
-  if (!(await isAuthed())) {
+  if (!(await canRunShow())) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   try {
@@ -43,7 +43,7 @@ type Action =
  * so two phones in the room can never pull the same one.
  */
 export async function POST(request: Request) {
-  if (!(await isAuthed())) {
+  if (!(await canRunShow())) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

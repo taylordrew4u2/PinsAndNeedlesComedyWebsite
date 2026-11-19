@@ -33,6 +33,17 @@ const DEV_PASSWORD = "dev";
 export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (IS_PRODUCTION ? "" : DEV_PASSWORD);
 
 /**
+ * A second password for a producer who runs the show but not the site: it
+ * opens the Control Center and the few routes it calls, nothing else. Unset
+ * means no producer login at all. Off production "producer" works, so the
+ * role can be tried locally with no setup.
+ */
+const PRODUCER_PASSWORD = process.env.PRODUCER_PASSWORD || (IS_PRODUCTION ? "" : "producer");
+
+/** Who a session belongs to: the site's owner, or a producer limited to the Control Center. */
+export type Role = "admin" | "producer";
+
+/**
  * Signing secret. Never derived from the password any more: knowing one should
  * not hand you the other. Off production it is random per process, so sessions
  * simply do not survive a restart.
@@ -65,31 +76,60 @@ function sign(payload: string): string {
   return createHmac("sha256", SECRET).update(payload).digest("base64url");
 }
 
-export function issueToken(): string {
-  const payload = `${Date.now() + MAX_AGE_SECONDS * 1000}.${randomBytes(8).toString("hex")}`;
+/**
+ * A signed session cookie. An owner's payload is "expiry.nonce", as it always
+ * was, so cookies issued before producers existed keep working. A producer's
+ * carries a third part, "producer", inside the signature, so it cannot be
+ * edited into an owner's.
+ */
+export function issueToken(role: Role = "admin"): string {
+  const payload = `${Date.now() + MAX_AGE_SECONDS * 1000}.${randomBytes(8).toString("hex")}${role === "producer" ? ".producer" : ""}`;
   return `${payload}.${sign(payload)}`;
 }
 
-export function verifyToken(token: string | undefined): boolean {
-  if (!adminConfigured()) return false;
-  if (!token) return false;
+/** The role a cookie signs in as, or null for a missing, forged or expired one. */
+export function sessionRole(token: string | undefined): Role | null {
+  if (!adminConfigured()) return null;
+  if (!token) return null;
   const lastDot = token.lastIndexOf(".");
-  if (lastDot < 0) return false;
+  if (lastDot < 0) return null;
   const payload = token.slice(0, lastDot);
   const provided = Buffer.from(token.slice(lastDot + 1));
   const expected = Buffer.from(sign(payload));
-  if (provided.length !== expected.length) return false;
-  if (!timingSafeEqual(provided, expected)) return false;
-  const expiresAt = Number(payload.split(".")[0]);
-  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  if (provided.length !== expected.length) return null;
+  if (!timingSafeEqual(provided, expected)) return null;
+  const parts = payload.split(".");
+  const expiresAt = Number(parts[0]);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
+  if (parts.length === 2) return "admin";
+  if (parts.length === 3 && parts[2] === "producer") return "producer";
+  return null;
 }
 
-export function checkPassword(candidate: unknown): boolean {
-  if (!adminConfigured()) return false;
-  if (typeof candidate !== "string") return false;
+/** An owner's session only. Every admin route uses this, so a producer's cookie opens none of them. */
+export function verifyToken(token: string | undefined): boolean {
+  return sessionRole(token) === "admin";
+}
+
+function matches(candidate: string, password: string): boolean {
+  if (!password) return false;
   const a = Buffer.from(candidate);
-  const b = Buffer.from(ADMIN_PASSWORD);
+  const b = Buffer.from(password);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Which role a typed password signs in as, or null. The owner's password wins if both are the same. */
+export function passwordRole(candidate: unknown): Role | null {
+  if (!adminConfigured()) return null;
+  if (typeof candidate !== "string") return null;
+  if (matches(candidate, ADMIN_PASSWORD)) return "admin";
+  if (matches(candidate, PRODUCER_PASSWORD)) return "producer";
+  return null;
+}
+
+/** The owner's password only. */
+export function checkPassword(candidate: unknown): boolean {
+  return passwordRole(candidate) === "admin";
 }
 
 export const cookieOptions = {

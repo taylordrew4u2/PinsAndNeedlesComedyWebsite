@@ -122,7 +122,7 @@ function withDefaults(data: State): State {
  * The show-night control center: the questions as they arrive, a mirror of
  * the live screen, and every control for the pile. Only reachable signed in.
  */
-export default function ControlCenter({ build = "" }: { build?: string }) {
+export default function ControlCenter({ build = "", producer = false }: { build?: string; producer?: boolean }) {
   const [state, setState] = useState<State | null>(null);
   // What went wrong with the host's last press. It stays up until they dismiss it or press again: a poll
   // that fails says so in `loadError` instead, so the next good poll can't wipe a press's error unseen.
@@ -640,7 +640,7 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
           </div>
           <div className="flex flex-wrap items-center gap-2 [&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center sm:[&>a]:min-h-0">
             {state ? <SavePill cards={Object.entries(phases)} /> : null}
-            <a href="/admin" className="rounded-md border border-white/30 px-4 py-2 text-sm">Admin</a>
+            {producer ? null : <a href="/admin" className="rounded-md border border-white/30 px-4 py-2 text-sm">Admin</a>}
             <a href="/bad-decisions/live" target="_blank" rel="noopener noreferrer" className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black">
               Open live screen
             </a>

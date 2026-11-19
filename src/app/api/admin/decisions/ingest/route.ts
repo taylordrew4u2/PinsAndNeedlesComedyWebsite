@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthed } from "@/lib/auth";
+import { canRunShow } from "@/lib/auth";
 import { sanitizeSubmission, sentBeforeClose, submissionWindow, textIntake } from "@/lib/decisions";
 import { looksLikeForwardedText, messageFromForward, textFromMime } from "@/lib/inbox";
 import { eachUnseen, type MailboxClient } from "@/lib/mailbox";
@@ -40,7 +40,7 @@ function config() {
 }
 
 export async function POST() {
-  if (!(await isAuthed())) {
+  if (!(await canRunShow())) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

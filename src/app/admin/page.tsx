@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { isAuthed } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { currentRole } from "@/lib/auth";
 import { getContent, storageWarning } from "@/lib/store";
 import AdminApp from "./AdminApp";
 import LoginForm from "./LoginForm";
@@ -12,6 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
-  if (!(await isAuthed())) return <LoginForm />;
+  const role = await currentRole();
+  // A producer's login only reaches the Control Center: send them there rather than to a login form that would not let them in.
+  if (role === "producer") redirect("/admin/run-show");
+  if (role !== "admin") return <LoginForm />;
   return <AdminApp initial={await getContent()} warning={await storageWarning()} />;
 }

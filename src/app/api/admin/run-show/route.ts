@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getContentStrict, patchContent } from "@/lib/store";
 import { isFromPastShow, lastPastShowDate, parsePreload, pickRandom, submissionWindow } from "@/lib/decisions";
-import { isAuthed } from "@/lib/auth";
+import { canRunShow } from "@/lib/auth";
 import { addSubmission, getSubmission, listPile, markShown, putBack } from "@/lib/submissions";
 import { clearLiveSelection, readLineup, readLiveSelection, readMenu, startExplainer, writeLineup, writeLiveSelection, writeMenu } from "@/lib/live-store";
 import { DEFAULT_TIMING, MAX_PERFORMERS, QUESTIONS_MAX, clearFinished, parseCardTiming, parseTiming, rearrange, segmentScreen, segmentStatus, setCardTiming, setLineupTiming, slotCountFor, slottedIds, startPerformer, stopAll, type Lineup, type PerformerInput } from "@/lib/segment";
@@ -48,7 +48,7 @@ function currentOnly(list: Submission[], shows: Show[], space: Space): Submissio
 
 /** The control center's view of the pile, split the way the page shows it. */
 export async function GET(request: Request) {
-  if (!(await isAuthed())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
+  if (!(await canRunShow())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
   const space = spaceFrom(request);
   try {
     // The live screen's settings and the host's message, read alongside the rest and awaited below (a failure there still answers 503).
@@ -134,7 +134,7 @@ async function show(submission: Submission | null, space: Space): Promise<LiveSe
 }
 
 export async function POST(request: Request) {
-  if (!(await isAuthed())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
+  if (!(await canRunShow())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
   const space = spaceFrom(request);
   let body: unknown;
   try { body = await request.json(); } catch {
