@@ -212,13 +212,21 @@ function putFile(config: GithubConfig, clean: string, bytes: Buffer, message: st
   });
 }
 
+/** Tries in all for one write, and the pause before each retry: short, growing, and jittered. */
+const WRITE_ATTEMPTS = 5;
+const retryPause = (attempt: number) => new Promise((resolve) => setTimeout(resolve, 80 * 2 ** attempt + Math.random() * 120));
+
 /**
  * Write one file, creating or updating it.
  *
- * GitHub rejects an update carrying a stale blob sha, which is exactly what
- * a second save landing during the first one looks like. That is a normal
- * race for an admin that autosaves, so a conflict re-reads the current sha
- * and tries once more rather than surfacing an error.
+ * GitHub answers 409 or 422 when the write raced another one. Two kinds:
+ * the file itself changed (its blob sha is stale), or a commit to any other
+ * file moved the branch while this one was in flight ("is at X but expected
+ * Y"). The second is routine when a few saves land together, say archiving a
+ * pile three at a time while the live screen also writes. So a conflict
+ * re-reads the current sha, waits a moment (jittered, so racing writers
+ * spread out) and tries again, up to WRITE_ATTEMPTS in all, before it
+ * surfaces an error.
  */
 export async function writeFile(
   config: GithubConfig,
@@ -233,7 +241,8 @@ export async function writeFile(
 
   let response = await put(knownSha);
 
-  if (response.status === 409 || response.status === 422) {
+  for (let attempt = 1; attempt < WRITE_ATTEMPTS && (response.status === 409 || response.status === 422); attempt += 1) {
+    if (attempt > 1) await retryPause(attempt - 1);
     const current = await readFile(config, clean, fetchImpl);
     response = await put(current.sha);
   }

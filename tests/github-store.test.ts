@@ -146,6 +146,24 @@ test("a stale sha is re-read and the write retried once", async () => {
   assert.equal((calls[2].body as { sha: string }).sha, "fresh");
 });
 
+test("a branch that keeps moving under the write is retried until the write lands", async () => {
+  // A few saves at once (archiving a pile, the live screen) each move the branch, so one retry is not enough.
+  const conflict = { status: 409, body: { message: "is at 111 but expected 222" } };
+  const read = { status: 200, body: { content: Buffer.from("{}").toString("base64"), sha: "same", size: 2 } };
+  const { fetchImpl, calls } = fakeGithub([conflict, read, conflict, read, conflict, read, { status: 200, body: { content: { sha: "saved" } } }]);
+  const sha = await writeFile(config, "content/content.json", Buffer.from("hi"), "msg", "same", fetchImpl);
+  assert.equal(sha, "saved");
+  assert.equal(calls.length, 7);
+});
+
+test("a write that never stops conflicting gives up and raises", async () => {
+  const conflict = { status: 409, body: { message: "is at 111 but expected 222" } };
+  const read = { status: 200, body: { content: "", sha: "s", size: 0 } };
+  const { fetchImpl, calls } = fakeGithub([conflict, read, conflict, read, conflict, read, conflict, read, conflict, read, conflict]);
+  await assert.rejects(() => writeFile(config, "content/content.json", Buffer.from("hi"), "msg", "s", fetchImpl), /409/);
+  assert.equal(calls.length, 9, "five tries in all, never more");
+});
+
 test("a write that keeps failing raises rather than reporting success", async () => {
   const { fetchImpl } = fakeGithub([
     { status: 422, body: { message: "conflict" } },

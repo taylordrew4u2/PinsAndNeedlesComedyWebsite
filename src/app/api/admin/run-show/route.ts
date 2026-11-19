@@ -151,8 +151,12 @@ export async function POST(request: Request) {
       // The show's side only: the lineup (keeping its timing), what is on screen and any message.
       // The questions are archived by the pile's own route first. Nothing on the menu side is read or
       // written here: drink list, custom menu, bartender, marquee, QR and screen settings all stay.
+      // One after another: on the GitHub driver every write is a commit to the same branch, so writes sent
+      // together race each other for it.
       const next = freshLineup(await readLineup(space));
-      await Promise.all([writeLineup(next, space), clearLiveSelection(undefined, space), clearMessage(space)]);
+      await writeLineup(next, space);
+      await clearLiveSelection(undefined, space);
+      await clearMessage(space);
       return NextResponse.json(lineupView(next), { headers });
     } catch (error) {
       console.error("[run-show] fresh show failed", error);
