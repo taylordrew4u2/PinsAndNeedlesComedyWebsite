@@ -658,12 +658,14 @@ export default function ControlCenter({ build = "", producer = false }: { build?
   const openSlot = state ? firstEmptySlot(state.lineup, setClock) : null;
 
   return (
-    <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
+    // On a desktop (xl and up) the whole page is one screen: it never scrolls, and each of its three columns
+    // scrolls on its own, so the live screen's buttons stay in view whatever is open elsewhere.
+    <main className="min-h-svh bg-neutral-950 px-4 py-6 text-white sm:px-6 xl:h-svh xl:overflow-hidden xl:py-4">
+      <div className="mx-auto max-w-6xl xl:flex xl:h-full xl:max-w-[1800px] xl:flex-col">
+        <header className="mb-6 flex flex-wrap items-start justify-between gap-4 xl:mb-3 xl:items-center">
+          <div className="xl:flex xl:items-baseline xl:gap-4">
             <h1 className="text-2xl font-semibold">Control Center</h1>
-            <p className="mt-1 text-sm text-neutral-400">Bad Decisions, show night. Questions land here as they come in; the live screen follows what you pick.</p>
+            <p className="mt-1 text-sm text-neutral-400 xl:mt-0 xl:hidden 2xl:block">Bad Decisions, show night. Questions land here as they come in; the live screen follows what you pick.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 [&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center sm:[&>a]:min-h-0">
             {state ? <SavePill cards={Object.entries(phases)} /> : null}
@@ -700,8 +702,8 @@ export default function ControlCenter({ build = "", producer = false }: { build?
 
         {/* Show-time controls first: the live screen, then Sets and Questions, with setup last. On a wide screen setup
             sits under the live screen; on a phone it comes after the questions, so mid-show taps are near the top. */}
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:grid-rows-[auto_1fr]">
-          <section aria-label="Live screen" className="min-w-0 lg:col-start-1 lg:row-start-1">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:grid-rows-[auto_1fr] xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,4fr)] xl:grid-rows-1 xl:gap-5">
+          <section aria-label="Live screen" className="min-w-0 lg:col-start-1 lg:row-start-1 xl:relative xl:min-h-0 xl:overflow-y-auto xl:pr-2">
             <div className="mb-3 space-y-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
@@ -753,36 +755,6 @@ export default function ControlCenter({ build = "", producer = false }: { build?
               <span>A copy of what the projector shows. It checks for changes every few seconds, so it can trail the projector by a moment.</span>
               <button type="button" onClick={() => setMirrorVersion((value) => value + 1)} className="min-h-11 underline sm:min-h-0">Reload mirror</button>
             </div>
-            {state ? (
-              <BartenderField
-                name={state.menuBartender}
-                label={state.menuBartenderLabel}
-                font={state.menuBartenderFont}
-                color={state.menuBartenderColor || state.menuColor}
-                live={state.menu && state.menuStyle === "custom"}
-                busy={busy}
-                save={saveBartender}
-                onPhase={phaseOf("bartender-field")}
-              />
-            ) : null}
-            <nav aria-label="Jump to a card" className="mt-4 flex flex-wrap gap-2">
-              {JUMPS.map(({ id, label, focus }) => {
-                const phase = phases[id];
-                const waiting = phase === "unsaved" || phase === "failed";
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => openCard(id, focus)}
-                    className={`min-h-11 rounded-full border px-3 py-1 text-xs sm:min-h-0 ${phase === "failed" ? "border-red-500 text-red-200" : waiting ? "border-amber-300/70 text-amber-200" : "border-white/25 text-neutral-200"}`}
-                  >
-                    {label}
-                    {waiting ? <span aria-hidden="true"> {phase === "failed" ? "✕" : "●"}</span> : null}
-                    {waiting ? <span className="sr-only">{phase === "failed" ? " (didn't save)" : " (not saved yet)"}</span> : null}
-                  </button>
-                );
-              })}
-            </nav>
             <MessageCard
               message={screenMessage}
               menu={Boolean(state?.menu)}
@@ -823,6 +795,36 @@ export default function ControlCenter({ build = "", producer = false }: { build?
             </div>
 
             {state ? (
+              <BartenderField
+                name={state.menuBartender}
+                label={state.menuBartenderLabel}
+                font={state.menuBartenderFont}
+                color={state.menuBartenderColor || state.menuColor}
+                live={state.menu && state.menuStyle === "custom"}
+                busy={busy}
+                save={saveBartender}
+                onPhase={phaseOf("bartender-field")}
+              />
+            ) : null}
+            <nav aria-label="Jump to a card" className="mt-4 flex flex-wrap gap-2">
+              {JUMPS.map(({ id, label, focus }) => {
+                const phase = phases[id];
+                const waiting = phase === "unsaved" || phase === "failed";
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => openCard(id, focus)}
+                    className={`min-h-11 rounded-full border px-3 py-1 text-xs sm:min-h-0 ${phase === "failed" ? "border-red-500 text-red-200" : waiting ? "border-amber-300/70 text-amber-200" : "border-white/25 text-neutral-200"}`}
+                  >
+                    {label}
+                    {waiting ? <span aria-hidden="true"> {phase === "failed" ? "✕" : "●"}</span> : null}
+                    {waiting ? <span className="sr-only">{phase === "failed" ? " (didn't save)" : " (not saved yet)"}</span> : null}
+                  </button>
+                );
+              })}
+            </nav>
+            {state ? (
               <DrinkListCard
                 saved={state.drinks}
                 live={state.menu}
@@ -837,7 +839,7 @@ export default function ControlCenter({ build = "", producer = false }: { build?
             ) : null}
           </section>
 
-          <section aria-label="Question submissions" className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          <section aria-label="Question submissions" className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 xl:row-span-1 xl:relative xl:min-h-0 xl:overflow-y-auto xl:pr-2">
             {state ? (
               <LineupPanel
                 lineup={state.lineup}
@@ -986,7 +988,7 @@ export default function ControlCenter({ build = "", producer = false }: { build?
             </details>
           </section>
 
-          <section aria-labelledby="setup-heading" className="min-w-0 lg:col-start-1 lg:row-start-2">
+          <section aria-labelledby="setup-heading" className="min-w-0 lg:col-start-1 lg:row-start-2 xl:col-start-3 xl:row-start-1 xl:relative xl:min-h-0 xl:overflow-y-auto xl:pr-2">
             <h2 id="setup-heading" className="text-xs uppercase tracking-widest text-neutral-400">Setup</h2>
             <p className="mt-1 text-sm text-neutral-500">Best done before the show. The show QR&rsquo;s size is right here. Every word the screens show, where the QR leads, the daytime menu and the marquee each have a card below, or a chip under the live screen.</p>
             {state ? (
