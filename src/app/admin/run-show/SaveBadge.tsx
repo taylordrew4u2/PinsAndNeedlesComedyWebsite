@@ -53,6 +53,9 @@ export function SaveBadge({ dirty, memo, fresh, words, hidden }: { dirty: boolea
   const phase = savePhase(dirty, memo);
   const { badge } = saveWords(phase, fresh, words);
   const justNow = phase === "saved" && fresh;
+  // Settled and saved: the sign at the top already says so, so the card stays quiet.
+  // The status region stays in place (screen readers keep hearing changes).
+  if (phase === "saved" && !fresh) return <span role="status" aria-live="polite" className="sr-only">{badge}</span>;
   return (
     <span
       role="status"
