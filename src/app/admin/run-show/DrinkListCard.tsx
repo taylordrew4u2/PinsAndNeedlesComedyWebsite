@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import DrinkMenu from "@/components/DrinkMenu";
-import { compactMenu, type BoardWords } from "@/lib/drink-menu";
+import { compactMenu, type BartenderLook, type BoardWords } from "@/lib/drink-menu";
 import { savePhase, type SavePhase } from "@/lib/save-state";
 import type { BoardQr } from "@/lib/screen-qr";
 import {
@@ -22,6 +22,8 @@ type Props = {
   qr: BoardQr | null;
   /** The words beside that QR, as the standard menu draws them (standardMenuWords); the printed wording when left out. */
   words?: BoardWords;
+  /** Tonight's bartender, as the standard menu draws them; null for none. */
+  bartender?: BartenderLook | null;
   busy: boolean;
   /** The whole list; `from` is the saved list this screen last saw, so the server can refuse when another screen changed it since. */
   save: (drinks: DrinkList | null, message: string, from?: DrinkList | null) => Promise<boolean>;
@@ -47,7 +49,7 @@ const INPUT = `${TAP} rounded-md border border-white/30 bg-black px-2.5 py-1.5 t
  * puts the venue's printed list back. Nothing is ever sold out. The badge in
  * the summary says whether it is all saved, even while the card is folded.
  */
-export default function DrinkListCard({ saved, live, qr, words, busy, save, samePriceLine, saveSamePriceLine, onPhase }: Props) {
+export default function DrinkListCard({ saved, live, qr, words, bartender, busy, save, samePriceLine, saveSamePriceLine, onPhase }: Props) {
   // The whole list as the host is editing it; null until they change something, so the saved list shows.
   const [draft, setDraft] = useState<DrinkList | null>(null);
   // The saved list that edit started from (null: the printed menu), to tell when another screen has changed the list underneath it.
@@ -183,7 +185,7 @@ export default function DrinkListCard({ saved, live, qr, words, busy, save, same
         ))}
 
         <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-md border border-white/15" aria-label="Preview of the drink menu">
-          <DrinkMenu contained drinks={board} qr={qr} words={words} onFit={setFit} />
+          <DrinkMenu contained drinks={board} qr={qr} words={words} bartender={bartender} onFit={setFit} />
         </div>
         <p className={`mt-2 text-xs ${fit.fits ? "text-neutral-500" : "text-amber-200"}`}>
           {!fit.fits

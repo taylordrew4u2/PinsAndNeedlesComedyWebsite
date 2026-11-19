@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Submission } from "@/lib/types";
 import type { LiveSelection } from "@/lib/live-selection";
-import { NO_MENU_VIEW, customSettingsOf, marqueeSavedNotice, readMenuView, type CustomMenuSettings, type MarqueeChange, type MenuStyle, type MenuView } from "@/lib/drink-menu";
+import { NO_MENU_VIEW, customSettingsOf, marqueeSavedNotice, readBartenderLook, readMenuView, type CustomMenuSettings, type MarqueeChange, type MenuStyle, type MenuView } from "@/lib/drink-menu";
 import { boardQr } from "@/lib/screen-qr";
 import BartenderField, { type BartenderChange } from "./BartenderField";
 import CustomMenuCard from "./CustomMenuCard";
@@ -371,12 +371,13 @@ export default function ControlCenter({ build = "", producer = false }: { build?
     change(API, { customMenu: bartender }, (data) => {
       takeMenu(data);
       const name = typeof data.menuBartender === "string" ? data.menuBartender : "";
-      const onScreen = data.menu && data.menuStyle === "custom";
+      // Either menu shows tonight's bartender now.
+      const onScreen = Boolean(data.menu);
       setNotice(!("bartender" in bartender)
         ? `Saved.${onScreen ? " The live screen has it now." : ""}`
         : name
-          ? `${name} is tonight's bartender. ${onScreen ? "The live screen has it now." : "It shows when you put the custom menu up."}`
-          : "No bartender on the custom menu now.");
+          ? `${name} is tonight's bartender. ${onScreen ? "The live screen has it now." : "It shows when you put either drink menu up."}`
+          : "No bartender on the menus now.");
     }, "Could not save the bartender.");
 
   /** Drinks of one price on one line on both menus, or each on its own: saved straight away. */
@@ -830,6 +831,7 @@ export default function ControlCenter({ build = "", producer = false }: { build?
                 live={state.menu}
                 qr={state.pageLive ? boardQr(previewQr(screenSettings), "menu") : null}
                 words={standardMenuWords(screenSettings)}
+                bartender={readBartenderLook({ name: state.menuBartender, font: state.menuBartenderFont, color: state.menuBartenderColor || state.menuColor, label: state.menuBartenderLabel })}
                 busy={busy}
                 save={saveDrinks}
                 samePriceLine={state.menuSamePriceLine}

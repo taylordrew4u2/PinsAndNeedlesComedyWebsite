@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MENU_WORDING, SAME_PRICE_JOIN, linesOfBoxes, wrapsMore, type BoardWords, type CustomLook, type Drink, type DrinkSection } from "@/lib/drink-menu";
+import { DEFAULT_MARQUEE_SPEED, DRINK_MENU, MENU_WORDING, SAME_PRICE_JOIN, linesOfBoxes, wrapsMore, type BartenderLook, type BoardWords, type CustomLook, type Drink, type DrinkSection } from "@/lib/drink-menu";
 import { menuFontScale, scriptFontScale } from "@/lib/menu-fonts";
 import type { MenuPage } from "@/lib/menu-rotation";
 import { boardQr, type BoardQr } from "@/lib/screen-qr";
@@ -93,8 +93,10 @@ const IMAGE_RETRY_MS = 60_000;
  * left panel so they never leave the screen. A QR or picture that won't load
  * is left off, with its wording, rather than drawn broken.
  */
-export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, contained, drinks = DRINK_MENU, marqueeSpeed = DEFAULT_MARQUEE_SPEED, marqueeColor, page, onFit }: {
+export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, bartender: standardBartender, contained, drinks = DRINK_MENU, marqueeSpeed = DEFAULT_MARQUEE_SPEED, marqueeColor, page, onFit }: {
   qr?: BoardQr | null;
+  /** Tonight's bartender on the standard menu; the custom menu takes its own from `custom`. */
+  bartender?: BartenderLook | null;
   words?: BoardWords;
   marquee?: string | null;
   custom?: CustomLook | null;
@@ -113,7 +115,11 @@ export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, 
   const sectionPage = Boolean(page?.sections.length);
   const columns = page && sectionPage ? [page.sections.map((entry) => entry.section)] : drinks;
   const note = custom?.note.trim() || "";
-  const bartender = custom?.bartender.trim() || "";
+  // Tonight's bartender on either menu: the custom menu's own, or the one handed to the standard menu.
+  const tonight: BartenderLook | null = custom
+    ? (custom.bartender.trim() ? { name: custom.bartender.trim(), font: custom.bartenderFont, color: custom.bartenderColor, label: custom.bartenderLabel ?? MENU_WORDING.bartenderLabel.fallback } : null)
+    : standardBartender ?? null;
+  const bartender = tonight?.name ?? "";
   // On the full board they sit under the first two columns, and the last column runs down beside them; on a section page they move to the left panel.
   const below = !sectionPage && Boolean(note || bartender);
   const aside = sectionPage && Boolean(note || bartender);
@@ -139,11 +145,11 @@ export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, 
   const link = custom ? custom.qrLink : words.link;
   // The QR keeps its chosen size; the logo, wording and gaps make room around it.
   const p = (size: number) => `calc(${size}px * var(--panel-fit, 1))`;
-  const bartenderLabel = custom?.bartenderLabel ?? MENU_WORDING.bartenderLabel.fallback;
+  const bartenderLabel = tonight?.label ?? MENU_WORDING.bartenderLabel.fallback;
   const report = useRef(onFit);
   useEffect(() => { report.current = onFit; }, [onFit]);
   // Everything that changes how much room the drinks take; the fit is worked out again when it does.
-  const layout = JSON.stringify([page?.key, columns, family, k, note, bartender, custom?.bartenderFont, bartenderLabel, panelWidth, code?.src, code?.side, custom?.headline, heading, caption, title, link]);
+  const layout = JSON.stringify([page?.key, columns, family, k, note, bartender, tonight?.font, bartenderLabel, panelWidth, code?.src, code?.side, custom?.headline, heading, caption, title, link]);
 
   useLayoutEffect(() => {
     const box = frame.current;
@@ -263,24 +269,24 @@ export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, 
                 ) : null}
               </div>
             ) : null}
-            {custom && aside ? (
+            {aside ? (
               // A section page: tonight's bartender and the note stay up here, under the heading and the QR, until the full board comes back.
               <div className="pnc-page-in" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: p(14), textAlign: "center", width: "100%", minWidth: 0, flexShrink: 0, marginTop: p(code ? 4 : 16) }}>
                 {bartender ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", maxWidth: "100%" }}>
                     <div style={{ fontSize: p(z(16)), fontWeight: 600, letterSpacing: "0.24em", marginRight: "-0.24em", color: MUTED, textTransform: "uppercase", lineHeight: 1.2, marginBottom: p(8), overflowWrap: "anywhere" }}>{bartenderLabel}</div>
                     <div style={{
-                      fontFamily: SCRIPT_FONT_FAMILY[custom.bartenderFont], fontWeight: 400,
-                      fontSize: p(Math.round((bartender.length <= 10 ? 60 : bartender.length <= 16 ? 50 : bartender.length <= 26 ? 40 : 32) * scriptFontScale(custom.bartenderFont))),
-                      lineHeight: 1.2, color: custom.bartenderColor, padding: "0 8px", overflowWrap: "anywhere", maxWidth: "100%",
-                      textShadow: `0 0 12px ${custom.bartenderColor}aa, 0 0 30px ${custom.bartenderColor}66`,
+                      fontFamily: SCRIPT_FONT_FAMILY[tonight!.font], fontWeight: 400,
+                      fontSize: p(Math.round((bartender.length <= 10 ? 60 : bartender.length <= 16 ? 50 : bartender.length <= 26 ? 40 : 32) * scriptFontScale(tonight!.font))),
+                      lineHeight: 1.2, color: tonight!.color, padding: "0 8px", overflowWrap: "anywhere", maxWidth: "100%",
+                      textShadow: `0 0 12px ${tonight!.color}aa, 0 0 30px ${tonight!.color}66`,
                     }}>
                       {bartender}
                     </div>
                   </div>
                 ) : null}
                 {note ? (
-                  <div style={{ color: custom.noteColor, fontSize: p(z(note.length <= 40 ? 28 : 24)), fontWeight: 700, lineHeight: 1.15, letterSpacing: "0.03em", textTransform: "uppercase", overflowWrap: "anywhere", maxWidth: "100%" }}>
+                  <div style={{ color: custom?.noteColor, fontSize: p(z(note.length <= 40 ? 28 : 24)), fontWeight: 700, lineHeight: 1.15, letterSpacing: "0.03em", textTransform: "uppercase", overflowWrap: "anywhere", maxWidth: "100%" }}>
                     {note}
                   </div>
                 ) : null}
@@ -300,17 +306,17 @@ export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, 
                 {column.map((section) => <Section key={section.id ?? section.title} section={section} d={d} />)}
               </div>
             ))}
-            {custom && below ? (
+            {below ? (
               <div style={{ gridColumn: `1 / span ${columns.length - 1}`, gridRow: 2, marginTop: fitted(bartender ? 32 : 40), display: "flex", flexDirection: "column", alignItems: "center", gap: fitted(16), textAlign: "center", minWidth: 0 }}>
                 {bartender ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", maxWidth: "100%" }}>
                     <div style={{ fontSize: d(18), fontWeight: 600, letterSpacing: "0.32em", marginRight: "-0.32em", color: MUTED, textTransform: "uppercase", marginBottom: fitted(6), ...(bartenderLabel === MENU_WORDING.bartenderLabel.fallback ? {} : { overflowWrap: "anywhere" }) }}>{bartenderLabel}</div>
                     <div style={{
-                      fontFamily: SCRIPT_FONT_FAMILY[custom.bartenderFont], fontWeight: 400,
+                      fontFamily: SCRIPT_FONT_FAMILY[tonight!.font], fontWeight: 400,
                       // Big for one name; smaller for two, so it stays on one line.
-                      fontSize: fitted(Math.round((bartender.length <= 10 ? 80 : bartender.length <= 16 ? 72 : bartender.length <= 26 ? 60 : 46) * scriptFontScale(custom.bartenderFont))),
-                      lineHeight: 1.2, color: custom.bartenderColor, padding: "0 16px", overflowWrap: "anywhere",
-                      textShadow: `0 0 14px ${custom.bartenderColor}aa, 0 0 38px ${custom.bartenderColor}66`,
+                      fontSize: fitted(Math.round((bartender.length <= 10 ? 80 : bartender.length <= 16 ? 72 : bartender.length <= 26 ? 60 : 46) * scriptFontScale(tonight!.font))),
+                      lineHeight: 1.2, color: tonight!.color, padding: "0 16px", overflowWrap: "anywhere",
+                      textShadow: `0 0 14px ${tonight!.color}aa, 0 0 38px ${tonight!.color}66`,
                     }}>
                       <span data-keep-lines="">{bartender}</span>
                     </div>
@@ -318,7 +324,7 @@ export default function DrinkMenu({ qr, words = PRINTED_WORDS, marquee, custom, 
                 ) : null}
                 {note ? (
                   <div style={{
-                    color: custom.noteColor, fontWeight: 700, lineHeight: 1.15, letterSpacing: "0.03em", textTransform: "uppercase", overflowWrap: "anywhere", maxWidth: "100%",
+                    color: custom?.noteColor, fontWeight: 700, lineHeight: 1.15, letterSpacing: "0.03em", textTransform: "uppercase", overflowWrap: "anywhere", maxWidth: "100%",
                     // Sharing the space with the bartender, the note sets a size smaller.
                     fontSize: d(bartender ? (note.length <= 32 ? 40 : note.length <= 70 ? 32 : 28) : (note.length <= 32 ? 48 : note.length <= 70 ? 40 : 34)),
                   }}>

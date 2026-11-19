@@ -113,7 +113,7 @@ export default function BartenderField({ name, label = "", font, color = "", liv
         </div>
       </div>
       <p id="bartender-name-hint" className="mt-1.5 text-xs text-neutral-400">
-        Shows on the 🌞 custom (daytime) menu, under the drinks.{" "}
+        Shows on both menus, the show-night one and the 🌞 daytime one, under the drinks.{" "}
         {nextName ? `${typedName.length}/${BARTENDER_MAX}.` : "Empty means no bartender on the menu."}
         {live ? " That menu is on screen now, so Save shows it at once." : ""}
       </p>

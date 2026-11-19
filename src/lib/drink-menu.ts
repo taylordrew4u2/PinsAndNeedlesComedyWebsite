@@ -445,6 +445,39 @@ export function customLookOf(settings: CustomMenuSettings, srcOf: (link: string)
   };
 }
 
+/** Tonight's bartender as a menu draws them: name, script font, colour and the label over the name. */
+export type BartenderLook = { name: string; font: ScriptFontId; color: string; label: string };
+
+/**
+ * Tonight's bartender for the standard (show-night) menu, which has no custom
+ * look of its own: the same name, font, colour and label the host set for the
+ * daytime menu. Null when no bartender is set, so the menu draws as before.
+ */
+export function bartenderLookOf(settings: CustomMenuSettings): BartenderLook | null {
+  const name = (settings.bartender || "").trim();
+  if (!name) return null;
+  return {
+    name,
+    font: isScriptFont(settings.bartenderFont) ? settings.bartenderFont : DEFAULT_SCRIPT_FONT,
+    color: settings.bartenderColor || settings.color || DEFAULT_MENU_COLOR,
+    label: customWording(settings).bartenderLabel,
+  };
+}
+
+/** The bartender as the live screen's poll sends it, checked; null for none or anything malformed. */
+export function readBartenderLook(raw: unknown): BartenderLook | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  const name = typeof value.name === "string" ? value.name.trim() : "";
+  if (!name) return null;
+  return {
+    name,
+    font: isScriptFont(value.font) ? value.font : DEFAULT_SCRIPT_FONT,
+    color: typeof value.color === "string" && value.color ? value.color : DEFAULT_MENU_COLOR,
+    label: typeof value.label === "string" && value.label.trim() ? value.label : MENU_WORDING.bartenderLabel.fallback,
+  };
+}
+
 /** What the custom menu shows, defaults filled in; null for the standard menu. */
 export function customLook(state: MenuState, srcOf: (link: string) => string | null): CustomLook | null {
   return state.style === "custom" ? customLookOf(state, srcOf) : null;

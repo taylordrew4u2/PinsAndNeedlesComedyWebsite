@@ -529,3 +529,25 @@ test("a same-price line's last name wrapping inside its own box is a new line wh
   // counted from those, the extra line goes unseen and the drinks grow on.
   assert.equal(linesOfBoxes([box(515, 110), box(551, 332)]), linesOfBoxes([box(492, 123), box(572, 334)]));
 });
+
+import { MENU_WORDING as WORDING, bartenderLookOf, readBartenderLook, type CustomMenuSettings as Settings } from "../src/lib/drink-menu.ts";
+
+test("the standard menu gets tonight's bartender with the daytime menu's font, colour and label", () => {
+  const settings = { bartender: "  Maya ", bartenderFont: "", bartenderColor: "", color: "#FFC93C", bartenderLabel: "" } as unknown as Settings;
+  const look = bartenderLookOf(settings);
+  assert.ok(look);
+  assert.equal(look.name, "Maya");
+  assert.equal(look.color, "#FFC93C", "falls back to the menu's colour");
+  assert.equal(look.label, WORDING.bartenderLabel.fallback);
+  assert.equal(bartenderLookOf({ ...settings, bartender: "   " } as Settings), null, "no bartender, nothing drawn");
+  assert.equal(bartenderLookOf({ ...settings, bartenderColor: "#3CE0FF" } as Settings)?.color, "#3CE0FF");
+});
+
+test("the live screen reads the bartender defensively", () => {
+  assert.equal(readBartenderLook(null), null);
+  assert.equal(readBartenderLook({ name: "" }), null);
+  const look = readBartenderLook({ name: "Sam", font: "not-a-font", color: "", label: "" });
+  assert.equal(look?.name, "Sam");
+  assert.equal(look?.color, DEFAULT_MENU_COLOR);
+  assert.equal(look?.label, WORDING.bartenderLabel.fallback);
+});
