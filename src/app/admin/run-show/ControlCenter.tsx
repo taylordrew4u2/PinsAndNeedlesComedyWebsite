@@ -675,12 +675,17 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
             sits under the live screen; on a phone it comes after the questions, so mid-show taps are near the top. */}
         <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:grid-rows-[auto_1fr]">
           <section aria-label="Live screen" className="min-w-0 lg:col-start-1 lg:row-start-1">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-3 space-y-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-neutral-400">Live screen</p>
                 <p className="text-sm">{status}</p>
               </div>
-              <div className="flex flex-wrap gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
+              {/* The show's two everyday moves on their own row; the occasional ones under them. */}
+              <div className="flex flex-wrap items-center gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
+                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.some((item) => item.id !== held)} title={running ? SET_OWNS_SCREEN : undefined} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
+                <button type="button" onClick={() => void select(null)} disabled={busy || running || !state?.selected} title={running ? SET_OWNS_SCREEN : undefined} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 [&>button]:min-h-11 sm:[&>button]:min-h-0">
                 {screenMessage.on ? (
                   // Always in reach, even with the message card folded away (say, after a reload mid-show).
                   <button type="button" onClick={() => void sendMessage({ on: false })} disabled={busy || !state} className="rounded-md bg-sky-300 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">
@@ -710,12 +715,10 @@ export default function ControlCenter({ build = "" }: { build?: string }) {
                       title={style === "custom" ? "The venue's daytime menu: your own heading, colours and QR, none of the show's" : "The show-night drink menu, with the Bad Decisions QR"}
                       className={`rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50 ${up ? "bg-amber-300 text-black" : "border border-amber-300/70 text-amber-200"}`}
                     >
-                      {up ? `Hide ${label}` : `Show ${label}`}
+                      {up ? `Hide ${label}` : label.charAt(0).toUpperCase() + label.slice(1)}
                     </button>
                   );
                 })}
-                <button type="button" onClick={() => void draw()} disabled={busy || running || !waiting.some((item) => item.id !== held)} title={running ? SET_OWNS_SCREEN : undefined} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">🎲 Draw one</button>
-                <button type="button" onClick={() => void select(null)} disabled={busy || running || !state?.selected} title={running ? SET_OWNS_SCREEN : undefined} className="rounded-md border border-white/30 px-4 py-2 text-sm disabled:opacity-40">Clear screen</button>
               </div>
             </div>
             <LiveMirror version={mirrorVersion} />
