@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthed } from "@/lib/auth";
+import { canRunShow } from "@/lib/auth";
 import { qrSvgResponse } from "@/lib/decision-qr-response";
 import { cleanQrLink } from "@/lib/screen-qr";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Signed-in only: the public route draws only links the server signed.
  */
 export async function GET(request: Request) {
-  if (!(await isAuthed())) {
+  if (!(await canRunShow())) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   const link = cleanQrLink(new URL(request.url).searchParams.get("to"));

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthed } from "@/lib/auth";
+import { currentRole } from "@/lib/auth";
 import { saveUpload } from "@/lib/store";
 import { AUDIO_MAX_BYTES, audioTypeOf, audioUploadName } from "@/lib/audio-upload";
 
@@ -8,9 +8,11 @@ export const maxDuration = 60;
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const ALLOWED = /^(image\/(png|jpeg|webp|gif|avif|svg\+xml)|video\/(mp4|webm|quicktime))$/;
+const PRODUCER_ALLOWED = /^image\/(png|jpeg|webp|gif|avif)$/;
 
 export async function POST(request: Request) {
-  if (!(await isAuthed())) {
+  const role = await currentRole();
+  if (!role) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -21,6 +23,14 @@ export async function POST(request: Request) {
   }
   // A sound (the host's own question sound) is stored under its standard type and an extension that serves as it.
   const audio = audioTypeOf(file.type, file.name);
+  // A producer uploads only what the Control Center takes (a QR picture, a question sound): no SVG,
+  // which can carry script on this site's own address, and no video.
+  if (role === "producer" && !audio && !PRODUCER_ALLOWED.test(file.type)) {
+    return NextResponse.json(
+      { ok: false, error: `Producers can upload pictures (PNG, JPEG, WebP, GIF, AVIF) and sounds only.` },
+      { status: 415 }
+    );
+  }
   if (!audio && !ALLOWED.test(file.type)) {
     return NextResponse.json(
       { ok: false, error: `Unsupported file type: ${file.type || "unknown"}` },
