@@ -5,6 +5,7 @@ import { absoluteUrl } from "@/lib/seo";
 import { socialImage } from "@/lib/assets";
 import { onCanonicalHost } from "@/lib/host";
 import SiteFooter from "@/components/SiteFooter";
+import ErrorReporter from "@/components/ErrorReporter";
 import "./globals.css";
 
 const archivo = Archivo_Black({
@@ -93,6 +94,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <style dangerouslySetInnerHTML={{ __html: `:root{${themeVars}}` }} />
       </head>
       <body>
+        <ErrorReporter />
         {children}
         {site.showFooter ? <SiteFooter site={site} /> : null}
       </body>
