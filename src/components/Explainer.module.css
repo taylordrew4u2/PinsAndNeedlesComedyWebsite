@@ -1,0 +1,153 @@
+.screen {
+  /* Keep projector proportions on narrow previews; tall phones stack below. */
+  --unit: min(1vh, 0.5625vw);
+  --cream: #f2eddc;
+  --red: #ff2e4d;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  background: #080808;
+  color: var(--cream);
+  font-family: var(--font-poster), Impact, sans-serif;
+}
+
+.texture {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.24;
+  background-image: radial-gradient(#f2eddc55 0.6px, transparent 0.6px);
+  background-size: 5px 5px;
+  mask-image: linear-gradient(125deg, #000, transparent 65%);
+}
+
+.scene { position: absolute; inset: 0; }
+.scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: calc(1.2 * var(--unit)) solid var(--red);
+  pointer-events: none;
+  clip-path: polygon(0 0, 22% 0, 22% 1.5%, 1% 1.5%, 1% 100%, 0 100%);
+}
+
+.header {
+  position: absolute;
+  top: calc(4 * var(--unit));
+  left: calc(7 * var(--unit));
+  right: calc(7 * var(--unit));
+  display: flex;
+  align-items: center;
+  gap: calc(2.5 * var(--unit));
+  padding-bottom: calc(2.2 * var(--unit));
+  border-bottom: 1px solid #f2eddc40;
+  text-transform: uppercase;
+  font-size: calc(2.5 * var(--unit));
+  font-weight: 600;
+  letter-spacing: 0.22em;
+}
+.header > :last-child { margin-left: auto; color: var(--red); }
+.headerMark { color: var(--red); font-size: calc(3.5 * var(--unit)); line-height: 1; }
+.stage { position: absolute; inset: calc(15 * var(--unit)) calc(7 * var(--unit)) calc(7 * var(--unit)); }
+
+.titleStage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(3 * var(--unit));
+  isolation: isolate;
+}
+.titleBrand { text-transform: uppercase; font-size: calc(3 * var(--unit)); letter-spacing: 0.35em; animation: rise 0.6s both; }
+.titleDice { width: min(calc(95 * var(--unit)), 75vw); height: auto; animation: stamp 0.85s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.titleTag {
+  max-width: 85vw;
+  margin: 0;
+  padding: calc(1.4 * var(--unit)) calc(3 * var(--unit));
+  background: var(--red);
+  color: #080808;
+  font-size: calc(3.8 * var(--unit));
+  font-weight: 700;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  transform: rotate(-3deg);
+  animation: rise 0.5s 0.45s both;
+}
+.orbit {
+  position: absolute;
+  z-index: -1;
+  width: calc(112 * var(--unit));
+  height: calc(112 * var(--unit));
+  border: 1px solid #ff2e4d50;
+  border-radius: 50%;
+  box-shadow: 0 0 0 calc(8 * var(--unit)) #ff2e4d08, 0 0 0 calc(16 * var(--unit)) #ff2e4d06;
+  animation: orbit 2.8s ease-out both;
+}
+.cornerStar { position: absolute; right: calc(9 * var(--unit)); bottom: calc(9 * var(--unit)); color: var(--red); font-size: calc(13 * var(--unit)); animation: stamp 0.7s 0.2s both; }
+
+.twoColumn { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: calc(6 * var(--unit)); height: 100%; max-width: calc(166 * var(--unit)); margin: auto; }
+.instructions { min-width: 0; }
+.howHeading { color: var(--red); font-size: calc(7 * var(--unit)); line-height: 1.02; text-transform: uppercase; overflow-wrap: anywhere; animation: rise 0.55s both; }
+.steps { display: flex; flex-direction: column; gap: calc(2.6 * var(--unit)); padding: 0; margin: calc(4 * var(--unit)) 0 0; list-style: none; }
+.rule { display: grid; grid-template-columns: calc(7 * var(--unit)) calc(6 * var(--unit)) minmax(0, 1fr); align-items: center; gap: calc(2 * var(--unit)); position: relative; padding: calc(1 * var(--unit)) 0 calc(2 * var(--unit)); border-bottom: 1px solid #f2eddc35; animation: ruleIn 0.65s var(--rule-delay) both; }
+.ruleNumber { color: var(--red); font-size: calc(6 * var(--unit)); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ruleIcon { width: calc(5 * var(--unit)); color: var(--cream); }
+.ruleIcon svg { display: block; width: 100%; }
+.ruleText { font-size: calc(5.4 * var(--unit)); font-weight: 600; text-transform: uppercase; line-height: 1.04; overflow-wrap: anywhere; }
+.sideDice { width: calc(43 * var(--unit)); height: auto; transform: rotate(9deg); }
+
+.qrBlock { display: flex; flex-direction: column; align-items: center; gap: calc(2.5 * var(--unit)); width: calc(var(--qr-side) + calc(6 * var(--unit))); }
+.qrFrame { padding: calc(3 * var(--unit)); background: #fff; box-shadow: calc(1.2 * var(--unit)) calc(1.2 * var(--unit)) 0 var(--red); }
+.qrImage { display: block; width: var(--qr-side); height: var(--qr-side); object-fit: contain; }
+.pictureFrame { background: #080808; outline: calc(0.6 * var(--unit)) solid var(--cream); outline-offset: calc(-0.6 * var(--unit)); }
+.scanLabel { max-width: 100%; margin: 0; padding-top: calc(1 * var(--unit)); font-size: calc(3.5 * var(--unit)); line-height: 1.15; letter-spacing: 0.18em; font-weight: 700; text-align: center; text-transform: uppercase; overflow-wrap: anywhere; }
+.scanLabel svg { color: var(--red); }
+
+.listenStage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(6 * var(--unit)); height: 100%; }
+.soundwave { display: flex; align-items: center; justify-content: center; gap: calc(1.4 * var(--unit)); width: calc(60 * var(--unit)); height: calc(17 * var(--unit)); }
+.soundwave span { width: calc(2.8 * var(--unit)); height: var(--bar-height); background: var(--red); animation: soundbar 0.6s var(--bar-delay) ease-in-out infinite alternate; }
+.listenLine { max-width: calc(140 * var(--unit)); color: var(--cream); font-size: calc(12 * var(--unit)); line-height: 1.05; text-align: center; text-transform: uppercase; overflow-wrap: anywhere; animation: slam 0.55s both; }
+
+.closingCopy { min-width: 0; }
+.closingLine { font-size: calc(7.2 * var(--unit)); line-height: 1.08; text-transform: uppercase; overflow-wrap: anywhere; animation: rise 0.6s both; }
+.highlight { color: var(--red); }
+.closingCall { margin: calc(4 * var(--unit)) 0 0; padding-top: calc(2.5 * var(--unit)); border-top: 1px solid #f2eddc50; color: var(--red); font-size: calc(5 * var(--unit)); line-height: 1.08; font-weight: 700; text-transform: uppercase; overflow-wrap: anywhere; animation: rise 0.6s 0.45s both; }
+.arrow { display: inline-block; width: 0.9em; height: 0.9em; vertical-align: -0.05em; flex-shrink: 0; }
+
+.progress { position: absolute; bottom: 0; left: 0; height: calc(0.7 * var(--unit)); width: 100%; background: var(--red); transform-origin: left; animation: progress linear forwards; }
+.sting { position: fixed; inset: 0; z-index: 40; background: #000; }
+
+@keyframes rise { from { opacity: 0; translate: 0 calc(3 * var(--unit)); } to { opacity: 1; translate: 0 0; } }
+@keyframes stamp { from { opacity: 0; transform: scale(1.4) rotate(-9deg); } to { opacity: 1; transform: scale(1); } }
+@keyframes orbit { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1.1); } }
+@keyframes ruleIn { from { opacity: 0; translate: calc(-5 * var(--unit)) 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes soundbar { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }
+@keyframes slam { from { opacity: 0; transform: scale(1.18); } to { opacity: 1; transform: scale(1); } }
+@keyframes progress { from { transform: scaleX(var(--from)); } to { transform: scaleX(var(--to)); } }
+
+@media (max-aspect-ratio: 3/5) {
+  .screen { --unit: 1vmin; }
+  .twoColumn { grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: center; gap: calc(7 * var(--unit)); }
+  .instructions, .closingCopy { width: 100%; }
+  .howHeading { font-size: calc(8 * var(--unit)); }
+  .ruleText { font-size: calc(5.8 * var(--unit)); }
+  .sideDice { width: calc(48 * var(--unit)); }
+  .withoutQr { gap: calc(9 * var(--unit)); }
+  .listenLine { font-size: calc(12 * var(--unit)); }
+}
+
+/* The global reduced-motion rule shortens animations.
+   Explicitly reveal every rule and keep the real sting visible for its full slot. */
+@media (prefers-reduced-motion: reduce) {
+  .screen *, .sting :global(.pnc-intro), .sting :global(.pnc-intro-stamp), .sting :global(.pnc-intro-incoming), .sting :global(.pnc-intro-shake) {
+    animation: none !important;
+    opacity: 1;
+    translate: none;
+  }
+  .sting :global(.pnc-intro-flash), .sting :global(.pnc-intro-rays) { display: none; }
+  .progress { transform: scaleX(var(--to)); }
+}

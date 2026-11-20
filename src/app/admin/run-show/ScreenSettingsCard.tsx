@@ -115,6 +115,7 @@ export default function ScreenSettingsCard({ saved, busy, save, onPhase }: Props
           {toggle("sound", "Play the sound on the projector")}
           {value.sound ? null : <p className="text-xs text-amber-200">Muted: no sound with new questions, the Intro or Test sound.</p>}
           <QuestionSoundPicker sting={value.sting} volume={value.stingVolume} url={value.stingUrl} saved={saved} edit={edit} />
+          <p className="text-xs text-neutral-500">This volume also controls the Intro music. Your selected question sound still plays at its cue in the Intro.</p>
         </fieldset>
 
         <fieldset className="space-y-1">

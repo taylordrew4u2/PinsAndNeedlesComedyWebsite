@@ -56,7 +56,7 @@ export type ScreenSettings = {
   /** The line above a performer's name when their set starts, and the mark before a sender's name under their question. */
   stageLabel: string;
   namePrefix: string;
-  /** The "Intro" explainer's words: its heading and three steps, the line before the sound, the example and its tag, the two closing lines, and the words under its QR. */
+  /** The "Intro" explainer's words: its heading and steps, sound cue, example and sample sender, closing lines, and QR caption. */
   howHeading: string;
   howStep1: string;
   howStep2: string;
@@ -101,7 +101,7 @@ export const SCREEN_TEXT: Record<ScreenText, { fallback: string; max: number; la
   howStep2: { fallback: "Tell us your bad decision", max: 40, label: "Step 2", caps: true },
   howStep3: { fallback: "A comedian weighs in, live", max: 40, label: "Step 3", caps: true },
   listenLine: { fallback: "When you hear this…", max: 40, label: "Just before the sound", caps: true },
-  exampleLabel: { fallback: "Example", max: 30, label: "Tag over the example question", caps: true },
+  exampleLabel: { fallback: "Example", max: 30, label: "Sample sender under the example question", hint: "Uses the live screen’s sender style; hidden when sender names are off." },
   exampleQuestion: { fallback: EXAMPLE_QUESTION, max: 120, label: "Example question" },
   closingLine: { fallback: "That sound means a bad decision just hit the screen.", max: 100, label: "After the example", hint: "“Bad decision” shows in red wherever you put it.", caps: true },
   closingCall: { fallback: "Scan to send yours.", max: 40, label: "Last line, beside the QR code", caps: true },

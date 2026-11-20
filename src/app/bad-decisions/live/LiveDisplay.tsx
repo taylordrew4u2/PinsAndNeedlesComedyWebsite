@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { fetchWithin } from "@/lib/fetch-within";
 import { isNewerBuild, maySelfReload, quietScreen, screenSignature, soundNeededTap } from "@/lib/build";
@@ -10,11 +10,13 @@ import { useMenuRotation } from "@/components/useMenuRotation";
 import { DRINK_MENU, readBartenderLook, readCustomLook, type BartenderLook, type CustomLook } from "@/lib/drink-menu";
 import { parseLiveBoard, type LiveBoard } from "@/lib/drink-list";
 import { menuPages } from "@/lib/menu-rotation";
-import { FORM_QR, boardQr, qrPercent, readShownQr, type ShownQr } from "@/lib/screen-qr";
+import { FORM_QR, boardQr, readShownQr, type ShownQr } from "@/lib/screen-qr";
 import BadDecisionIntro, { INTRO_MS } from "@/components/BadDecisionIntro";
 import { customStingCache, loadCustomSting, pickQuestionSound, playCustomSting } from "@/lib/custom-sting";
 import Explainer from "@/components/Explainer";
+import LiveQuestionScreen from "@/components/LiveQuestionScreen";
 import { EXPLAINER_MS, EXPLAINER_STEPS, type ExplainerStep } from "@/lib/explainer";
+import { EXPLAINER_SCORE_URL, playExplainerScore, type ExplainerScore } from "@/lib/explainer-audio";
 import { DEFAULT_LOOK, screenLook, soundUrl, standardMenuWords, type ScreenSettings } from "@/lib/screen-settings";
 import { DEFAULT_SOUND, soundFile } from "@/lib/question-sounds";
 import { readPublicMessage } from "@/lib/screen-message";
@@ -113,29 +115,6 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
   // How the latest poll brings in a held question, so the explainer ending can start it in the same moment it goes.
   const arriveHeld = useRef<(() => void) | null>(null);
   useWakeLock();
-  const area = useRef<HTMLDivElement>(null);
-  const text = useRef<HTMLDivElement>(null);
-
-  // Fit a full audience submission into the projector area without covering the QR.
-  useLayoutEffect(() => {
-    const box = area.current;
-    const heading = text.current;
-    if (!box || !heading) return;
-    const fit = () => {
-      let size = Math.min(88, Math.max(28, window.innerWidth * 0.05));
-      heading.style.fontSize = `${size}px`;
-      while (size > 14 && (heading.scrollHeight > box.clientHeight || heading.scrollWidth > box.clientWidth)) {
-        size -= 1;
-        heading.style.fontSize = `${size}px`;
-      }
-    };
-    const observer = new ResizeObserver(fit);
-    observer.observe(box);
-    fit();
-    let active = true;
-    void document.fonts.ready.then(() => { if (active) fit(); });
-    return () => { active = false; observer.disconnect(); };
-  }, [question, name, menu, intro, countdown, message]);
 
   useEffect(() => {
     let disposed = false;
@@ -147,11 +126,44 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       return context ? loadCustomSting(context, url, controller.signal) : Promise.reject(new Error("No audio yet"));
     });
     const defaultSound = soundFile(DEFAULT_SOUND);
+    let score: ExplainerScore | null = null;
+    let scoreWaiting = false;
+    let explainerStartedAt: number | null = null;
+    // A late audio unlock joins the visuals where they are. Suspending the
+    // context stops the old source so a resumed tab cannot play an old beat.
+    const syncScore = () => {
+      const context = audio.current;
+      if (disposed || !explaining.current || explainerStartedAt === null || context?.state !== "running") {
+        score?.stop();
+        score = null;
+        return;
+      }
+      if (score) {
+        score.setVolume(muted.current ? 0 : soundChoice.current.volume / 100);
+        return;
+      }
+      if (muted.current) return;
+      const buffer = sounds.ready(EXPLAINER_SCORE_URL);
+      if (buffer) {
+        score = playExplainerScore(context, buffer, {
+          elapsedMs: Date.now() - explainerStartedAt,
+          volume: soundChoice.current.volume / 100,
+        });
+      } else if (!scoreWaiting) {
+        scoreWaiting = true;
+        void sounds.within(EXPLAINER_SCORE_URL, 20_000).then((loaded) => {
+          scoreWaiting = false;
+          if (loaded) syncScore();
+        });
+      }
+    };
     // Only a screen with sound loads them: the Control Center's mirror never plays one.
     const preload = () => {
       if (!audio.current) return;
       sounds.want(soundChoice.current.url);
       sounds.want(defaultSound);
+      sounds.want(EXPLAINER_SCORE_URL);
+      syncScore();
     };
     preloadSounds.current = preload;
     /**
@@ -187,11 +199,15 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         if (sound && context.state === "running" && !muted.current && Date.now() - asked < STING_LATE_MS) play(sound);
       });
     };
-    /** Steps through the explainer on timers, playing the sting with its intro step. */
+    /** The score follows the whole intro; the real sting still plays on its own cue. */
     const runExplainer = () => {
       explainerTimers.current.forEach(clearTimeout);
       explainerTimers.current = [];
+      score?.stop();
+      score = null;
+      explainerStartedAt = Date.now();
       explaining.current = true;
+      syncScore();
       busyUntil.current = Date.now() + EXPLAINER_MS + 1_000;
       setWipe((count) => count + 1);
       let delay = 0;
@@ -204,6 +220,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       }
       explainerTimers.current.push(setTimeout(() => {
         explaining.current = false;
+        explainerStartedAt = null;
+        syncScore();
         setExplainer(null);
         setWipe((count) => count + 1);
         // A question picked while it played comes in now, in this same update, so it never shows bare first.
@@ -424,6 +442,8 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       countdownTimers.current.forEach(clearTimeout);
       explainerTimers.current.forEach(clearTimeout);
       explaining.current = false;
+      score?.stop();
+      score = null;
       clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
@@ -453,7 +473,11 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         const context = new Context();
         // Safari and iPads pause audio when the screen locks or the tab is hidden: the button comes back to say so.
         // Only the current context reports: a replaced or closed one must not flip the button back on.
-        context.onstatechange = () => { if (audio.current === context) setSoundOn(context.state === "running"); };
+        context.onstatechange = () => {
+          if (audio.current !== context) return;
+          setSoundOn(context.state === "running");
+          preloadSounds.current();
+        };
         audio.current = context;
         preloadSounds.current();
       }
@@ -464,6 +488,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         () => {
           if (audio.current !== context) return;
           setSoundOn(context.state === "running");
+          preloadSounds.current();
           // Sound started only once someone touched the page: a reload could lose it, so the screen leaves reloading to the host.
           if (soundNeededTap({ tapped, wasRunning, running: context.state === "running" })) soundByTap.current = true;
         },
@@ -562,47 +587,32 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
         />
       </main>
     ) : (
-    <main
-      // A bigger QR code takes more of the bottom band, so questions end above it whatever its size.
-      style={{ "--qr-k": qrPercent("corner", showQrCode.size) / 100 } as React.CSSProperties}
-      className={`pnc-screen-in flex h-svh select-none items-center justify-center bg-black px-6 pb-[max(10rem,calc(6rem*var(--qr-k)+3rem))] pt-10 text-white sm:px-12 sm:pb-[max(14rem,calc(10rem*var(--qr-k)+4rem))] ${pointerIdle ? "cursor-none" : ""}`}
-      aria-label="Live show"
-      aria-live="polite"
-      aria-atomic="true"
+    <LiveQuestionScreen
+      question={!message && !intro && countdown === null ? question : null}
+      name={name}
+      namePrefix={settings.namePrefix}
+      qr={cornerQr}
+      qrSize={showQrCode.size}
+      className={pointerIdle ? "cursor-none" : ""}
       onDoubleClick={toggleFullscreen}
-    >
-      <div ref={area} className="flex h-full w-full max-w-6xl items-center justify-center overflow-auto">
-        {message ? (
-          // The host's own message goes over the question or the set until they take it down.
-          <div key={`${message.color}${message.text}`} className="pnc-screen-in h-full w-full">
-            <ScreenMessage text={message.text} color={message.color} />
-          </div>
-        ) : question && !intro && countdown === null ? (
-          // Sized together, so a long question and its name both fit above the QR.
-          <div key={question} ref={text} className="pnc-screen-in w-full text-center">
-            <h1 className="whitespace-pre-wrap break-words leading-tight">{question}</h1>
-            {name ? <p className="mt-[0.6em] break-words text-[0.55em] font-semibold leading-tight text-white/75">{settings.namePrefix ? `${settings.namePrefix} ` : ""}{name}</p> : null}
-          </div>
-        ) : !question && performer && !intro && countdown === null ? (
-          <div key={performer} className="pnc-screen-in w-full text-center">
-            <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">{settings.stageLabel}</p>
-            <h1 className="mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none">{performer}</h1>
-          </div>
-        ) : null}
-      </div>
-      {space === "rehearsal" ? (
+      cornerContent={space === "rehearsal" ? (
         <p className="fixed left-3 top-3 rounded bg-amber-300 px-3 py-1 text-sm font-bold uppercase tracking-widest text-black sm:left-4 sm:top-4">
           Rehearsal
         </p>
       ) : null}
-      {cornerQr ? (
-        // The host's picture sits on the black without the code's white frame.
-        <div className={`fixed bottom-3 right-3 p-3 sm:bottom-4 sm:right-4 ${cornerQr.picture ? "" : "bg-white"}`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={cornerQr.src} alt={cornerQr.alt} width={160} height={160} decoding="async" className="h-[calc(6rem*var(--qr-k))] w-[calc(6rem*var(--qr-k))] object-contain sm:h-[calc(10rem*var(--qr-k))] sm:w-[calc(10rem*var(--qr-k))]" />
+    >
+      {message ? (
+        // The host's own message goes over the question or the set until they take it down.
+        <div key={`${message.color}${message.text}`} className="pnc-screen-in h-full w-full">
+          <ScreenMessage text={message.text} color={message.color} />
+        </div>
+      ) : !question && performer && !intro && countdown === null ? (
+        <div key={performer} className="pnc-screen-in w-full text-center">
+          <p className="font-[family-name:var(--pnc-heading)] text-[min(4vw,5vh)] uppercase tracking-[0.3em] text-[#ff2e4d]">{settings.stageLabel}</p>
+          <h1 className="mt-[0.2em] break-words font-[family-name:var(--pnc-heading)] text-[min(11vw,20vh)] leading-none">{performer}</h1>
         </div>
       ) : null}
-    </main>
+    </LiveQuestionScreen>
     )}
     {countdown !== null && !menu && !message && !explainer ? (
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-black text-white" aria-hidden="true">
@@ -610,7 +620,7 @@ export default function LiveDisplay({ showQr, space = "live", build = "" }: { sh
       </div>
     ) : null}
     {intro && !menu && !message && !explainer ? <BadDecisionIntro word={settings.introWord} /> : null}
-    {explainer ? <Explainer step={explainer} qr={explainerQr} look={settings} /> : null}
+    {explainer ? <Explainer step={explainer} qr={explainerQr} cornerQr={cornerQr} qrSize={showQrCode.size} look={settings} /> : null}
     {/* The show's clocks and prompts stay off the daytime menu: nothing about the show is on it. */}
     {segmentEnd !== null && settings.timer && !daytime ? (
       <p className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1 font-[family-name:var(--pnc-heading)] text-lg tabular-nums text-white/80 sm:bottom-4 sm:text-2xl" aria-hidden="true">
