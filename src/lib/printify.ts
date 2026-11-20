@@ -1,9 +1,11 @@
 import "server-only";
+import { after } from "next/server";
 import { claimProduction } from "./shop-production-claim";
+import { readRecord, writeRecord } from "./live-store";
 
 import { fetchWithin } from "./fetch-within";
 import { fulfillPrintifyOrder, PrintifyError } from "./shop-fulfillment";
-import { pickShopId, toShopProduct, toShopProducts, type PrintifyAddress, type ShopProduct } from "./shop-catalog";
+import { parseShopSnapshot, pickShopId, toShopProduct, toShopProducts, type PrintifyAddress, type ShopProduct } from "./shop-catalog";
 
 /**
  * Printify, read and written from the server only. The token never reaches
@@ -12,6 +14,10 @@ import { pickShopId, toShopProduct, toShopProducts, type PrintifyAddress, type S
 
 const API = "https://api.printify.com/v1";
 const TIMEOUT_MS = 10_000;
+/** Listing is read-only and Printify's product list is slow, so /shop waits a little longer for it. */
+const LIST_TIMEOUT_MS = 15_000;
+/** The last good product list, kept so /shop still sells when Printify is slow or down. */
+const SNAPSHOT_KEY = "shop/catalog.json";
 
 export function printifyConfigured(): boolean {
   return !!process.env.PRINTIFY_API_TOKEN?.trim();
@@ -26,8 +32,8 @@ function headers(): HeadersInit {
   };
 }
 
-async function call(path: string, init: RequestInit = {}): Promise<unknown> {
-  const { response, text } = await fetchWithin(`${API}${path}`, { ...init, headers: headers(), redirect: "error" }, TIMEOUT_MS);
+async function call(path: string, init: RequestInit = {}, ms = TIMEOUT_MS): Promise<unknown> {
+  const { response, text } = await fetchWithin(`${API}${path}`, { ...init, headers: headers(), redirect: "error" }, ms);
   let data: unknown = null;
   try { data = text ? JSON.parse(text) : null; } catch { /* Non-JSON upstream error. */ }
   if (!response.ok) throw new PrintifyError(response.status, data);
@@ -37,26 +43,68 @@ async function call(path: string, init: RequestInit = {}): Promise<unknown> {
 export async function printifyShopId(): Promise<string | null> {
   const configured = process.env.PRINTIFY_SHOP_ID;
   if (configured?.trim()) return pickShopId(null, configured);
-  return pickShopId(await call("/shops.json", { next: { revalidate: 3600 } }));
+  return pickShopId(await call("/shops.json", { next: { revalidate: 3600 } }, LIST_TIMEOUT_MS));
 }
 
-/** Everything sellable, cached for five minutes so /shop stays quick. */
+/** The last list this instance loaded, and the saved copy it last confirmed, so saves happen only on change. */
+let lastGood: ShopProduct[] | null = null;
+let savedJson: string | null = null;
+
+async function loadCatalog(): Promise<ShopProduct[]> {
+  const shop = await printifyShopId();
+  if (!shop) return [];
+  const products: ShopProduct[] = [];
+  for (let page = 1; page <= 5; page++) {
+    const data = await call(`/shops/${shop}/products.json?limit=50&page=${page}`, { next: { revalidate: 300 } }, LIST_TIMEOUT_MS);
+    products.push(...toShopProducts(data));
+    const last = (data as { last_page?: number } | null)?.last_page ?? 1;
+    if (page >= last) break;
+  }
+  return products;
+}
+
+async function saveSnapshot(products: ShopProduct[]): Promise<void> {
+  const json = JSON.stringify({ products });
+  if (json === savedJson) return;
+  try {
+    const saved = await readRecord(SNAPSHOT_KEY);
+    if (JSON.stringify(saved) !== json) await writeRecord(SNAPSHOT_KEY, { products }, "Shop: save product list");
+    savedJson = json;
+  } catch (error) {
+    console.error("[shop] could not save the product list:", error instanceof Error ? error.message : error);
+  }
+}
+
+async function readSnapshot(): Promise<ShopProduct[] | null> {
+  try {
+    return parseShopSnapshot(await readRecord(SNAPSHOT_KEY));
+  } catch (error) {
+    console.error("[shop] could not read the saved product list:", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/**
+ * Everything sellable, cached for five minutes so /shop stays quick.
+ * When Printify is slow or down, the last list that loaded is shown instead;
+ * checkout still fetches the product fresh, so what people pay is always current.
+ */
 export async function listShopProducts(): Promise<ShopProduct[]> {
   if (!printifyConfigured()) return [];
   try {
-    const shop = await printifyShopId();
-    if (!shop) return [];
-    const products: ShopProduct[] = [];
-    for (let page = 1; page <= 5; page++) {
-      const data = await call(`/shops/${shop}/products.json?limit=50&page=${page}`, { next: { revalidate: 300 } });
-      products.push(...toShopProducts(data));
-      const last = (data as { last_page?: number } | null)?.last_page ?? 1;
-      if (page >= last) break;
+    const products = await loadCatalog();
+    if (products.length) {
+      lastGood = products;
+      after(() => saveSnapshot(products));
     }
     return products;
   } catch (error) {
-    console.error("[shop] could not load Printify products:", error instanceof Error ? error.message : error);
-    return [];
+    const fallback = lastGood ?? await readSnapshot();
+    console.error(
+      `[shop] could not load Printify products (${fallback ? `showing ${fallback.length} saved` : "nothing saved to show"}):`,
+      error instanceof Error ? error.message : error,
+    );
+    return fallback ?? [];
   }
 }
 

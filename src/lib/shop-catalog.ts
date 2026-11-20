@@ -281,3 +281,39 @@ export function orderFromSession(session: unknown): {
     },
   };
 }
+
+/* ---------------- Saved catalog ---------------- */
+
+const SNAPSHOT_MAX = 250;
+
+/**
+ * The last product list Printify gave us, as saved for when it is slow or down.
+ * Anything malformed is dropped, and null means there is nothing usable to show.
+ * Prices here are display-only: checkout always fetches the product fresh.
+ */
+export function parseShopSnapshot(raw: unknown): ShopProduct[] | null {
+  if (!isRecord(raw) || !Array.isArray(raw.products)) return null;
+  const products: ShopProduct[] = [];
+  for (const item of raw.products.slice(0, SNAPSHOT_MAX)) {
+    if (!isRecord(item)) continue;
+    const { id, title, blurb, image, images, variants, price, priceVaries } = item;
+    if (typeof id !== "string" || !/^[a-f0-9]{24}$/i.test(id) || typeof title !== "string") continue;
+    if (typeof price !== "number" || !Number.isFinite(price) || price < 0) continue;
+    const cleanVariants = (Array.isArray(variants) ? variants : []).filter(
+      (v): v is ShopVariant => isRecord(v) && Number.isInteger(v.id) && typeof v.title === "string" && typeof v.price === "number" && Number.isFinite(v.price) && v.price >= 0,
+    ).map(({ id, title, price }) => ({ id, title, price }));
+    if (!cleanVariants.length) continue;
+    const cleanImages = (Array.isArray(images) ? images : []).filter((src): src is string => typeof src === "string" && src.startsWith("https://"));
+    products.push({
+      id,
+      title,
+      blurb: typeof blurb === "string" ? blurb : "",
+      image: typeof image === "string" && image.startsWith("https://") ? image : cleanImages[0] ?? null,
+      images: cleanImages,
+      variants: cleanVariants,
+      price,
+      priceVaries: priceVaries === true,
+    });
+  }
+  return products.length ? products : null;
+}
