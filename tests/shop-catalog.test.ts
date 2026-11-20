@@ -6,6 +6,7 @@ import {
   formEncode,
   orderFromSession,
   parseCountries,
+  parseShopSnapshot,
   pickShopId,
   toShopProduct,
   toShopProducts,
@@ -106,4 +107,22 @@ test("orderFromSession maps a paid session to a Printify address (new and old St
   const old = orderFromSession({ ...base, shipping_details: { name: "Solo", address } })!;
   assert.equal(old.address.first_name, "Solo");
   assert.equal(orderFromSession({ ...base, payment_status: "unpaid", shipping_details: { name: "x", address } }), null);
+});
+
+test("parseShopSnapshot keeps good saved products and drops junk", () => {
+  const good = {
+    id: "a".repeat(24), title: "Tee", blurb: "Soft", image: "https://img/1.png", images: ["https://img/1.png", "javascript:x"],
+    variants: [{ id: 1, title: "L", price: 2500, extra: true }, { id: "x", title: "bad", price: 1 }], price: 2500, priceVaries: false,
+  };
+  const out = parseShopSnapshot({ products: [good, { id: "nope", title: "x", price: 1, variants: [] }, null, { ...good, id: "b".repeat(24), variants: [] }] });
+  assert.deepEqual(out, [{
+    id: "a".repeat(24), title: "Tee", blurb: "Soft", image: "https://img/1.png", images: ["https://img/1.png"],
+    variants: [{ id: 1, title: "L", price: 2500 }], price: 2500, priceVaries: false,
+  }]);
+});
+
+test("parseShopSnapshot returns null when nothing usable is saved", () => {
+  assert.equal(parseShopSnapshot(null), null);
+  assert.equal(parseShopSnapshot({ products: "x" }), null);
+  assert.equal(parseShopSnapshot({ products: [] }), null);
 });
